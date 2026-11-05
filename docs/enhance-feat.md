@@ -426,4 +426,8 @@ Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in
 
 Codex ghi yêu cầu API còn thiếu ở đây (một dòng mỗi yêu cầu: màn hình, dữ liệu/hành động cần, ưu tiên).
 
-- _(chưa có)_
+- Cache, File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót, Gỡ ứng dụng: cần API model/store thực hiện kế hoạch đã xác nhận, chạy ngoài main thread, chặn thao tác lặp, kiểm tra lại file/bản giữ, cập nhật model và trả kết quả từng mục (đã chuyển/bỏ qua/thất bại); P0, trước khi nối nút chuyển vào Thùng rác. C0 hiện chỉ tách model, các thao tác cũ vẫn nằm trong View.
+- Các trang quét: cần trạng thái kết thúc phân biệt hoàn tất/đã dừng/lỗi/một phần cùng `scannedAt` và `issues` (C2/C5), giữ trong model khi đổi trang; P1. UI hiện không tự suy ra thời điểm quét hoặc tình trạng thiếu quyền.
+- Thùng rác: cần model đo nội dung, làm mới, trạng thái đang thực hiện và kết quả khôi phục từng mục; P1. Lịch sử theo lô/khả năng hoàn tác tiếp tục chờ C1 `merged`.
+- File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót: cần model công bố rõ policy bulk-selectable dùng chung với `isBulkSelectable`/`isReclaimableWhole`; P0. UI P1 chỉ gọi `model.selectAll`, không tự nới quy tắc chọn.
+- File trùng: cần metadata ngày sửa từng bản từ model để hiển thị tiêu chí giữ bản mới nhất mà View không đọc filesystem; P1.

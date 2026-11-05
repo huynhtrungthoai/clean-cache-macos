@@ -499,6 +499,9 @@ struct ItemRow<Detail: View>: View {
                     .toggleStyle(ThemeCheckStyle(side: 16))
                     .disabled(!selectable)
                     .labelsHidden()
+                    .accessibilityLabel(LF("Select %@", name))
+                    .accessibilityValue(sizeText)
+                    .accessibilityHidden(!selectable)
                     .opacity(selectable ? 1 : 0)
 
                 // 图形定宽一格：取不取得到图标都不能让名字那一列左右跳。
