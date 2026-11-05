@@ -114,7 +114,7 @@ struct AgentPageView: View {
                           top: true)
             case .missing:
                 AgentInertCommand(text: L("diskwise isn't in this build — that line shows up after you upgrade"))
-                AgentNote(text: L("Install the direct build from v1.8 on, or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot. The cask only ships the binary from 1.8, which is what puts /opt/homebrew/bin/diskwise there."),
+                AgentNote(text: L("Install the app (the CLI ships inside it), or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot, which also puts /opt/homebrew/bin/diskwise on your PATH."),
                           top: true)
             }
             AgentNote(text: L("Beyond these eight, anything that supports a local stdio MCP server takes the same two values — command: this path, argument: `mcp`. If it won't connect, that's a client-side bug; issues and PRs are welcome. Two confirmations always run first: nothing moves without a plan_id, and every item is re-checked before execution."),

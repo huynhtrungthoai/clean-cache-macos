@@ -4,7 +4,7 @@
 
 # CleanPilot
 
-Ứng dụng dọn dung lượng macOS với giao diện đơn giản, luồng chính bằng tiếng Việt và khả năng hoàn tác qua Thùng rác. Phát triển từ mã nguồn [DiskWise](https://github.com/DreamOfXM/diskwise), với cách tổ chức lấy cảm hứng từ CleanMyMac.
+Ứng dụng dọn dung lượng macOS với giao diện đơn giản, luồng chính bằng tiếng Việt và khả năng hoàn tác qua Thùng rác. Dự án cá nhân của huynhtrungthoai.
 
 ## Sử dụng
 
@@ -34,14 +34,12 @@ Build cả Apple Silicon và Intel: dùng `ARCH=universal`.
 Script kiểm tra chuỗi dịch, build release, chạy toàn bộ SelfTest, đóng gói tài nguyên và xác minh chữ ký. Kết quả:
 
 - `build_app/CleanPilot.app`
-- `dist/CleanPilot-2.3.dmg`
+- `dist/CleanPilot-1.0.dmg`
 
 Bản build cục bộ dùng chữ ký ad-hoc, chưa được Apple notarize.
 
 ## Nguồn gốc
 
-CleanPilot tùy chỉnh giao diện, điều hướng, ngôn ngữ, tên và logo trên nền DiskWise. Tên target Swift, CLI `diskwise` và bundle ID được giữ để tương thích với lõi và cài đặt hiện có.
+Bundle ID: `com.huynhtrungthoai.cleanpilot`, ký bằng tài khoản Apple cá nhân. Tên target Swift và CLI `diskwise` được giữ để tương thích với lõi hiện có.
 
-Giữ nguyên [LICENSE](LICENSE) MIT ban đầu của repository đích. Mã nguồn DiskWise gốc đi kèm [Apache License 2.0](LICENSE-APACHE-2.0) và [NOTICE](NOTICE). Xem [README gốc](README.upstream.md), [hướng dẫn tiếng Việt](README.vi.md) và tài liệu trong `docs/`.
-
-Thư mục `website/` là website gốc của DiskWise; workflow website chỉ chạy thủ công.
+Giấy phép: [LICENSE](LICENSE) (MIT). Một phần mã nguồn dựa trên dự án mã nguồn mở theo [Apache License 2.0](LICENSE-APACHE-2.0); thông tin ghi công bắt buộc nằm trong [NOTICE](NOTICE). Xem thêm [hướng dẫn tiếng Việt](README.vi.md) và tài liệu trong `docs/`.

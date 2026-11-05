@@ -6,8 +6,8 @@ https://github.com/DreamOfXM/diskwise
 Imported source revision: 894309eb64c026aaba698515623a9c21cedc01cd
 
 The original DiskWise source is licensed under Apache License 2.0.
-Its license is retained in LICENSE-APACHE-2.0 and its original README
-is retained in README.upstream.md. Existing upstream notices remain intact.
+Its license and copyright notice are retained in LICENSE-APACHE-2.0, as the
+Apache License 2.0 requires. Existing upstream notices remain intact.
 The destination repository's original MIT LICENSE is retained unchanged.
 
 Modified November 5, 2026: simplified navigation and Smart Scan workflow,

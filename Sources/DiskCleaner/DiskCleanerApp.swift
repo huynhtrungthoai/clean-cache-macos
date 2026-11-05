@@ -13,7 +13,6 @@ struct DiskCleanerApp: App {
         // (screenshot hooks can trash files without a confirm; the home shim moves the
         // deletion boundary). @StateObject initialisers run later, so this is first.
         scrubDevEnvironment()
-        migrateLegacyDefaults()
         // 截图模式自己 exit，不会回到这里往下走
         if let outDir = SnapshotMode.requestedDir { SnapshotMode.run(outDir: outDir) }
         // 沙盒版：先把上次的家目录授权续上，晚一步就会有页面拿容器路径去扫描
@@ -926,20 +925,5 @@ private struct SidebarMaterial: View {
             ThemedBackdrop()
             theme.palette.paper.opacity(theme.elevation == .glass ? 0.62 : 0.55)
         }
-    }
-}
-
-/// One-time copy of preferences from the legacy bundle ID (`com.dreamofxm.diskcleaner`) into
-/// CleanPilot's own domain. Keys already set in the new domain win; AppKit's own `NS*` keys
-/// (window frames etc.) are skipped. The sandbox bookmark comes along but will not resolve
-/// under the new identity; `HomeAccess.restore()` then clears it and asks again.
-private func migrateLegacyDefaults() {
-    let d = UserDefaults.standard
-    let marker = "cleanpilot.migratedLegacyDefaults.v1"
-    guard Bundle.main.bundleIdentifier == Product.bundleID, !d.bool(forKey: marker) else { return }
-    defer { d.set(true, forKey: marker) }
-    guard let old = d.persistentDomain(forName: Product.legacyBundleID) else { return }
-    for (k, v) in old where !k.hasPrefix("NS") && d.object(forKey: k) == nil {
-        d.set(v, forKey: k)
     }
 }

@@ -14,9 +14,10 @@
 #                                        Never in normal builds: some hooks really delete files without confirmation
 #   DEV_SIGN_IDENTITY="Apple Development: ..."  which development certificate to use for local builds
 #                                        (defaults to the personal huynhtrungthoai@gmail.com one only)
-#   SIGN_TEAM_ID=XXXXXXXXXX              allowed signing team (default: personal team HN2G8HJ96Q).
-#                                        Other companies' certificates in the keychain are never auto-picked; if the
-#                                        signed TeamIdentifier doesn't match, fail - never ship under someone else's team
+#   SIGN_ACCOUNT_ID=XXXXXXXXXX           Apple ID of the personal account allowed to sign
+#                                        (default HN2G8HJ96Q = huynhtrungthoai@gmail.com). Any other
+#                                        certificate in the keychain is never auto-picked; if the signed
+#                                        TeamIdentifier doesn't match this account, the build fails
 #
 # Signing identity: one certificate per channel, used automatically if present in the keychain -
 # direct download uses "Developer ID Application: ...", App Store uses "Apple Distribution: ...".
@@ -52,12 +53,9 @@ DERIVED_DIR="$BUILD_DIR/derived"
 
 APP_NAME="CleanPilot"
 APP_DIR="$BUILD_DIR/${APP_NAME}.app"
-VERSION="2.3"
+VERSION="1.0"
 MIN_MACOS="13.0"
-# CleanPilot's own bundle ID. It used to reuse upstream DiskWise's com.dreamofxm.diskcleaner
-# (shared prefs/TCC with that app, unsignable under our own team). Prefs are migrated once at
-# launch (migrateLegacyDefaults); Full Disk Access / Automation must be granted again once.
-# Keep in sync with Sources/DiskCleaner/Product.swift.
+# Personal bundle ID (account huynhtrungthoai). Keep in sync with Sources/DiskCleaner/Product.swift.
 BUNDLE_ID="com.huynhtrungthoai.cleanpilot"
 VOLNAME="${APP_NAME}"
 # Compile flag -DAPPSTORE: App Store build is sandboxed, outputs .pkg, signs with Apple Distribution.
@@ -300,16 +298,16 @@ if [ "$CHANNEL" = "appstore" ]; then
 else
 	IDENT_PATTERN="Developer ID Application:"
 fi
-# Personal signing only. This keychain also holds company certificates (other teams); they
+# Personal signing only (huynhtrungthoai@gmail.com). Any other certificate in the keychain
 # must never be picked automatically. Developer ID / Apple Distribution identities carry the
-# team ID in their name ("Name (TEAMID)"), so auto-detection requires our team's suffix.
-SIGN_TEAM_ID="${SIGN_TEAM_ID:-HN2G8HJ96Q}"
+# account ID in their name ("Name (ID)"), so auto-detection requires the personal account's suffix.
+SIGN_ACCOUNT_ID="${SIGN_ACCOUNT_ID:-HN2G8HJ96Q}"
 DEV_SIGN_IDENTITY="${DEV_SIGN_IDENTITY:-Apple Development: huynhtrungthoai@gmail.com}"
 # SIGN_IDENTITY=none forces ad-hoc (to test the fallback path)
 IDENTITY="${SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
 	IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
-		| awk -F'"' -v pat="$IDENT_PATTERN" -v team="($SIGN_TEAM_ID)" \
+		| awk -F'"' -v pat="$IDENT_PATTERN" -v team="($SIGN_ACCOUNT_ID)" \
 			'index($2, pat) == 1 && substr($2, length($2) - length(team) + 1) == team {print $2; exit}')" || true
 fi
 # SIGN_MODE: dist = Developer ID / Apple Distribution (shippable)
@@ -445,19 +443,19 @@ fi
 codesign -dv --verbose=4 "$APP_DIR" 2>&1 \
 	| grep -E "^(Identifier|Format|CodeDirectory)|Signature=|TeamIdentifier|Runtime" \
 	| sed 's/^/    /'
-# Guard: a signed bundle must belong to OUR team, never a company team that happens to have
+# Guard: a signed bundle must belong to the personal account, never another identity that happens to have
 # a certificate in this keychain (explicit SIGN_IDENTITY included).
 if [ "$SIGN_MODE" != "adhoc" ]; then
 	for BIN in "$APP_DIR" "$APP_DIR/Contents/MacOS/diskwise"; do
 		[ -e "$BIN" ] || continue
 		GOT_TEAM="$(codesign -dv --verbose=4 "$BIN" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
-		if [ "$GOT_TEAM" != "$SIGN_TEAM_ID" ]; then
-			echo "Error: $(basename "$BIN") was signed with team '$GOT_TEAM', only '$SIGN_TEAM_ID' (personal account) is allowed." >&2
+		if [ "$GOT_TEAM" != "$SIGN_ACCOUNT_ID" ]; then
+			echo "Error: $(basename "$BIN") was signed with team '$GOT_TEAM', only '$SIGN_ACCOUNT_ID' (personal account huynhtrungthoai) is allowed." >&2
 			echo "      Check SIGN_IDENTITY / DEV_SIGN_IDENTITY, or use SIGN_IDENTITY=none for ad-hoc." >&2
 			exit 1
 		fi
 	done
-	echo "    Team check: $SIGN_TEAM_ID ✓"
+	echo "    Account check: $SIGN_ACCOUNT_ID (huynhtrungthoai) ✓"
 fi
 
 echo "==> [6/7] Assembling release artifact"
@@ -576,7 +574,7 @@ elif [ "${NOTARIZE:-0}" != 1 ]; then
 	if [ "$SIGNED" = 1 ]; then
 		echo "    Signed but not notarized (for a double-click-to-open build: NOTARIZE=1 bash build.sh)"
 	else
-		echo "    Skipped: $SIGN_MODE-signed builds can't be notarized (needs a Developer ID Application cert for the personal team)"
+		echo "    Skipped: $SIGN_MODE-signed builds can't be notarized (needs a Developer ID Application cert on the personal account)"
 	fi
 	ART_SHA="$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
 else

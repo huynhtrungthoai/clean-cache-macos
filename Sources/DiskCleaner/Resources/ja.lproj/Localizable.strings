@@ -766,7 +766,7 @@
 "Show me what I can clean up on my Mac" = "Mac のどこを整理できるか見て";
 "Example conversation — this is what it looks like once it's connected" = "サンプルの会話 · 接続後はこうなります";
 "+ %@" = "ほか %@";
-"Install the direct build from v1.8 on, or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot. The cask only ships the binary from 1.8, which is what puts /opt/homebrew/bin/diskwise there." = "v1.8 以降の直接配布パッケージを入れるか、Homebrew を使ってください：brew install --cask huynhtrungthoai/cleanpilot/cleanpilot。1.8 以降は cask に binary が同梱されるので、インストール後に /opt/homebrew/bin/diskwise ができます。";
+"Install the app (the CLI ships inside it), or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot, which also puts /opt/homebrew/bin/diskwise on your PATH." = "アプリをインストールする（CLI は同梱）か、Homebrew を使ってください：brew install --cask huynhtrungthoai/cleanpilot/cleanpilot。/opt/homebrew/bin/diskwise も PATH に入ります。";
 "Plan ready: 2 items, 31.4 GB in total, headed for the Trash. Run it?" = "プランができました。項目 2 件、合計 31.4 GB をゴミ箱へ移動します。実行してよろしいですか？";
 "The plan expired — run plan again in Terminal" = "プランの有効期限が切れました — 端末で plan をもう一度実行してください";
 "Let an AI clean your Mac — it can't rm -rf, it can only move things it recognizes into the Trash" = "AI に Mac を整理させましょう — rm -rf はできず、見分けられるものをゴミ箱へ移すだけです";

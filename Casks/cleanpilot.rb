@@ -1,6 +1,6 @@
 # Documentation: https://github.com/huynhtrungthoai/clean-cache-macos/blob/main/docs/homebrew.md
 cask "cleanpilot" do
-  version "2.3"
+  version "1.0"
   # Set this to the SHA256 that `RELEASE=1 NOTARIZE=1 ARCH=universal bash build_app/build.sh`
   # prints for the DMG uploaded to the v#{version} release. Never use `:no_check`:
   # the pinned hash is what stops a swapped download from being installed.

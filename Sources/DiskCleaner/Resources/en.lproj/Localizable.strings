@@ -766,7 +766,7 @@
 "Show me what I can clean up on my Mac" = "Show me what I can clean up on my Mac";
 "Example conversation — this is what it looks like once it's connected" = "Example conversation — this is what it looks like once it's connected";
 "+ %@" = "+ %@";
-"Install the direct build from v1.8 on, or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot. The cask only ships the binary from 1.8, which is what puts /opt/homebrew/bin/diskwise there." = "Install the direct build from v1.8 on, or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot. The cask only ships the binary from 1.8, which is what puts /opt/homebrew/bin/diskwise there.";
+"Install the app (the CLI ships inside it), or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot, which also puts /opt/homebrew/bin/diskwise on your PATH." = "Install the app (the CLI ships inside it), or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot, which also puts /opt/homebrew/bin/diskwise on your PATH.";
 "Plan ready: 2 items, 31.4 GB in total, headed for the Trash. Run it?" = "Plan ready: 2 items, 31.4 GB in total, headed for the Trash. Run it?";
 "The plan expired — run plan again in Terminal" = "The plan expired — run plan again in Terminal";
 "Let an AI clean your Mac — it can't rm -rf, it can only move things it recognizes into the Trash" = "Let an AI clean your Mac — it can't rm -rf, it can only move things it recognizes into the Trash";

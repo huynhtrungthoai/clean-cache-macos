@@ -766,7 +766,7 @@
 "Show me what I can clean up on my Mac" = "Regarde ce que je peux nettoyer sur mon Mac";
 "Example conversation — this is what it looks like once it's connected" = "Conversation d'exemple · voilà ce que ça donne une fois branché";
 "+ %@" = "+ %@";
-"Install the direct build from v1.8 on, or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot. The cask only ships the binary from 1.8, which is what puts /opt/homebrew/bin/diskwise there." = "Installez le paquet direct à partir de la v1.8, ou passez par Homebrew : brew install --cask huynhtrungthoai/cleanpilot/cleanpilot. À partir de la 1.8, le cask contient le binaire — c'est ce qui pose /opt/homebrew/bin/diskwise.";
+"Install the app (the CLI ships inside it), or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot, which also puts /opt/homebrew/bin/diskwise on your PATH." = "Installez l'app (la CLI est incluse dedans) ou passez par Homebrew : brew install --cask huynhtrungthoai/cleanpilot/cleanpilot, qui place aussi /opt/homebrew/bin/diskwise dans votre PATH.";
 "Plan ready: 2 items, 31.4 GB in total, headed for the Trash. Run it?" = "Plan prêt : 2 éléments, 31.4 GB au total, direction la Corbeille. On l'exécute ?";
 "The plan expired — run plan again in Terminal" = "Le plan a expiré — relancez plan dans le Terminal";
 "Let an AI clean your Mac — it can't rm -rf, it can only move things it recognizes into the Trash" = "Laissez une IA nettoyer votre Mac — elle ne peut pas faire de rm -rf, elle déplace vers la Corbeille seulement ce qu'elle reconnaît";

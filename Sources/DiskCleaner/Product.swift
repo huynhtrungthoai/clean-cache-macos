@@ -2,10 +2,9 @@ import Foundation
 
 // ── Brand: one name, the same in every language ──
 //
-// The brand name is not in the string table - "DiskWise" stays DiskWise in every UI language.
-// Bundle ID is CleanPilot's own (it used to reuse upstream DiskWise's `com.dreamofxm.diskcleaner`,
-// sharing prefs/TCC grants with that app). `legacyBundleID` is only read once to migrate prefs
-// (see `migrateLegacyDefaults`); Full Disk Access / Automation must be granted again once.
+// The brand name is not in the string table - "CleanPilot" stays CleanPilot in every UI language.
+// Personal project of huynhtrungthoai: the bundle ID and signing identity belong to that
+// personal Apple account only.
 
 enum Product {
     /// Display name in the UI
@@ -13,7 +12,6 @@ enum Product {
     /// Artifact file name: pure ASCII, keeps GitHub Release / DMG / download paths simple
     static let fileName = "CleanPilot"
     static let bundleID = "com.huynhtrungthoai.cleanpilot"
-    static let legacyBundleID = "com.dreamofxm.diskcleaner"
 }
 
 // ── Feedback channels: addresses live only here ──
