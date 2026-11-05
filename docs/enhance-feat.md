@@ -323,7 +323,7 @@ Ghi nhận để chủ sản phẩm chốt ở giai đoạn triển khai; tài l
 1. Quét thông minh gồm những nhóm và thư mục nào? Giữ mặc định quét cache hay thêm app/file người dùng?
 2. Có thay đổi quy tắc đề xuất/tự chọn hiện tại không? Có thao tác tự động hoặc lịch chạy không?
 3. Các ngưỡng kích thước, số ngày, độ tương đồng và tiêu chí app “ít dùng” là gì?
-4. App đang chạy: từ chối gỡ hay cho phép đề nghị thoát rồi tiếp tục?
+4. ~~App đang chạy: từ chối gỡ hay cho phép đề nghị thoát rồi tiếp tục?~~ **Đã chốt:** đề nghị thoát rồi gỡ tiếp; người dùng có thể từ chối (xem C4).
 5. Login items/tiến trình nền: chỉ xem, mở System Settings hay cho thao tác trong CleanPilot?
 6. Thời gian lưu lịch sử, dữ liệu cần lưu và quyền xóa lịch sử là gì?
 7. Có mở rộng sang cập nhật app, bảo mật, cloud và mail không? Nếu có, ưu tiên nhánh nào, nhà cung cấp nào và phạm vi quyền nào?
@@ -392,15 +392,20 @@ var isStale: Bool { get }             // quá ngưỡng (đề xuất 10 phút) 
 - `CachesModel` đo đúng từng path (`pathSizes`), không đếm trùng cha/con khi chọn, và đo lại các path còn lại sau thao tác một phần (không còn kẹt trạng thái "đang thống kê").
 - API View dùng: `selectedBytes` (đã loại trùng), `rowState(id) -> .measuring | .measured(Int64) | .unmeasurable`.
 
-### C4 — App đang chạy khi gỡ · P0/F05 · Claude · `draft` (chờ quyết định §9 câu 4)
+### C4 — App đang chạy khi gỡ · P0/F05 · Claude · `agreed`
 
 ```swift
 enum AppRunState { case notRunning, running(pids: [pid_t]) }
 func runState(of app: InstalledApp) -> AppRunState
-func requestQuit(_ app: InstalledApp) async -> Bool   // chỉ khi chủ dự án chọn "đề nghị thoát"
+func requestQuit(_ app: InstalledApp) async -> QuitResult   // gửi yêu cầu thoát bình thường (không force quit)
+enum QuitResult { case quit, refused, timedOut }   // refused: app/người dùng huỷ (ví dụ còn tài liệu chưa lưu)
 ```
 
-- `UninstallModel` từ chối gỡ app đang chạy cho tới khi có quyết định khác.
+Quyết định của chủ dự án (05/11/2026): **đề nghị thoát app rồi gỡ tiếp; người dùng có thể từ chối.**
+
+- Khi app đang chạy, UI hỏi: "<App> đang chạy. Thoát app rồi gỡ?" với hai nút **Thoát và gỡ** / **Huỷ**. Chọn Huỷ thì không gỡ gì.
+- Chọn Thoát và gỡ → `requestQuit` (thoát bình thường, chờ tối đa ~10 s). Chỉ khi kết quả là `.quit` mới gỡ; `.refused` / `.timedOut` thì dừng và báo lý do, không force quit.
+- Không bao giờ gỡ chính CleanPilot.
 
 ### C5 — Vấn đề khi quét (thiếu quyền, lỗi) · P0/F01 · Claude · `draft`
 
