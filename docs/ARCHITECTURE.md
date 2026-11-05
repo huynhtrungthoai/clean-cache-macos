@@ -149,7 +149,7 @@ DISKWISE_HOME_SHIM=/tmp/DiskWiseDemoHome DISKWISE_SHOTS=/tmp/shots \
 - 切语言**当次生效**：`L10n.apply()` 换掉 `active` 与词表，`AppStore.setLanguage` 再发布一次选择状态让整棵树重画。
   只写 `AppleLanguages` 是不够的——那只影响下次启动，而商店版不允许自己起子进程重启。
   选「自动」用的是启动那一刻的系统语言快照（`systemResolved`），本会话写进的覆盖不会让「自动」在运行中变卦。
-- 品牌名不进词表：`Product.name` 在任何语言里都写作 DiskWise。bundle id 保持 `com.dreamofxm.diskcleaner`——它是钥匙串、自动化授权、UserDefaults 的锚点，改名等于让老用户的授权和购买记录作废。
+- The brand name is not in the string table: `Product.name` is "CleanPilot" in every language. Bundle ID `com.huynhtrungthoai.cleanpilot` (personal account huynhtrungthoai) is the anchor for UserDefaults and TCC grants (Automation, Full Disk Access); changing it resets both.
 
 ### 4.5 演示数据与截图
 
@@ -489,7 +489,7 @@ Task＋semaphore 模式会死锁，async 正文只能包在 `Task.detached` 里�
 ## 7. 设计资产
 
 - `docs/DESIGN.md`：皮肤设计规则（阵容、「差异写在骨架上不写在配色上」、图标块 `tileStrategy`、`chart[]` 位语义）+ 两条跨皮肤铁律：**正文禁染色**（只用 `palette.ink` / `inkSecondary`，彩色只给图标块、环形图、按钮、徽章）；**页头 / banner 禁整块高饱和底色**。token 的权威定义始终在代码：`Sources/DiskCleaner/Theme/Skins.swift`。
-- `docs/PRIVACY.md`：对外隐私政策，中英各一段，口径必须和代码一致——不联网、不收集、只写本机偏好、删除只进废纸篓。**这个文件的路径就是商店产品页上「隐私政策」指向的地址**（`https://github.com/DreamOfXM/diskwise/blob/main/docs/PRIVACY.md`），改名、挪目录或删除都会让那条链接失效，动它之前先确认商店侧同步过。
+- `docs/PRIVACY.md`: the public privacy policy. It must match the code: no network, no data collection, only local preferences are written, deletions only go to the Trash. Its URL (`https://github.com/huynhtrungthoai/clean-cache-macos/blob/main/docs/PRIVACY.md`) is the privacy-policy link for store listings, so keep the path stable.
 - **App 图标**：`build_app/make_icon.swift` 用 CoreGraphics 现画一把斜着的扫帚——柄在左上、发亮的刷头在右下，刷梢前面推着几粒被扫出去的灰点。三层：macOS 圆角底板（竖向渐变 + 两团氛围光）→ 浮灰和灰点 → 扫帚本体（渐变柄 + 亮色箍 + 五束在根部相连、往梢部外扩收圆的刷毛）。配色取自皮肤：变体 a 用「极光玻璃」那组深底冷光（默认出厂），变体 b 用「晨雾 + 薄荷」的浅底。走 macOS 图标栅格（图形居中 824×1024、圆角 185.4），≤64px 自动加粗整把扫帚、刷毛收成四束。`AppIcon.icns` 和 `docs/icon.png` 都是生成物，改样式改脚本，别改图。
 
 ---

@@ -22,6 +22,6 @@ Luồng chính được Việt hóa. Một số tên cache, giải thích chi ti
 SIGN_IDENTITY=none ARCH=arm64 bash build_app/build.sh
 ```
 
-Script kiểm tra chuỗi dịch, build release, chạy toàn bộ SelfTest, đóng gói tài nguyên và xác minh chữ ký trước khi tạo `dist/CleanPilot-1.0.dmg`. Bản build cục bộ dùng chữ ký ad-hoc.
+Script kiểm tra chuỗi dịch, build release, chạy toàn bộ SelfTest, đóng gói tài nguyên và xác minh chữ ký trước khi tạo `dist/CleanPilot-1.0.dmg`. Bản build cục bộ được ký bằng chứng chỉ Apple Development của tài khoản cá nhân huynhtrungthoai@gmail.com.
 
 Thay đổi nằm ở giao diện và điều hướng. Giữ các quy tắc bảo vệ đường dẫn, không xóa vĩnh viễn trong ứng dụng, Docker chỉ xem, và hệ thống hoàn tác của dự án gốc.

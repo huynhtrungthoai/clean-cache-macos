@@ -36,7 +36,7 @@ Script kiểm tra chuỗi dịch, build release, chạy toàn bộ SelfTest, đ�
 - `build_app/CleanPilot.app`
 - `dist/CleanPilot-1.0.dmg`
 
-Bản build cục bộ dùng chữ ký ad-hoc, chưa được Apple notarize.
+Bản build cục bộ được ký bằng chứng chỉ Apple Development của tài khoản cá nhân huynhtrungthoai@gmail.com (chỉ chạy trên máy này, chưa notarize).
 
 ## Nguồn gốc
 

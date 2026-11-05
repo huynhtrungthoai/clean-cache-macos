@@ -7,7 +7,6 @@ import DiskCleanerCore
 // 这一页自己不干任何活。干活的是包里的 `diskwise` 和它挂出来的 stdio MCP server，
 // 页面只回答三件事：**怎么接**、**接上之后长什么样**、**它替我动过什么、怎么整单撤回**。
 // 方案与五屏样稿：`plans/plan_2026-10-09_agent-page-in-app.md`、
-// `design/agent-page-2026-10-09.html`（换肤那一整套 v7 已作废，这里只穿现有皮肤）。
 //
 // 三条口径上的规矩，都是复核时定下的，改之前先读懂为什么：
 // 1. 「本包已带 CLI」按**运行时实测** `<bundlePath>/Contents/MacOS/diskwise` 在不在，

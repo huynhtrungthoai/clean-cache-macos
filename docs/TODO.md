@@ -8,9 +8,9 @@
 ## 0. Ưu tiên ngay (trước bản phát hành tiếp theo)
 
 - [x] 🔴 **P0-1** _(đã sửa, chưa commit — `deletionGate` trong `Models.swift`)_ Vá bypass bảo vệ đường dẫn do không phân biệt hoa/thường + symlink (mục 1.1, 1.2)
-- [x] 🔴 **P0-2** _(→ `com.huynhtrungthoai.cleanpilot`, ký bằng team cá nhân `HN2G8HJ96Q`)_ Đổi bundle ID khỏi `com.dreamofxm.diskcleaner`, ký bằng Team ID của mình (mục 3.1)
+- [x] 🔴 **P0-2** _(→ `com.huynhtrungthoai.cleanpilot`, ký bằng tài khoản Apple cá nhân huynhtrungthoai (`HN2G8HJ96Q`))_ Đổi bundle ID khỏi bundle ID cũ của tác giả gốc, ký bằng tài khoản cá nhân (mục 3.1)
 - [x] 🟠 **P0-3** Gỡ biến môi trường `DISKWISE_HOME_SHIM` khỏi bản release (mục 1.3)
-- [x] 🟠 **P0-4** _(`RELEASE=1` bắt buộc Developer ID của team cá nhân)_ Release bắt buộc Developer ID + hardened runtime + notarize, không tự rơi về ad-hoc (mục 3.3)
+- [x] 🟠 **P0-4** _(`RELEASE=1` bắt buộc Developer ID của tài khoản cá nhân)_ Release bắt buộc Developer ID + hardened runtime + notarize, không tự rơi về ad-hoc (mục 3.3)
 - [x] 🟠 **P0-5** _(website khác ngoài GA chưa rebrand — xem 3.12)_ Thay Cask / kênh báo lỗi bảo mật / liên hệ / Google Analytics đang trỏ về tác giả gốc (mục 3.2, 3.7, 3.8)
 - [x] 🟠 **P0-6** Bỏ nút "Empty Trash" không xác nhận ở trang Diagnostic (mục 2.1)
 - [x] 🟠 **P0-7** _(đã sửa, chưa commit — `isInSensitiveTree`/`isBulkSelectable`)_ Folder Drill: select-all không được chọn dotfile, Keychains, iCloud (mục 2.2, 1.4)
@@ -199,14 +199,14 @@
 ## 3. Build, phát hành & chuỗi cung ứng
 
 ### 3.1 🔴 Bundle ID vẫn là của tác giả gốc
-- **File:** `build_app/build.sh:50`, `Sources/DiskCleaner/Product.swift:14` → `com.dreamofxm.diskcleaner`
-- **Hậu quả:** Chia sẻ UserDefaults/TCC/LaunchServices với DiskWise thật; `brew zap` của DiskWise xoá prefs CleanPilot; không thể ký Developer ID/App Store với ID của team khác; dễ bị nhầm/mạo danh.
-- **Đã sửa:** `build.sh` + `Product.swift`; `migrateLegacyDefaults()` chép prefs cũ 1 lần. `build.sh` chỉ tự chọn chứng chỉ của team cá nhân và kiểm `TeamIdentifier` sau khi ký (chứng chỉ công ty → build fail).
-- **Sửa:** [x] Đổi sang ID của mình (vd. `vn.pharmacity.cleanpilot` / `com.<you>.cleanpilot`), migrate prefs một lần, cập nhật `Product.swift`, `build.sh`, Cask `zap`.
+- **File:** `build_app/build.sh:50`, `Sources/DiskCleaner/Product.swift:14` → bundle ID cũ của tác giả gốc
+- **Hậu quả:** Chia sẻ UserDefaults/TCC/LaunchServices với DiskWise thật; `brew zap` của DiskWise xoá prefs CleanPilot; không thể ký Developer ID/App Store với bundle ID của người khác; dễ bị nhầm/mạo danh.
+- **Đã sửa:** `build.sh` + `Product.swift` (đoạn chuyển prefs từ bundle cũ đã bỏ sau khi chạy xong). `build.sh` chỉ tự chọn chứng chỉ của tài khoản cá nhân huynhtrungthoai và kiểm `TeamIdentifier` sau khi ký (chứng chỉ khác → build fail).
+- **Sửa:** [x] Đổi sang ID của mình (`com.huynhtrungthoai.cleanpilot`), migrate prefs một lần, cập nhật `Product.swift`, `build.sh`, Cask `zap`.
 
 ### 3.2 🟠 Homebrew Cask cài app của người khác
 - **File:** `Casks/diskwise.rb:2-27`, `docs/homebrew.md`, `Views/AgentPageView.swift:117` (+ chuỗi dịch ở mọi `*.lproj`)
-- **Vấn đề:** URL tải `github.com/DreamOfXM/diskwise/...DiskWise-*.dmg`, `app "DiskWise.app"`; app hướng dẫn `brew install --cask dreamofxm/diskwise/diskwise`. Người dùng CleanPilot sẽ cài binary bên thứ ba.
+- **Vấn đề:** URL tải `repo tác giả gốc/...DiskWise-*.dmg`, `app "DiskWise.app"`; app hướng dẫn lệnh brew trỏ về tap của tác giả gốc. Người dùng CleanPilot sẽ cài binary bên thứ ba.
 - **Đã sửa:** `Casks/diskwise.rb` → `Casks/cleanpilot.rb` (sha256 placeholder tới khi có release Developer ID), `docs/homebrew.md`, lệnh brew trong app + 10 lproj.
 - **Sửa:** [x] Tạo `Casks/cleanpilot.rb` (URL release của mình + `sha256`, `app "CleanPilot.app"`, `binary` cho CLI, `zap` theo bundle ID mới); sửa docs & chuỗi trong app.
 
@@ -232,7 +232,7 @@
 - **Sửa:** [ ] Job `build` chỉ `contents: read`; quyền Pages/OIDC chỉ ở job `deploy`; `pnpm install --frozen-lockfile --ignore-scripts`.
 
 ### 3.7 🟡 Kênh báo lỗi bảo mật / phản hồi trỏ về tác giả gốc
-- **File:** `SECURITY.md:9`, `.github/SECURITY.md:24`, `Product.swift:23-24` (email 163.com, nhóm QQ), `docs/contact/qq-group.png` (đóng gói bởi `build.sh:81,199`)
+- **File:** `SECURITY.md:9`, `.github/SECURITY.md:24`, `Product.swift:23-24` (email, nhóm chat của tác giả gốc), ảnh QR trong `docs/contact/` (đóng gói bởi `build.sh:81,199`)
 - **Hậu quả:** Báo cáo lỗ hổng và phản hồi người dùng CleanPilot bị gửi cho bên thứ ba.
 - **Sửa:** [x] Thay bằng GitHub Security Advisories của repo mình; gỡ email/QQ khỏi app, bỏ ảnh QR khỏi bundle.
 
@@ -253,7 +253,7 @@
 - **Sửa:** [ ] Xoá script hoặc dùng đường dẫn tương đối repo / `mktemp -d`.
 
 ### 3.12 🟢 Tàn dư tên DiskWise (dễ xung đột/nhầm lẫn)
-- `Package.swift:5` (`name: "DiskWise"`), target `DiskWiseCLI`, binary `diskwise` (`build.sh:187`), tên MCP server `diskwise` (`AgentClientRecipes.swift:74-96`), state dir `Application Support/DiskWise` (`AgentAPI.swift:403`), release title (`release.yml:131,161,170`), website canonical `dreamofxm.github.io/diskwise`, biến môi trường `DISKWISE_*`.
+- `Package.swift:5` (`name: "DiskWise"`), target `DiskWiseCLI`, binary `diskwise` (`build.sh:187`), tên MCP server `diskwise` (`AgentClientRecipes.swift:74-96`), state dir `Application Support/DiskWise` (`AgentAPI.swift:403`), release title (`release.yml:131,161,170`), website gốc (đã xoá), biến môi trường `DISKWISE_*`.
 - **Sửa:** [ ] Đổi tên đồng bộ + migrate state dir cũ một lần.
 
 ---
