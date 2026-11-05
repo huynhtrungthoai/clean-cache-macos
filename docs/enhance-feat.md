@@ -387,7 +387,7 @@ var isStale: Bool { get }             // quá ngưỡng (đề xuất 10 phút) 
 - `runTrash` tự gọi `preflight`; mục có issue không bị chuyển, xuất hiện trong `failures` của batch.
 - View hiển thị `isStale` và nút Quét lại; không tự quét lại.
 
-### C3 — Kế toán dung lượng trang Cache · P0 · Claude · `ready` (nhánh `feat/claude-p0`)
+### C3 — Kế toán dung lượng trang Cache · P0 · Claude · `merged` (6014fb9)
 
 Đã có trong `CachesModel` (+ hàm thuần trong Core, có SelfTest):
 
