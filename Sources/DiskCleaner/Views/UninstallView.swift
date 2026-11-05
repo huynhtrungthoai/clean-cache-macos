@@ -1,34 +1,22 @@
 import SwiftUI
 import DiskCleanerCore
 
-// ── 卸载 App：挑一个，把它和它留下的数据一起搬走 ──
 //
-// 两栏：左边是「这台机器上装着什么」，右边是选中那个 App 名下的东西。
-// 左边只列**搬得动**的（`InstalledApp.canUninstall`）——系统目录里的、以及只以链接
-// 形式出现的那几份，列出来却搬不动比不列更糟；它们照样参与右边的归属判断，
-// 因为「这处数据同时属于另一个已装 App」这件事不因为对方搬不动就消失。
+
 //
-// 移动顺序只有一种：先本体，后数据。本体搬不动就**一处数据也不动**——
-// 那会把 App 留在盘上却没有数据，是比「没卸成」坏得多的一种结果。
-// 所有路径都进废纸篓，跟别的页共用同一条撤销账（`TrashRecord`）。
-
-// MARK: - 模型
-
-// MARK: - 这一页
 
 struct UninstallView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: UninstallModel
     @State private var confirm = false
-    @State private var err: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: AppPanel.uninstall.symbol, title: L("Uninstall Apps"),
-                           subtitle: L("Move an app along with what it left behind — home folder only"),
-                           variant: .display)
+                           subtitle: L("Review an app and its private data before uninstalling"),
+                           variant: .display, scope: L("Installed apps; related data in the home folder"))
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("Taking stock of installed apps…"), progress: model.progress)
@@ -54,9 +42,13 @@ struct UninstallView: View {
                            hint: L("Apps in system folders and apps that only appear as a link are left out — they cannot move, or only a link would move"))
                     .frame(maxHeight: .infinity)
             } else {
+                SummaryCards(metrics: [
+                    .init(title: L("Listed items"), value: String(model.apps.count), detail: L("Applications"), symbol: "app"),
+                    .init(title: L("Selected"), value: planSizeText, detail: model.current?.name ?? L("No app picked yet"), symbol: "checkmark.circle")
+                ]).pagePadding().padding(.bottom, 12)
                 HStack(alignment: .top, spacing: 14) {
                     picker
-                        .frame(width: 300)
+                        .frame(minWidth: 200, idealWidth: 240, maxWidth: 260)
                     detail
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
@@ -73,18 +65,15 @@ struct UninstallView: View {
             if let q = SnapshotMode.requestedQuery { model.query = q }
             pickSnapshotAppIfAsked()
         }
-        // 盘完那一瞬才有人可选：进来时 `apps` 还是空的，光靠 `onAppear` 会早退。
+
         .onChange(of: model.apps.count) { _ in pickSnapshotAppIfAsked() }
-        .alert(LF("Uninstall “%@”?", model.current?.name ?? ""), isPresented: $confirm) {
-            Button(L("Cancel"), role: .cancel) {}
-            Button(L("Uninstall to Trash"), role: .destructive) { run() }
-        } message: {
-            Text(confirmText)
+        .sheet(isPresented: $confirm) {
+            TrashReviewSheet(items: reviewItems, bytes: planSizeText,
+                             consequence: L("The app and selected private data will move to the Trash. Shared data is excluded."))
+                .themed(theme)
         }
     }
 
-    /// 截图钩子：`DISKWISE_APP=<名字或包名片段>` 时自己挑中那一行（见 `SnapshotMode.requestedApp`）。
-    /// 挑的是左边那颗按钮按下去调的同一个 `choose`，量体积、认领数据、勾安全档全走真路。
     private func pickSnapshotAppIfAsked() {
         guard let want = SnapshotMode.requestedApp, model.current == nil,
               let app = model.shown.first(where: {
@@ -93,7 +82,6 @@ struct UninstallView: View {
         model.choose(app)
     }
 
-    // MARK: 左边：装着哪些 App
     private var picker: some View {
         VStack(spacing: 0) {
             HStack(spacing: 7) {
@@ -157,8 +145,7 @@ struct UninstallView: View {
                         .foregroundStyle(selfRow ? theme.palette.inkTertiary : theme.palette.ink)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    // 置灰那一行不留包名，改说「为什么点不动」——灰着不解释，
-                    // 读起来像是这一行坏了。
+
                     Text(selfRow
                          ? L("This is CleanPilot itself · to remove it, drag it to the Trash in the Finder")
                          : (app.bundleID.isEmpty ? app.path.path : app.bundleID))
@@ -183,13 +170,11 @@ struct UninstallView: View {
             .contentShape(theme.controlShape())
         }
         .buttonStyle(.plain)
-        // 置灰不是「淡一点的可点」：禁用之后连悬停高亮都不该有，否则手伸过去才发现按不动。
+
         .disabled(selfRow)
         .help(selfRow ? L("This is CleanPilot itself · to remove it, drag it to the Trash in the Finder") : "")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
-
-    // MARK: 右边：这个 App 名下有什么
 
     @ViewBuilder private var detail: some View {
         if let app = model.current {
@@ -250,8 +235,7 @@ struct UninstallView: View {
 
     private func dataCard(_ app: InstalledApp) -> some View {
         VStack(spacing: 0) {
-            // 本体不是可勾选项：没有「卸了 App 但不搬本体」这种东西。
-            // 勾选框那一格留空（`selectable: false`），名字和数字仍在同一列上。
+
             ItemRow(selected: .constant(false),
                     icon: .path(app.path),
                     name: app.name,
@@ -294,7 +278,7 @@ struct UninstallView: View {
             ListNote(text: LF("%1$@ (%2$@) also belong to another installed app, so they are neither listed nor deleted.",
                               cnt(model.sharedPaths.count, "spots"),
                               model.sharedPaths.prefix(3).map(\.lastPathComponent)
-                                  .joined(separator: "、")))
+                                  .joined(separator: ", ")))
         }
         if let b = model.bundleBytes, b > 0, model.items.isEmpty, !model.planning {
             ListNote(text: L("No other data found under this app — only the app itself will move."))
@@ -304,68 +288,31 @@ struct UninstallView: View {
         }
     }
 
-    // MARK: 底下那条：这一趟要搬多少、动手的那颗钮
-
     private var footer: some View {
-        VStack(spacing: 0) {
-            if let e = err {
-                HStack(alignment: .top, spacing: 7) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.palette.warnFG)
-                    Text(e)
-                        .font(theme.bodyFont(.caption))
-                        .foregroundStyle(theme.palette.warnFG)
-                        .lineLimit(3)
-                        .textSelection(.enabled)
-                }
-                .padding(.horizontal, 13)
-                .padding(.vertical, 9)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(theme.controlShape().fill(theme.palette.warnBG))
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                .padding(.bottom, 8)
-            }
-            HStack(spacing: 13) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(model.current == nil ? L("No app picked yet") : LF("Moving %@",
-                                                                  cnt(model.moveCount, "items")))
-                        .font(theme.bodyFont(.caption2))
-                        .foregroundStyle(theme.palette.inkTertiary)
-                    SizeNumber(shown: human(model.totalBytes), size: 21)
-                }
-                Spacer(minLength: 10)
-                Text(L("Trash only, reversible"))
-                    .font(theme.bodyFont(.caption))
-                    .foregroundStyle(theme.palette.inkTertiary)
-                ThemeButton(kind: .primary, symbol: "trash",
-                            title: L("Uninstall to Trash"),
-                            isDisabled: model.current == nil || model.planning) {
-                    confirm = true
-                }
-            }
-            .padding(.horizontal, 28)
-            .padding(.top, 12)
-            .padding(.bottom, 13)
-            .frame(maxWidth: .infinity)
-            .background(theme.palette.surface)
-            .overlay(alignment: .top) {
-                Rectangle().fill(theme.palette.separator).frame(height: 1)
-            }
+        SelectionActionBar(count: model.current == nil ? 0 : model.moveCount,
+                           bytes: planSizeText,
+                           busy: model.scanning || model.planning,
+                           consequence: L("The app and selected private data will move to the Trash. Shared data is excluded.")) {
+            confirm = true
         }
     }
 
-    // MARK: 措辞与动作
-
-    private var confirmText: String {
-        let name = model.current?.name ?? ""
-        let base = LF("The app %1$@ itself plus the %2$@ you ticked (%3$@) will move to the Trash — undo anytime.",
-                      name, cnt(model.items.filter(\.selected).count, "spots"), human(model.totalBytes))
-        return base + L("If it is running, quit it first — otherwise the cleanup may be incomplete.")
+    private var planSizeText: String {
+        if model.planning { return L("Counting…") }
+        if model.current != nil && model.bundleBytes == nil { return L("Unknown") }
+        return human(model.totalBytes)
     }
 
-    /// 量过的最大值。本体可能比所有数据加起来都大，条子按两者里最大的那个归一。
+    private var reviewItems: [TrashReviewItem] {
+        guard let app = model.current else { return [] }
+        return [TrashReviewItem(name: app.name, path: app.path.path,
+                                size: model.bundleBytes.map { human($0) } ?? L("Unknown"))]
+            + model.items.filter(\.selected).map {
+                TrashReviewItem(name: $0.name, path: $0.path.path,
+                                size: $0.size.map { human($0) } ?? L("Unknown"))
+            }
+    }
+
     private func fraction(_ bytes: Int64) -> Double {
         let top = max(model.bundleBytes ?? 0, model.items.compactMap(\.size).max() ?? 1)
         return Double(bytes) / Double(max(1, top))
@@ -380,46 +327,8 @@ struct UninstallView: View {
             : L("The app rebuilds it when needed")
     }
 
-    private func run() {
-        err = nil
-        guard let app = model.current else { return }
-        var ok = 0
-        var errs: [String] = []
-
-        // 本体先走。它没搬动就**不走数据那一步**：把 App 留在盘上却把它的配置删了，
-        // 是「卸了一半」里最难收场的一种。
-        do {
-            let t = try trashItem(app.path)
-            store.record(TrashRecord(original: app.path, inTrash: t,
-                                     size: model.bundleBytes ?? 0, displayName: app.name))
-            ok += 1
-        } catch {
-            errs.append(failLine(app.name, error))
-            err = errList(errs)
-            return
-        }
-
-        // 量不动的条目（尺寸为 nil）不进列表，所以这里勾着的都有数。
-        let data = model.items.filter(\.selected)
-        for it in data {
-            do {
-                let t = try trashItem(it.path)
-                store.record(TrashRecord(original: it.path, inTrash: t,
-                                         size: it.size ?? 0, displayName: it.name))
-                ok += 1
-            } catch {
-                errs.append(failLine(it.name, error))
-            }
-        }
-        model.drop(app)
-        if !errs.isEmpty { err = errList(errs) }
-        store.notice = trashedNotice(ok, "items", failed: errs.count)
-    }
 }
 
-// MARK: - 小零件
-
-/// 这一页两栏各是一张卡：不加外边距（外面已经有一层 `pagePadding`）。
 private struct PanelCard: ViewModifier {
     @Environment(\.theme) private var theme
 

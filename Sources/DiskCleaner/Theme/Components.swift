@@ -157,6 +157,7 @@ func lampRun(_ text: String, _ run: String, _ color: Color,
 }
 
 struct ThemedCard<Content: View>: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.theme) private var theme
     var padding: CGFloat? = nil
     var tintBorder: Color? = nil
@@ -185,9 +186,9 @@ struct ThemedCard<Content: View>: View {
     private func cardBackground(_ shape: some Shape) -> some View {
         switch theme.elevation {
         case .glass:
-            shape.fill(.ultraThinMaterial)
-            shape.fill(alt ? theme.palette.surfaceAlt.opacity(0.72)
-                           : theme.palette.surface.opacity(0.72))
+            if !reduceTransparency { shape.fill(.ultraThinMaterial) }
+            shape.fill((alt ? theme.palette.surfaceAlt : theme.palette.surface)
+                .opacity(reduceTransparency ? 1 : 0.72))
         case .flat, .soft, .hard:
             shape.fill(alt ? theme.palette.surfaceAlt : theme.palette.surface)
         }
@@ -349,6 +350,7 @@ struct ThemeButton: View {
 
 private struct ThemeButtonVisual: ViewModifier {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.colorScheme) private var systemScheme
     @State private var hovering = false
@@ -363,10 +365,10 @@ private struct ThemeButtonVisual: ViewModifier {
             .background(background)
             .overlay(stroke)
             .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: shadowY)
-            .scaleEffect(pressed ? 0.97 : (hovering ? 1.01 : 1.0))
+            .scaleEffect(reduceMotion ? 1 : (pressed ? 0.97 : (hovering ? 1.01 : 1.0)))
             .opacity(isEnabled || kind == .primary || kind == .danger || kind == .lamp ? 1 : 0.55)
-            .animation(theme.pressAnimation, value: pressed)
-            .animation(theme.pressAnimation, value: hovering)
+            .animation(reduceMotion ? nil : theme.pressAnimation, value: pressed)
+            .animation(reduceMotion ? nil : theme.pressAnimation, value: hovering)
             .onHover { hovering = $0 }
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -2766,15 +2768,38 @@ struct PageHeader<Trailing: View>: View {
     /// 总览用它说环的读法：「亮起来的那几段，现在就能收走」——那句话讲的是颜色，
     /// 而颜色没有文字标签，不写出来就得由人自己猜「为什么有一段是亮的」。
     var subBadge: String? = nil
+    var scope: String? = nil
+    var scannedAt: Date? = nil
     @ViewBuilder var trailing: () -> Trailing
 
     enum Variant { case compact, display }
 
     var body: some View {
-        layout
+        VStack(alignment: .leading, spacing: 8) {
+            layout
+            if let scope {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 16) { context(scope) }
+                    VStack(alignment: .leading, spacing: 4) { context(scope) }
+                }
+                .font(theme.bodyFont(.caption))
+                .foregroundStyle(theme.palette.inkSecondary)
+            }
+        }
             .fixedSize(horizontal: false, vertical: true)
             .padding(.bottom, 2)
             .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private func context(_ scope: String) -> some View {
+        Label(LF("Scan scope: %@", scope), systemImage: "scope")
+        if let scannedAt {
+            Label {
+                Text(scannedAt, style: .date) + Text(" · ") + Text(scannedAt, style: .time)
+            } icon: { Image(systemName: "clock") }
+        } else {
+            Label(L("Scan time not recorded"), systemImage: "clock")
+        }
     }
 
     @ViewBuilder private var layout: some View {
@@ -2817,6 +2842,7 @@ struct PageHeader<Trailing: View>: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(theme.display(variant == .display ? .title : .title3))
+                    .accessibilityAddTraits(.isHeader)
                     .tracking(theme.titleTracking)
                     .foregroundStyle(theme.palette.ink)
                 HStack(alignment: .firstTextBaseline, spacing: 9) {
@@ -2849,7 +2875,10 @@ struct PageHeader<Trailing: View>: View {
 
 extension PageHeader where Trailing == EmptyView {
     init(symbol: String, title: String, subtitle: String,
-         tileFill: Color? = nil, variant: Variant = .compact) {
+         tileFill: Color? = nil, variant: Variant = .compact,
+         scope: String? = nil, scannedAt: Date? = nil) {
+        self.scope = scope
+        self.scannedAt = scannedAt
         self.symbol = symbol
         self.title = title
         self.subtitle = subtitle
