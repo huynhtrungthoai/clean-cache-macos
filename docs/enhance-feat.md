@@ -351,7 +351,7 @@ Ranh giới sở hữu: xem `CLAUDE.md` và `AGENTS.md`. Claude cung cấp model
 - Di chuyển nguyên trạng các lớp `ObservableObject` từ `Views/*.swift` sang `Sources/DiskCleaner/Models/`: `CachesModel`, `BigFilesModel`, `OldFilesModel`, `FolderDrillModel`, `DupModel`, `OrphansModel`, `UninstallModel`, `NMModel`, `DockerModel`, `OverviewModel`.
 - Chỉ di chuyển, không đổi hành vi hay tên. Merge sớm nhất có thể; Codex rebase lên trước khi sửa View tương ứng.
 
-### C1 + C2 — Thực thi kế hoạch, kiểm tra lại, lịch sử theo lô, hoàn tác · P0 · Claude · `ready` (nhánh `feat/claude-p0`)
+### C1 + C2 — Thực thi kế hoạch, kiểm tra lại, lịch sử theo lô, hoàn tác · P0 · Claude · `merged` (f703250)
 
 Một đường thực thi chung cho mọi trang. Core: `Sources/DiskCleanerCore/TrashBatches.swift` (có SelfTest). App: `AppStore` + từng model.
 
@@ -433,7 +433,7 @@ var selectedBytes: Int64                          // đã loại trùng cha/con 
 
 **Việc của Codex trong `CachesView.swift`:** nối nút xác nhận theo luồng chuẩn ở C1 + C2 (`model.trash(using: store)`); ô dung lượng theo `model.rowState(item.id)` (`.unmeasurable` → "Không đo được (cần quyền truy cập)", không hiện 0 B).
 
-### C4 — App đang chạy khi gỡ · P0/F05 · Claude · `ready` (nhánh `feat/claude-p0`)
+### C4 — App đang chạy khi gỡ · P0/F05 · Claude · `merged` (f703250)
 
 Quyết định của chủ dự án (05/11/2026): **đề nghị thoát app rồi gỡ tiếp; người dùng có thể từ chối.**
 
@@ -455,7 +455,7 @@ uninstall.trashPlan()         // cho sheet xác nhận: bundle (critical) + dữ
 
 - Bundle là mục `critical`: không chuyển được bundle thì không chuyển dữ liệu của app ("Không chuyển vì bản thân ứng dụng chưa được chuyển"). Không bao giờ gỡ chính CleanPilot.
 
-### C5 — Vấn đề khi quét · Claude · `ready` — gộp vào phần "Trạng thái quét" của C1 + C2
+### C5 — Vấn đề khi quét · Claude · `merged` (f703250) — gộp vào phần "Trạng thái quét" của C1 + C2
 
 ### C6 — Phiên quét tổng hợp · F01 · Claude · `later`
 
