@@ -1,18 +1,12 @@
 import SwiftUI
 import DiskCleanerCore
 
-// ── 缓存两页（应用缓存 / 开发缓存）：知识库驱动，每项解释 + 勾选 + 只进废纸篓 ──
 //
-// 知识库条目之间路径互相套着（`~/Library/Caches` 底下就躺着 `Caches/Homebrew`），
-// 所以任何「合起来多少」都必须走 `contentsUnionSize`，不能按条目自己的 size 相加。
-//
-// safety_db.json 里的 name/what/whatif/rec 是中文原文，也就是本地化 key——
-// 英文译文全在 en.lproj 那张表里，构建时用 l10n_tool 逐条核对覆盖率。
-//
-// 文件位置由 Core 的 `safetyDBFileURL()` 一处定义：总览与文件夹详情要拿同一个索引
-// 去反查判词，两处各自找路径迟早会一处找到、一处找不到。
 
-/// 分组标识 → 显示名。排序认 key，界面才查词表。
+//
+
+//
+
 func cacheGroupLabel(_ key: String) -> String {
     switch key {
     case "general": return L("Everyday caches")
@@ -22,15 +16,11 @@ func cacheGroupLabel(_ key: String) -> String {
     }
 }
 
-/// 同一套版面跑两个入口：应用缓存（日常 App 留下的）与开发缓存（开发工具留下的）。
 ///
-/// 差别只有三处——读知识库的哪几组、页头那三样文案、副标题还要不要再标一次分组。
-/// 版面、勾选、账本、删除全共用一份，所以两页的行为不会各跑各的口径。
+
 enum CachesPage {
     case app, dev, smart
 
-    /// 这一台只管知识库里的哪几组。分开两台各扫各的：页头那句「本机 N 处」
-    /// 说的就得是自己这一组，不能拿整本知识库的数顶上去。
     var groupKeys: Set<String> {
         self == .smart ? ["general", "cn_app", "dev"] : (self == .dev ? ["dev"] : ["general", "cn_app"])
     }
@@ -41,8 +31,7 @@ enum CachesPage {
         return self == .dev ? "Only tools you've actually installed show up here; delete one and it re-downloads the next time you need it"
                      : "Every entry says what it is. Check what you recognize, leave the rest."
     }
-    /// 空态在两页说的是两件事：应用页空 = 知识库没读出来（故障）；
-    /// 开发页空 = 这台机器压根没装过开发工具（正常），不能拿报错的口吻说它。
+
     var emptyTitleKey: String {
         self != .app ? "No known caches found" : "The knowledge base didn't load"
     }
@@ -51,13 +40,10 @@ enum CachesPage {
             : self == .dev ? "Install Xcode, npm, Gradle or Ollama, then rescan here"
                      : "Hit Rescan in the top right; if it persists, open an Issue"
     }
-    /// 只有应用页需要把「国产 App」标在行里：开发页整页都是开发工具，再标一遍等于没说。
+
     var showsGroupLabel: Bool { self == .app }
 }
 
-/// 行内副标题。原来写分组名，可知识库 27 条里 25 条的 grp 都是 general，
-/// 于是每行都是「常规缓存」——一行字重复 25 遍就等于没有信息。
-/// 认一条缓存靠的是路径尾段，所以副标题给真实路径；展开行里仍是全路径。
 private func cacheRowSub(_ item: CacheItem, showsGroup: Bool) -> String? {
     guard let first = item.resolvedPaths.first else { return nil }
     var parts: [String] = []
@@ -69,21 +55,16 @@ private func cacheRowSub(_ item: CacheItem, showsGroup: Bool) -> String? {
     return parts.joined(separator: " · ")
 }
 
-/// 「Xcode 模拟器设备」那一行背后那摞台子在哪；不是这一条就返回 nil。
 ///
-/// 整页只有这一条要逐台摊开：它的字节集中在**哪几台**上，而别处一条缓存目录摊开
-/// 只会看到几百个不相干的文件名——那一列不承载任何决定。
+
 private func simulatorDevicesDir(_ item: CacheItem) -> URL? {
     item.resolvedPaths.first { $0.lastPathComponent == "Devices" && $0.path.contains("CoreSimulator") }
 }
 
-/// 摊开那一行时逐台列模拟器：设备名 · 系统 · 占盘 · 上次启动。
 ///
-/// 只在行真被摊开时才量（`.task` 跟着视图生死，收起行就掐掉这一趟）：26 台各走一遍
-/// 子树是这一页最慢的一件事，不该为「也许有人会点开」在页面进来时先付掉。
+
 ///
-/// 这一格只列不删：整条「模拟器设备」本来就在「删了会丢数据」档，勾选框在行首那一级，
-/// 台子级的一键删除要另加一套选中状态，等有人真要按台清时再做。
+
 struct SimDeviceRows: View {
     @Environment(\.theme) private var theme
     var dir: URL
@@ -100,8 +81,6 @@ struct SimDeviceRows: View {
         .task { rows = await scanSimulators(under: dir) }
     }
 
-    /// 一台一行，三格定宽。这里不能套 `ExplainLine`：它的键列按内容走宽，
-    /// 26 台摊开就是 26 个不同的落点，那堆体积数字对不齐，也就比不出大小。
     private func row(_ d: SimDevice) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(d.os.isEmpty ? d.name : "\(d.name) · \(d.os)")
@@ -132,23 +111,19 @@ struct SimDeviceRows: View {
 struct CachesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: CachesModel
     var page: CachesPage = .app
     @State private var confirmClean = false
-    @State private var errorText: String? = nil
-    /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
-    @StateObject private var flight = TrashFlightController()
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: page.symbol, title: L(page.titleKey),
-                           subtitle: L(page.subtitleKey), variant: .display)
+                           subtitle: L(page.subtitleKey), variant: .display,
+                           scope: L("Known cache locations in the home folder"))
                 ControlStrip {
                     if model.scanning {
-                        // 这一页的清单就是下面那列行本身（条目来自知识库，先列后量），
-                        // 所以「逐项点亮」在这里等于数字一格一格落下来，页头只管报还差多少条。
+
                         LoadingRow(text: LF("Digging through your cache folders — %1$d of %2$d measured",
                                             measuredCount, model.items.count),
                                    progress: model.progress)
@@ -168,11 +143,19 @@ struct CachesView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            if !model.scanning && !model.items.isEmpty {
+                SummaryCards(metrics: [
+                    .init(title: L("Listed items"), value: String(model.items.count), detail: L("Known cache locations in the home folder"), symbol: "list.bullet"),
+                    .init(title: L("Bulk selection"), value: human(model.selectableBytes), detail: L("Only eligible items are included"), symbol: "checklist"),
+                    .init(title: L("Selected"), value: human(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
+                ]).pagePadding().padding(.bottom, 12)
+            }
+
             if model.scanning && model.items.isEmpty {
                 ScanSkeleton()
             } else if !model.scanning && model.items.isEmpty {
-                EmptyState(symbol: page.symbol, title: L(page.emptyTitleKey),
-                           hint: L(page.emptyHintKey))
+                EmptyState(symbol: page.symbol, title: L("No matching items in the scanned scope"),
+                           hint: L("Review the scan scope or scan again."))
                     .frame(maxHeight: .infinity)
             } else {
                 PageLedger(tiers: tiers, rows: measured.count, note: ledgerNote)
@@ -183,7 +166,7 @@ struct CachesView: View {
                             brand: item.entry.icon,
                             name: L(item.entry.name),
                             sub: cacheRowSub(item, showsGroup: page.showsGroupLabel),
-                            sizeText: item.size == nil ? L("Counting…") : (shown[item.id] ?? human(item.size ?? 0)),
+                            sizeText: item.size == nil ? (model.scanning ? L("Counting…") : L("Unknown")) : (shown[item.id] ?? human(item.size ?? 0)),
                             fraction: Double(item.size ?? 0) / Double(maxSize),
                             badge: verdictBadge(item.entry.tier),
                             selectable: (item.size ?? 0) > 0,
@@ -205,45 +188,30 @@ struct CachesView: View {
                             PathLine(path: p.path)
                         }
                     }
-                    // 只有勾上的行才报起点：这一页几十行，全挂 GeometryReader 是白量。
-                    .heroAnchorGlobal(TrashFlightController.rowAnchor(item.id.uuidString),
-                                      enabled: item.selected)
                 }
                 .ledgerCard()
             }
 
-            Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
+            Spacer(minLength: 0)
 
-            CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
-                     errorText: errorText, hint: barHint,
-                     selection: model.selectAll, flightTarget: true) { confirmClean = true }
+            SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
+                               selection: model.selectAll, busy: model.scanning) { confirmClean = true }
         }
         .frame(maxWidth: .infinity)
-        .flightField(flights: $flight.flights, anchors: $flight.anchors)
-        .onChange(of: flight.anchors) { _ in fireSnapshotFlightIfAsked() }
-        // 页刚进来时 `anchors` 只出现过一次（那时还没量出体积），光靠它这一次钩子会早退；
-        // 行数从 0 变成 N 是「量完了」的信号，补在这里，钩子才有第二次机会。
-        .onChange(of: model.items.count) { _ in fireSnapshotFlightIfAsked() }
+
         .onAppear { model.load() }
-        .confirmTrash(isPresented: $confirmClean,
-                      text: LF("Move %1$@ (%2$@) to the Trash.",
-                               cnt(model.selected.count, "items"),
-                               human(model.selectedBytes, inRulerOf: listedTotal))) {
-            clean()
+        .sheet(isPresented: $confirmClean) {
+            TrashReviewSheet(items: model.selected.flatMap { item in item.resolvedPaths.map { path in TrashReviewItem(name: L(item.entry.name), path: path.path, size: item.pathSizes[path.path].map { human($0) } ?? L("Unknown")) } }, bytes: human(model.selectedBytes))
+                .themed(theme)
         }
     }
 
     private var maxSize: Int64 { max(1, model.items.compactMap(\.size).max() ?? 1) }
 
-    /// 已经量出体积的那几条（`size` 为 nil 就是还没量到）。页头那句读它。
     private var measuredCount: Int { model.items.filter { $0.size != nil }.count }
 
-    /// 量出体积的那些行——「合计」和「这一列」说的是同一批行，没量出来的不算进去。
-    /// 算进去会怎样：那一格印的是「统计中…」，加不出数，合计却把它当成 0。
     ///
-    /// 带上 `tier` 而不是一个 `lit` 布尔：页头那笔账要按三档分开记，
-    /// 一个布尔只够分成两堆——而「能重下」和「会丢数据」合成一堆，正是这一版要修的。
+
     private var measured: [(id: UUID, bytes: Int64, tier: VerdictTier)] {
         model.items.compactMap { it in
             guard let sz = it.size, sz > 0 else { return nil }
@@ -257,22 +225,17 @@ struct CachesView: View {
         sizeColumn(measured.map { (key: $0.id, bytes: $0.bytes) })
     }
 
-    /// 三档：删了没影响 / 删了要重新下载 / 删了会丢数据。
     ///
-    /// 三档都从**同一批行**里加出来（就是上面那本 `measured`），所以三档相加正好等于
-    /// 「这一页量到」那个合计；哪一档是空的就不画，`PageLedger` 自己会滤掉 0 字节的档。
+
     ///
-    /// 这一页分档走的是**代价**那条轴，不是「本工具动不动得了」：缓存页的行全在家目录里，
-    /// 每一条都动得了，再按可删性切只能是「能清 100% · 不碰 0 B」。
+
     ///
-    /// 两件对着干的事记在同一个数里，两头都错：一边是花点流量重下，一边是东西真没了。
-    /// 合成一个数，用户既不敢删那些其实能删的，也看不出剩下那些里哪个更该躲着走。
+
     private var tiers: [LedgerTier] {
         var hot = Int64(0), redo = Int64(0), risk = Int64(0)
         for row in measured {
             switch row.tier {
-            // 缓存页的行都来自知识库条目，`.unknown` 理论上到不了这里；
-            // 真到了就按不亮处理，跟 `cacheLit` 同一口径。
+
             case .safe, .unknown: hot += row.bytes
             case .redo:           redo += row.bytes
             case .risky:          risk += row.bytes
@@ -284,8 +247,7 @@ struct CachesView: View {
     }
 
     private var ledgerNote: String? {
-        // 那一列相加会比底部那个数大，而两个数同屏——不说清是哪几条套着，
-        // 用户只会认定其中一个在编。
+
         model.overlapCount > 0
             ? LF(" %1$d of these paths sit inside another entry, so Select all actually takes %2$@ — not whatever this column adds up to.",
                  model.overlapCount, human(model.selectableBytes))
@@ -298,50 +260,4 @@ struct CachesView: View {
             : L("The total adds each entry's own size")
     }
 
-    /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
-    /// 候选行取量出了体积的前两条——没体积的行本来就勾不动。
-    private func fireSnapshotFlightIfAsked() {
-        let open = Array(model.items.filter { ($0.size ?? 0) > 0 }.prefix(2))
-        guard let first = open.first else { return }
-        flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.id.uuidString, bytes: $0.size ?? 0) },
-                                   selected: first.selected) {
-            for id in open.map(\.id) {
-                if let i = model.items.firstIndex(where: { $0.id == id }) { model.items[i].selected = true }
-            }
-        }
-    }
-
-    private func clean() {
-        errorText = nil
-        let targets = model.selected
-        // 搬完这一趟，让那笔字节从行里飞到那颗「移进废纸篓」上。见 `TrashFlight`。
-        // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
-        flight.launch(rows: targets.map { (key: $0.id.uuidString, bytes: $0.size ?? 0) },
-                      animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
-        var ok = 0
-        var errs: [String] = []
-        for it in targets {
-            for p in it.resolvedPaths {
-                do {
-                    let sz = it.resolvedPaths.count == 1 ? (it.size ?? 0) : fileSize(p)
-                    let t = try trashItem(p)
-                    store.record(TrashRecord(original: p, inTrash: t,
-                                             size: it.resolvedPaths.count == 1 ? (it.size ?? sz) : sz,
-                                             displayName: p.lastPathComponent))
-                    ok += 1
-                } catch {
-                    errs.append(failLine(p.lastPathComponent, error))
-                }
-            }
-            if let i = model.items.firstIndex(where: { $0.id == it.id }) {
-                model.items[i].selected = false
-                // 删完通常就没了：重新解析，消失的标 0
-                let left = it.resolvedPaths.filter { FileManager.default.fileExists(atPath: $0.path) }
-                model.items[i].resolvedPaths = left
-                model.items[i].size = left.isEmpty ? 0 : nil
-            }
-        }
-        if !errs.isEmpty { errorText = errList(errs) }
-        store.notice = trashedNotice(ok, "items", failed: errs.count)
-    }
 }
