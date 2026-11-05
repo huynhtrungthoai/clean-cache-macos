@@ -17,8 +17,8 @@ extension ScanScope {
     /// 两处不一致的话用户就不知道「整盘」和「全盘」是不是同一件事。
     var uiName: String {
         switch self {
-        case .user: return L("用户区")
-        case .disk: return L("整盘")
+        case .user: return L("User area")
+        case .disk: return L("Whole disk")
         }
     }
 }
@@ -48,18 +48,18 @@ extension View {
 /// 一条失败原因：为什么（含系统原话）。TrashError 只给原因码，句子在这拼
 func failReason(_ error: Error) -> String {
     guard let t = error as? TrashError else { return error.localizedDescription }
-    return t.detail.isEmpty ? L(t.reasonKey) : LF("%@：%@", L(t.reasonKey), t.detail)
+    return t.detail.isEmpty ? L(t.reasonKey) : LF("%@: %@", L(t.reasonKey), t.detail)
 }
 
 /// 一条失败原因：「条目名：为什么」
 func failLine(_ name: String, _ error: Error) -> String {
-    LF("%@：%@", name, failReason(error))
+    LF("%@: %@", name, failReason(error))
 }
 
 /// 清理完成后的顶部提示：成功多少、失败多少
 func trashedNotice(_ ok: Int, _ unit: String, failed: Int) -> String {
-    var s = LF("已移入废纸篓 %@", cnt(ok, unit))
-    if failed > 0 { s += LF("，%@ 项失败", String(failed)) }
+    var s = LF("Moved %@ to the Trash", cnt(ok, unit))
+    if failed > 0 { s += LF(", %@ failed", String(failed)) }
     return s
 }
 
@@ -94,9 +94,9 @@ struct ItemBadge {
 /// 总览里够大才标），一屏九十行挂九十枚「不认识」，那就不是信息了。
 func verdictBadge(_ tier: VerdictTier) -> ItemBadge? {
     switch tier {
-    case .safe:    return ItemBadge(text: L("删了没影响"), tone: .safe)
-    case .redo:    return ItemBadge(text: L("删了要重新下载"), tone: .warn)
-    case .risky:   return ItemBadge(text: L("删了会丢数据"), tone: .danger)
+    case .safe:    return ItemBadge(text: L("No impact"), tone: .safe)
+    case .redo:    return ItemBadge(text: L("Needs re-download"), tone: .warn)
+    case .risky:   return ItemBadge(text: L("Loses data"), tone: .danger)
     case .unknown: return nil
     }
 }
@@ -112,7 +112,7 @@ func verdictBadge(_ tier: VerdictTier) -> ItemBadge? {
 /// 那不是信息。要说的时候由各页在页尾整层说一句。
 func verdictHint(for path: String) -> String? {
     guard let e = VerdictIndex.shared.verdict(for: path).entry else { return nil }
-    return LF("删了会怎样：%@；怎么恢复：%@", L(e.whatif), L(e.rec))
+    return LF("If deleted: %@; to get it back: %@", L(e.whatif), L(e.rec))
 }
 
 /// 行首图形那一格的边长。
@@ -139,7 +139,7 @@ let rowLeadInset: CGFloat = 16 + 10 + rowIconSide + 10 + 12
 /// 而一个不成立的理由比不说更坏：读起来像「这是别人管的，我不能碰」。
 /// 范围是**由代码本身决定**的事实，永远不会说错；为什么归别人管是猜，能不说就不说。
 var outsideScopeHint: String {
-    L("这个位置不在本工具的动手范围（只含你自己的家目录、/Applications，以及 /tmp、/var/tmp）。要清它，从行尾那颗「访达显示」去访达里自己来——这里多半归系统或别的工具管。")
+    L("This spot is outside what this tool touches (only your home folder, /Applications, and /tmp and /var/tmp). To clear it, use “Reveal” at the end of the row and do it in the Finder yourself — most of this is run by the system or by other tools.")
 }
 
 /// 扫描中、一行都还没出来时画在账本里的那几道灰格。
@@ -175,7 +175,7 @@ struct ScanSkeleton: View {
             .accessibilityHidden(true)
 
             if let scope {
-                ListNote(text: LF("范围「%@」，要把每个目录走一遍才出列表。", scope))
+                ListNote(text: LF("Scope “%@” — every folder has to be walked before the list appears.", scope))
             }
         }
     }
@@ -298,7 +298,7 @@ struct ScanChecklist: View {
                 // 黑全归了它上面）：卡片吃满剩下的空间之后，中间那段话只是把空又切了一刀。
                 Spacer(minLength: 0)
                 if let scope {
-                    ListNote(text: LF("范围「%@」，要把每个目录走一遍才出列表。", scope))
+                    ListNote(text: LF("Scope “%@” — every folder has to be walked before the list appears.", scope))
                 }
             }
         }
@@ -338,7 +338,7 @@ struct ScanChecklist: View {
         let done = all.filter { $0.state == .done }.count
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
-                Text(LF("已量完 %1$d/%2$d 处", done, all.count))
+                Text(LF("%1$d of %2$d measured", done, all.count))
                     .font(theme.bodyFont(.caption).weight(.medium))
                     .monospacedDigit()
                     .foregroundStyle(theme.palette.inkSecondary)
@@ -551,7 +551,7 @@ struct ItemRow<Detail: View>: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(onOpen == nil ? "" : L("进入这个文件夹"))
+                .help(onOpen == nil ? "" : L("Open this folder"))
 
                 Spacer(minLength: 10)
 
@@ -564,7 +564,7 @@ struct ItemRow<Detail: View>: View {
                 }
 
                 if let onReveal {
-                    ThemeButton(kind: .ghost, title: L("访达显示")) { onReveal() }
+                    ThemeButton(kind: .ghost, title: L("Reveal")) { onReveal() }
                 }
 
                 SizeNumber(shown: sizeText, size: act ? 21 : 17, color: numberColor)
@@ -779,11 +779,11 @@ struct PageLedger: View {
 
     private var numbers: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Text(L("这一页量到"))
+            Text(L("This page measures"))
                 .font(theme.bodyFont(.caption))
                 .foregroundStyle(theme.palette.inkTertiary)
             SizeNumber(shown: totalShown, size: 22)
-            Text("· " + cnt(rows, "项"))
+            Text("· " + cnt(rows, "items"))
                 .font(theme.bodyFont(.caption))
                 .foregroundStyle(theme.palette.inkTertiary)
                 .layoutPriority(1)
@@ -885,8 +885,8 @@ func sizeColumn<Key: Hashable>(_ rows: [(key: Key, bytes: Int64)]) -> [Key: Stri
 /// 一个都没量到就返回 nil——那一行不画，不写「0 个文件」。
 func contentsLine(_ files: Int, _ newest: Date?) -> String? {
     var parts: [String] = []
-    if files > 0 { parts.append(cnt(files, "个文件")) }
-    if let newest { parts.append(LF("最近改动 %@", shortDate(newest))) }
+    if files > 0 { parts.append(cnt(files, "files")) }
+    if let newest { parts.append(LF("Last changed %@", shortDate(newest))) }
     return parts.isEmpty ? nil : parts.joined(separator: " · ")
 }
 
@@ -959,8 +959,8 @@ struct PathLine: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: reveal)
         .contextMenu {
-            Button(L("访达显示")) { reveal() }
-            Button(L("拷贝路径")) { copyPath() }
+            Button(L("Reveal")) { reveal() }
+            Button(L("Copy Path")) { copyPath() }
         }
         .onHover {
             hovering = $0
@@ -969,7 +969,7 @@ struct PathLine: View {
             hand = $0
             ($0 ? NSCursor.pointingHand : NSCursor.arrow).set()
         }
-        .help(LF("在访达里打开 %@", path))
+        .help(LF("Open %@ in Finder", path))
         .accessibilityAddTraits(.isLink)
     }
 }
@@ -1039,19 +1039,19 @@ struct CleanBar: View {
 
             HStack(spacing: 13) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(count == 0 ? L("还没勾选任何东西") : LF("已选 %1$d 项", count))
+                    Text(count == 0 ? L("Nothing selected yet") : LF("%1$d selected", count))
                         .font(theme.bodyFont(.caption2))
                         .foregroundStyle(theme.palette.inkTertiary)
                     SizeNumber(shown: shownBytes, size: 21)
                 }
                 if let s = selection {
                     ThemeButton(kind: .compact, symbol: s.allSelected ? "circle.dashed" : "checklist",
-                                title: s.allSelected ? L("取消全选") : L("全选")) {
+                                title: s.allSelected ? L("Deselect all") : L("Select all")) {
                         s.toggle(!s.allSelected)
                     }
                     .help(s.unselectable == 0
-                          ? L("选中本页列出的全部")
-                          : LF("选中本页列出的全部，另有 %d 项不在全选范围内", s.unselectable))
+                          ? L("Selects every row listed here")
+                          : LF("Selects every row listed here; %d more stay out of the bulk pick", s.unselectable))
                 }
                 Spacer(minLength: 10)
                 if let b = busyHint {
@@ -1068,13 +1068,13 @@ struct CleanBar: View {
                             .multilineTextAlignment(.trailing)
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
-                        Text(L("只进废纸篓，可撤销"))
+                        Text(L("Trash only, reversible"))
                             .font(theme.bodyFont(.caption))
                             .foregroundStyle(theme.palette.inkTertiary)
                     }
                     ThemeButton(kind: .primary, symbol: "trash",
                                 title: ctaTitle, isDisabled: count == 0, action: onClean)
-                        .accessibilityLabel(LF("把选中的 %1$d 项移入废纸篓，随时可撤销", count))
+                        .accessibilityLabel(LF("Move the selected items (%1$d) to the Trash — you can undo any time", count))
                         .heroAnchorGlobalIf(TrashFlight.targetAnchor, enabled: flightTarget)
                 }
             }
@@ -1100,7 +1100,7 @@ struct CleanBar: View {
     /// 那颗按钮自己把「要带走多少」说出来：这一页底下那一串数字可以被划出视野，
     /// 而按下按钮的那一刻，眼睛只在按钮上。没勾任何东西时不拍数，拍一个 0 是假数。
     private var ctaTitle: String {
-        bytes > 0 ? LF("把选中的 %@ 移进废纸篓", shownBytes) : L("把选中的移进废纸篓")
+        bytes > 0 ? LF("Move the selected %@ to the Trash", shownBytes) : L("Move the selection to the Trash")
     }
 }
 
@@ -1110,11 +1110,11 @@ extension View {
     /// 扫描页通用 confirm：措辞统一，不许各页自己发挥
     func confirmTrash(isPresented: Binding<Bool>, text: String,
                       action: @escaping () -> Void) -> some View {
-        alert(L("确认清理？"), isPresented: isPresented) {
-            Button(L("取消"), role: .cancel) {}
-            Button(L("移入废纸篓"), role: .destructive, action: action)
+        alert(L("Confirm cleanup?"), isPresented: isPresented) {
+            Button(L("Cancel"), role: .cancel) {}
+            Button(L("Move to Trash"), role: .destructive, action: action)
         } message: {
-            Text(text + L("删除只进废纸篓，随时可撤销；真正释放空间需要之后清空废纸篓。"))
+            Text(text + L(" Deletion only moves items to the Trash, and you can undo any time. Space frees up when the Trash is emptied."))
         }
     }
 }
@@ -1186,10 +1186,10 @@ struct ScanControl: View {
             // 顶栏那一档（`.compact`）连「停止」也得是紧凑的：一颗 16 pt 内边距的
             // 大钮会把 52 pt 的标题带顶高。其余页原来那颗停止钮仍是 secondary。
             ThemeButton(kind: kind == .compact ? .compact : .secondary,
-                        symbol: "stop.fill", title: L("停止"), action: stop)
+                        symbol: "stop.fill", title: L("Stop"), action: stop)
         } else {
             ThemeButton(kind: kind, symbol: "arrow.clockwise",
-                        title: L("重新扫描"),
+                        title: L("Rescan"),
                         shortcut: showsShortcut ? KeyboardShortcut("r", modifiers: .command) : nil,
                         keyHint: showsShortcut ? "⌘R" : nil,
                         action: rescan)
@@ -1264,7 +1264,7 @@ struct ThemeStepper: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
-        .accessibilityLabel(symbol == "plus" ? L("增加") : L("减少"))
+        .accessibilityLabel(symbol == "plus" ? L("Increase") : L("Decrease"))
     }
 }
 
@@ -1297,6 +1297,6 @@ struct ThemeSwitch: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityValue(isOn.wrappedValue ? L("开") : L("关"))
+        .accessibilityValue(isOn.wrappedValue ? L("On") : L("Off"))
     }
 }

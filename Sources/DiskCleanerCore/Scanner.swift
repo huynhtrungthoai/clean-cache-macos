@@ -338,7 +338,7 @@ private func demoVolume() -> VolumeUsage? {
     // 覆盖八成，跟真机上整盘范围的实测同一量级。故意不取大容量——演示树只有几十 G，
     // 配一块 500G 的假盘，环形上「没量到的地方」会占掉八成，那是把演示拍成事故现场。
     var total = 96.0, free = 16.0
-    let parts = (ProcessInfo.processInfo.environment["DISKWISE_DEMO_USAGE"] ?? "")
+    let parts = envString("DISKWISE_DEMO_USAGE")
         .split(separator: ":")
     if parts.count == 2, let t = Double(parts[0]), let f = Double(parts[1]), t > f, f >= 0 {
         total = t
@@ -640,15 +640,15 @@ public enum TrashError: Error {
     /// 交给 L() 查词表的源文案
     public var reasonKey: String {
         switch self {
-        case .protected: return "系统保护路径，不能整体删除"
-        case .outsideAllowed: return "超出允许范围（仅限家目录、/Applications 与 /tmp、/var/tmp）"
-        case .failed: return "移入废纸篓失败"
-        case .noTrashLocation: return "系统未返回废纸篓位置"
-        case .noFinderScript: return "无法创建访达指令"
-        case .finderRefused: return "访达拒绝执行"
-        case .automationDenied: return "没有控制访达的权限"
-        case .finderUnreachable: return "指令没能送到访达"
-        case .finderCanceled: return "访达的确认被取消了"
+        case .protected: return "System-protected path; deleting it wholesale is not allowed"
+        case .outsideAllowed: return "Outside the allowed roots (home folder, /Applications, and /tmp and /var/tmp only)"
+        case .failed: return "Couldn't move to Trash"
+        case .noTrashLocation: return "The system didn't return a Trash location"
+        case .noFinderScript: return "Couldn't build the Finder command"
+        case .finderRefused: return "Finder refused to run it"
+        case .automationDenied: return "No permission to control Finder"
+        case .finderUnreachable: return "The command never reached Finder"
+        case .finderCanceled: return "Finder's confirmation was cancelled"
         }
     }
 

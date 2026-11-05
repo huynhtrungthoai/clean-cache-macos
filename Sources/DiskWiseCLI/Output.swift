@@ -1,8 +1,8 @@
 import DiskCleanerCore
 import Foundation
 
-// 输出层：给人的表格 / 给程序的 JSON（--json），stdout 只放结果。
-// 人看的输出用英文——CLI 的第一受众是开发者和 agent，且本目录不进 l10n 词表。
+// Output layer: tables for humans / JSON for programs (--json); stdout carries only results.
+// Human output is English: the CLI's primary audience is developers and agents, and this directory is not in the l10n catalog.
 
 var stderrHandle = FileHandle.standardError
 
@@ -15,8 +15,8 @@ func failUsage(_ msg: String) -> Never {
     exit(Exit.usage.rawValue)
 }
 
-/// --json 的统一口径：pretty + 键排序，人调试、机解析都稳；
-/// 不转义斜杠（默认的 \/ 挡在路径正中间，人读 JSON 全是噪声）。
+/// Uniform --json style: pretty + sorted keys, stable for human debugging and machine parsing;
+/// slashes not escaped (the default \/ lands mid-path and makes JSON pure noise to read).
 func encodeJSON<T: Encodable>(_ value: T) -> String {
     let enc = JSONEncoder.agentAPI
     enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -24,9 +24,9 @@ func encodeJSON<T: Encodable>(_ value: T) -> String {
     return String(data: data, encoding: .utf8) ?? "{}"
 }
 
-// MARK: - 表格
+// MARK: - Tables
 
-/// 路径显示：家目录换回 ~（终端里人读绝对路径要扫半行）。
+/// Path display: home directory shown as ~ (absolute paths make a human scan half a line in the terminal).
 func displayPath(_ path: String) -> String {
     let home = homePath()
     if path == home { return "~" }
@@ -42,8 +42,8 @@ private func mayFlag(_ item: AgentItem) -> String {
     item.agentMayTrash ? "yes" : (item.humanMayTrash ? "human" : "no")
 }
 
-/// 通用清单表：大小 / 判词 / 可动 / 路径。 refusal 单列一行不进表——
-/// 表要保持窄，原因跟在拒绝项后面。
+/// Generic listing table: size / verdict / actionable / path. A refusal gets its own line outside the table:
+/// the table stays narrow, with the reason following the refused item.
 func printItemsTable(_ items: [AgentItem], totalLabel: String) {
     if items.isEmpty {
         print("Nothing to show.")
@@ -54,7 +54,7 @@ func printItemsTable(_ items: [AgentItem], totalLabel: String) {
     print()
     print("\(padded("SIZE", 10)) \(padded("TIER", 8)) \(padded("TRASH", 6)) PATH")
     for it in items {
-        let tier = it.exact ? it.tier : "\(it.tier)~"   // ~ = 命中的是上层条目，不是本体
+        let tier = it.exact ? it.tier : "\(it.tier)~"   // ~ = matched a parent entry, not the item itself
         print("\(padded(human(it.bytes), 10)) \(padded(tier, 8)) \(padded(mayFlag(it), 6)) \(displayPath(it.path))")
         if let r = it.refusal {
             print("\(padded("", 10)) \(padded("", 8)) \(padded("", 6)) refusal: \(r.rawValue)")
@@ -116,7 +116,7 @@ func printHistoryBlock(_ ops: [AgentOperation]) {
         print("No operations yet.")
         return
     }
-    // 时间正序（账本读法）；要最新的自己看最后一行
+    // Chronological order (ledger reading order); the newest is the last line
     print("\(ops.count) operation(s), oldest first:")
     for op in ops {
         let bytes = op.items.reduce(Int64(0)) { $0 + $1.bytes }

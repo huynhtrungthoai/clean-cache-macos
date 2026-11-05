@@ -1,35 +1,44 @@
 #!/bin/bash
 # ============================================================
-# DiskWise（SwiftUI 原生版）一键打包
+# CleanPilot (native SwiftUI) one-shot packaging
 #
-# 用法：
-#   bash build.sh                        默认：arm64 + 自动探测签名身份
-#   ARCH=universal bash build.sh         arm64 + x86_64 通用包（两个 triple 各编一次再 lipo）
-#   CHANNEL=appstore bash build.sh       商店版：进沙盒 + 出 .pkg + 找 Apple Distribution 签名
-#                                        （收费展示是另一个开关，见 Sources/DiskCleaner/Product.swift）
-#   NOTARIZE=1 bash build.sh             出包后送 Apple 公证并钉票据（需要下面的凭据，商店包不用）
+# Usage:
+#   bash build.sh                        default: arm64 + auto-detected signing identity
+#   ARCH=universal bash build.sh         arm64 + x86_64 universal (build each triple, then lipo)
+#   CHANNEL=appstore bash build.sh       App Store: sandboxed, outputs .pkg, uses Apple Distribution
+#                                        (pricing display is a separate switch, see Sources/DiskCleaner/Product.swift)
+#   NOTARIZE=1 bash build.sh             submit to Apple notarization and staple (needs credentials below; not for App Store)
+#   RELEASE=1 bash build.sh              release build: fail if no Developer ID / Apple Distribution identity;
+#                                        never silently ship an ad-hoc or development-signed build
+#   DEV_HOOKS=1 bash build.sh            compile in DISKWISE_* dev hooks (screenshots/perf probe/fake home).
+#                                        Never in normal builds: some hooks really delete files without confirmation
+#   DEV_SIGN_IDENTITY="Apple Development: ..."  which development certificate to use for local builds
+#                                        (defaults to the personal huynhtrungthoai@gmail.com one only)
+#   SIGN_TEAM_ID=XXXXXXXXXX              allowed signing team (default: personal team HN2G8HJ96Q).
+#                                        Other companies' certificates in the keychain are never auto-picked; if the
+#                                        signed TeamIdentifier doesn't match, fail - never ship under someone else's team
 #
-# 签名身份：两个渠道两张证书，钥匙串里有对应那张就自动用——
-# 直链分发找 "Developer ID Application: ..."，商店找 "Apple Distribution: ..."；
-# 探测不到就退回 ad-hoc，产物照出，但用户首次打开会被 Gatekeeper 拦一次（要在系统设置里放行），
-# 且商店包传不上去。
-# 想强制 ad-hoc 用 SIGN_IDENTITY=none。
+# Signing identity: one certificate per channel, used automatically if present in the keychain -
+# direct download uses "Developer ID Application: ...", App Store uses "Apple Distribution: ...".
+# If none is found (non-RELEASE): direct build falls back to "Apple Development: ..." (a free personal cert is fine; stable identity,
+# so Full Disk Access/Automation grants survive rebuilds; local use only, cannot be notarized), then ad-hoc.
+# Force ad-hoc with SIGN_IDENTITY=none.
 #
-# 公证凭据（三选一，都不落盘进仓库）：
-#   NOTARY_PROFILE=<name>        推荐：先跑一次
-#                              xcrun notarytool store-credentials diskwise --apple-id ... --team-id ...
-#   或 APPLE_ID + APPLE_TEAM_ID + APP_SPECIFIC_PASSWORD 三个环境变量
-#   或 CI secrets：APPLE_ID / APPLE_TEAM_ID / APP_SPECIFIC_PASSWORD
+# Notarization credentials (pick one; never committed to the repo):
+#   NOTARY_PROFILE=<name>        recommended: run once
+#                              xcrun notarytool store-credentials cleanpilot --apple-id ... --team-id ...
+#   or the APPLE_ID + APPLE_TEAM_ID + APP_SPECIFIC_PASSWORD env vars
+#   or CI secrets: APPLE_ID / APPLE_TEAM_ID / APP_SPECIFIC_PASSWORD
 #
-# 前提：Xcode 命令行工具即可。注意 `swift build --arch arm64 --arch x86_64`
-# 需要 xcbuild（只有完整 Xcode 里有），所以通用包走 --triple 两遍 + lipo。
+# Requirements: Xcode Command Line Tools only. Note `swift build --arch arm64 --arch x86_64`
+# needs xcbuild (full Xcode only), so universal builds use --triple twice + lipo.
 #
-# 构建闸门，任一失败即不出包：
-#   1. 各语言覆盖率（任一语言少一条译文就构建失败，漏译只会静默退回中文）
-#   2. swift run SelfTest（全量逻辑自检）
-#   3. 资源到位断言（知识库 + 图标 + 译文目录 + 反馈二维码）
-#   4. 通用包：两个切片都在，且 x86_64 那个真能跑起来
-#   5. codesign --verify --strict（签名断了不能出厂）
+# Build gates; any failure means no artifact:
+#   1. per-language coverage (a missing translation fails the build; otherwise it silently falls back)
+#   2. swift run SelfTest (full logic self-test)
+#   3. resource assertions (knowledge base + icon + translation dirs)
+#   4. universal: both slices present, and the x86_64 one actually runs
+#   5. codesign --verify --strict (no shipping with a broken signature)
 # ============================================================
 set -euo pipefail
 
@@ -37,79 +46,82 @@ BUILD_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$BUILD_DIR/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 STAGING="$BUILD_DIR/staging"
-# 构建期生成的签名输入（派生 entitlements、解开的描述文件）落这里，
-# 和签好的包一起留着，方便事后核对「这个包到底是按哪套 entitlements 签的」。
+# Signing inputs generated at build time (derived entitlements, decoded provisioning profile) go here,
+# kept with the signed build so you can later check which entitlements it was signed with.
 DERIVED_DIR="$BUILD_DIR/derived"
 
 APP_NAME="CleanPilot"
 APP_DIR="$BUILD_DIR/${APP_NAME}.app"
 VERSION="2.3"
 MIN_MACOS="13.0"
-# Bundle ID 不随产品名改：它是钥匙串、自动化授权、UserDefaults 的锚点，
-# 改了等于让老用户的「允许控制访达」授权和皮肤解锁记录全部作废。
-BUNDLE_ID="com.dreamofxm.diskcleaner"
+# CleanPilot's own bundle ID. It used to reuse upstream DiskWise's com.dreamofxm.diskcleaner
+# (shared prefs/TCC with that app, unsignable under our own team). Prefs are migrated once at
+# launch (migrateLegacyDefaults); Full Disk Access / Automation must be granted again once.
+# Keep in sync with Sources/DiskCleaner/Product.swift.
+BUNDLE_ID="com.huynhtrungthoai.cleanpilot"
 VOLNAME="${APP_NAME}"
-# 编译期开关 -DAPPSTORE：商店版进沙盒、出 .pkg、用 Apple Distribution 签名。
-# 它不决定收费展示——那是 `Channel.showsPricing`，见 Sources/DiskCleaner/Product.swift。
+# Compile flag -DAPPSTORE: App Store build is sandboxed, outputs .pkg, signs with Apple Distribution.
+# It does not control pricing display - that is `Channel.showsPricing`, see Sources/DiskCleaner/Product.swift.
 CHANNEL="${CHANNEL:-oss}"
 SWIFT_FLAGS=""
 ARTIFACT_SUFFIX=""
 ENTITLEMENTS="$BUILD_DIR/entitlements.plist"
-# 上传被拒「重复的 version + build 组合」时，用 BUILD_NUMBER=2 重出一版
+# If upload is rejected for a duplicate version + build pair, rebuild with BUILD_NUMBER=2
 BUILD_NUMBER="${BUILD_NUMBER:-$VERSION}"
+if [ "${DEV_HOOKS:-0}" = 1 ]; then
+	SWIFT_FLAGS="-Xswiftc -DDISKWISE_DEV_HOOKS"
+	echo "==> DEV_HOOKS=1: DISKWISE_* dev hooks compiled into this build (screenshots/debugging only, do not release)"
+fi
 if [ "$CHANNEL" = "appstore" ]; then
-	SWIFT_FLAGS="-Xswiftc -DAPPSTORE"
+	SWIFT_FLAGS="$SWIFT_FLAGS -Xswiftc -DAPPSTORE"
 	ARTIFACT_SUFFIX="-appstore"
 	ENTITLEMENTS="$BUILD_DIR/entitlements-appstore.plist"
 fi
 
-# ── 架构 ────────────────────────────────────────────────────────────────
-# universal 时产物名带 -universal；arm64 保持老命名（历史下载链接不失效）。
+# -- Architecture ------------------------------------------------------------
+# universal artifacts get a -universal suffix; arm64 keeps the old name (old download links keep working).
 ARCH="${ARCH:-arm64}"
 case "$ARCH" in
 	arm64)    ARCH_SUFFIX="" ;            ARCH_TRIPLE="arm64-apple-macos$MIN_MACOS" ;;
 	x86_64)   ARCH_SUFFIX="-intel" ;      ARCH_TRIPLE="x86_64-apple-macos$MIN_MACOS" ;;
 	universal) ARCH_SUFFIX="-universal" ; ARCH_TRIPLE="" ;;
-	*) echo "错误：ARCH 只能是 arm64 / x86_64 / universal，当前是 '$ARCH'" >&2; exit 1 ;;
+	*) echo "Error: ARCH must be arm64 / x86_64 / universal, got '$ARCH'" >&2; exit 1 ;;
 esac
 DMG_NAME="${APP_NAME}-$VERSION${ARCH_SUFFIX}${ARTIFACT_SUFFIX}.dmg"
 PKG_NAME="${APP_NAME}-$VERSION${ARCH_SUFFIX}${ARTIFACT_SUFFIX}.pkg"
 
 RES_DIR="$ROOT_DIR/Sources/DiskCleaner/Resources"
-# 二维码放 docs/contact：README 和 App 用同一张图，不复制两份。
-# 运行时先查 Contents/Resources，查不到回落到这个仓库相对路径（见 FeedbackView）。
-QR_SRC="$ROOT_DIR/docs/contact/qq-group.png"
 
-echo "==> [1/7] 多语言覆盖率对账"
+echo "==> [1/7] Localization coverage check"
 cd "$ROOT_DIR"
 swift "$ROOT_DIR/build_app/l10n_tool.swift" check | sed 's/^/    /'
 
-echo "==> [2/7] 应用图标（参数化生成，无外部素材）"
+echo "==> [2/7] App icon (generated parametrically, no external assets)"
 ICONSET="$BUILD_DIR/AppIcon.iconset"
 ICNS="$BUILD_DIR/AppIcon.icns"
 if [ ! -f "$ICNS" ] || [ "$BUILD_DIR/make_icon.swift" -nt "$ICNS" ]; then
 	rm -rf "$ICONSET"
 	swift "$BUILD_DIR/make_icon.swift" "$ICONSET" | sed 's/^/    /'
 	iconutil -c icns -o "$ICNS" "$ICONSET"
-	echo "    AppIcon.icns：$(du -h "$ICNS" | cut -f1)"
+	echo "    AppIcon.icns: $(du -h "$ICNS" | cut -f1)"
 else
-	echo "    复用已有 AppIcon.icns（改过 make_icon.swift 会自动重生成）"
+	echo "    Reusing existing AppIcon.icns (regenerated automatically when make_icon.swift changes)"
 fi
 
-# 按 triple 编一次，stdout 只回产物目录（编译进度走 stderr，否则被 $(...) 一起吞进来）
-# 编译输出必须整份留档并当场判退出码：只 tail 几行会把真正的报错截掉，
-# 而函数的返回码是最后一条命令（查产物目录）的，编译崩了也照样返回 0。
+# Build one triple; stdout returns only the product dir (progress goes to stderr, else $(...) swallows it)
+# Keep the full compile log and check the exit code right away: tailing a few lines cuts off the real error,
+# and the function's return code is that of the last command (the bin-path query), so it returns 0 even if compilation fails.
 build_for_triple() {
 	local triple="$1"
-	# 每刀一个 scratch 目录，且显式传给 --show-bin-path。Xcode 27 的 SwiftPM 里
-	# --show-bin-path 会无视 --triple，两刀都报同一个 .build/out/Products/Release，
-	# 后一刀把前一刀盖掉，universal 就退化成单架构（lipo 直接 "same architectures" 死掉，
-	# 更坏的情况是缓存判定"不用重编"，出一张只有一刀的假通用包出厂）。
+	# One scratch dir per slice, passed explicitly to --show-bin-path. In Xcode 27's SwiftPM
+	# --show-bin-path ignores --triple, so both slices report the same .build/out/Products/Release,
+	# the second overwrites the first, and universal degrades to one arch (lipo dies with "same architectures";
+	# worse, the cache decides "no rebuild needed" and a fake single-slice universal build ships).
 	local scratch="$ROOT_DIR/.build/$triple"
 	local log="$ROOT_DIR/.build/compile.$triple.log"
 	mkdir -p "$(dirname "$log")"
 	if ! swift build -c release --scratch-path "$scratch" --triple "$triple" $SWIFT_FLAGS >"$log" 2>&1; then
-		echo "    $triple 编译失败，输出 $(wc -l < "$log" | tr -d ' ') 行，最后 60 行：" >&2
+		echo "    $triple compile failed, $(wc -l < "$log" | tr -d ' ') lines of output, last 60:" >&2
 		tail -n 60 "$log" | sed 's/^/    /' >&2
 		exit 1
 	fi
@@ -117,45 +129,45 @@ build_for_triple() {
 	swift build --show-bin-path -c release --scratch-path "$scratch" --triple "$triple" 2>/dev/null | tail -n 1
 }
 
-echo "==> [3/7] release 编译（架构 ${ARCH}，渠道 ${CHANNEL}）"
-BIN="$ROOT_DIR/.build/release/DiskCleaner"          # 进包的那个二进制
-CLI_BIN=""                                          # Agent 通道的可执行（直装版进包，商店版只编译不进包）
+echo "==> [3/7] Release compile (arch ${ARCH}, channel ${CHANNEL})"
+BIN="$ROOT_DIR/.build/release/DiskCleaner"          # the binary that goes into the bundle
+CLI_BIN=""                                          # Agent CLI executable (bundled in direct build; App Store only compiles it)
 if [ -n "$ARCH_TRIPLE" ]; then
 	SINGLE="$(build_for_triple "$ARCH_TRIPLE")"
 	BIN="$SINGLE/DiskCleaner"
-	[ -x "$BIN" ] || { echo "错误：找不到编译产物 $BIN" >&2; exit 1; }
+	[ -x "$BIN" ] || { echo "Error: build product $BIN not found" >&2; exit 1; }
 	lipo -info "$BIN" | sed 's/^/    /'
 	"$SINGLE/SelfTest" 2>&1 | tail -n 1 | sed 's/^/    /'
 	CLI_BIN="$SINGLE/DiskWiseCLI"
 else
-	# --arch 双值要 xcbuild（CLT 没有），所以两个 triple 各编一遍再手动合。
+	# Two --arch values need xcbuild (CLT lacks it), so build each triple and merge manually.
 	ARM_BIN_DIR="$(build_for_triple "arm64-apple-macos$MIN_MACOS")"
 	X86_BIN_DIR="$(build_for_triple "x86_64-apple-macos$MIN_MACOS")"
 	ARM_BIN="$ARM_BIN_DIR/DiskCleaner"
 	X86_BIN="$X86_BIN_DIR/DiskCleaner"
 	for f in "$ARM_BIN" "$X86_BIN"; do
-		[ -x "$f" ] || { echo "错误：通用包缺一刀，$f 不存在" >&2; exit 1; }
+		[ -x "$f" ] || { echo "Error: universal build missing a slice, $f does not exist" >&2; exit 1; }
 	done
-	# 各自薄切片先自检：合完再验就查不出是哪一刀坏了
+	# Self-test each thin slice first: after merging you can't tell which slice broke
 	if ARM_LOG="$("$ARM_BIN_DIR/SelfTest" 2>&1)"; then
 		printf '%s\n' "    arm64   $(printf '%s' "$ARM_LOG" | tail -n 1)"
 	elif printf '%s' "$ARM_LOG" | grep -q "Bad CPU type"; then
-		# macOS 26 起 Intel 机器装不了 Rosetta（softwareupdate --install-rosetta 直接回
-		# "not supported"），所以 arm64 一刀在这类机器上只能编译、不能执行。
-		# 跳过的是「执行」，不是「出厂」：release.yml 的 macos-14 runner 是 Apple Silicon，
-		# 那一刀的 SelfTest 在那边原生跑，发版前手动 dispatch 一次补上。
-		echo "    arm64   跳过自检：本机是 Intel 且系统不支持 Rosetta（CI 的 macos-14 runner 上会跑）"
+		# Since macOS 26, Intel machines can't install Rosetta (softwareupdate --install-rosetta returns
+		# "not supported"), so the arm64 slice can only be compiled, not executed, on such machines.
+		# What's skipped is execution, not shipping: release.yml's macos-14 runner is Apple Silicon,
+		# so that slice's SelfTest runs natively there; dispatch it manually once before releasing.
+		echo "    arm64   self-test skipped: Intel host without Rosetta support (runs on the CI macos-14 runner)"
 	else
-		echo "错误：arm64 切片自检没过，不能出厂" >&2
+		echo "Error: arm64 slice failed self-test, cannot ship" >&2
 		printf '%s\n' "$ARM_LOG" | tail -n 6 >&2
 		exit 1
 	fi
 	if X86_LOG="$("$X86_BIN_DIR/SelfTest" 2>&1)"; then
 		printf '%s\n' "    x86_64  $(printf '%s' "$X86_LOG" | tail -n 1)"
 	elif printf '%s' "$X86_LOG" | grep -q "Bad CPU type"; then
-		echo "    x86_64  跳过自检：本机没装 Rosetta（CI 的 arm64 runner 上会跑）"
+		echo "    x86_64  self-test skipped: Rosetta not installed (runs on the CI arm64 runner)"
 	else
-		echo "错误：x86_64 切片自检没过，不能出厂" >&2
+		echo "Error: x86_64 slice failed self-test, cannot ship" >&2
 		printf '%s\n' "$X86_LOG" | tail -n 6 >&2
 		exit 1
 	fi
@@ -164,72 +176,67 @@ else
 	lipo -info "$BIN" | sed 's/^/    /'
 	ARCHS_IN="$(lipo -archs "$BIN")"
 	printf '%s\n' "$ARCHS_IN" | grep -qw arm64 \
-		|| { echo "错误：合并后没有 arm64 切片，实际是 '$ARCHS_IN'" >&2; exit 1; }
+		|| { echo "Error: merged binary has no arm64 slice, got '$ARCHS_IN'" >&2; exit 1; }
 	printf '%s\n' "$ARCHS_IN" | grep -qw x86_64 \
-		|| { echo "错误：合并后没有 x86_64 切片，实际是 '$ARCHS_IN'" >&2; exit 1; }
-	# Agent CLI 同样两刀合一刀（与主程序同一对 triple）
+		|| { echo "Error: merged binary has no x86_64 slice, got '$ARCHS_IN'" >&2; exit 1; }
+	# Agent CLI is merged the same way (same triple pair as the main app)
 	lipo -create -output "$BUILD_DIR/DiskWiseCLI.universal" \
 		"$ARM_BIN_DIR/DiskWiseCLI" "$X86_BIN_DIR/DiskWiseCLI"
 	CLI_BIN="$BUILD_DIR/DiskWiseCLI.universal"
 fi
-# swift build 连 DiskWiseCLI 一起编；这里只断言产物在，进不进包由渠道决定
+# swift build compiles DiskWiseCLI too; only assert it exists here, the channel decides whether it's bundled
 [ -n "$CLI_BIN" ] && [ -x "$CLI_BIN" ] \
-	|| { echo "错误：找不到 DiskWiseCLI 编译产物（Agent CLI 的二进制）" >&2; exit 1; }
-echo "    二进制：$(du -h "$BIN" | cut -f1)"
+	|| { echo "Error: DiskWiseCLI build product (Agent CLI binary) not found" >&2; exit 1; }
+echo "    Binary: $(du -h "$BIN" | cut -f1)"
 
-echo "==> [4/7] 组装 ${APP_NAME}.app"
+echo "==> [4/7] Assembling ${APP_NAME}.app"
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN" "$APP_DIR/Contents/MacOS/DiskCleaner"
-# 直装版才带 CLI（拷进包时改名 diskwise）；商店沙盒版不带——沙盒里 CLI 没有
-# 家目录授权就扫不动，多一个进不去的入口不如不给
+# Only the direct build bundles the CLI (renamed to diskwise); the sandboxed App Store build doesn't -
+# in the sandbox the CLI has no home-folder grant and can't scan, so a dead entry point is worse than none
 if [ "$CHANNEL" != "appstore" ]; then
 	cp "$CLI_BIN" "$APP_DIR/Contents/MacOS/diskwise"
 	[ -x "$APP_DIR/Contents/MacOS/diskwise" ] \
-		|| { echo "错误：diskwise CLI 没进 .app" >&2; exit 1; }
+		|| { echo "Error: diskwise CLI missing from .app" >&2; exit 1; }
 fi
 cp "$ICNS" "$APP_DIR/Contents/Resources/AppIcon.icns"
 cp "$RES_DIR/safety_db.json" "$APP_DIR/Contents/Resources/"
 cp "$RES_DIR/skins.json" "$APP_DIR/Contents/Resources/"
-# 所有语言一次进包：漏一门那门会静默退回中文，而构建照样成功。所以下面按目录数核。
+# All languages ship at once: a missing one silently falls back while the build still succeeds. So check dir counts below.
 for LPROJ in "$RES_DIR"/*.lproj; do
 	cp -R "$LPROJ" "$APP_DIR/Contents/Resources/"
 done
 cp -R "$RES_DIR/BrandIcons" "$APP_DIR/Contents/Resources/"
-cp "$QR_SRC" "$APP_DIR/Contents/Resources/qq-group.png"
-# 缓存清理页整页内容都来自这份知识库；丢了不会崩，但会静默变空白页
+# The whole Caches page comes from this knowledge base; losing it won't crash, but the page goes silently blank
 [ -f "$APP_DIR/Contents/Resources/safety_db.json" ] \
-	|| { echo "错误：safety_db.json 没进 .app，缓存清理页会是空的" >&2; exit 1; }
-# 皮肤目录丢了不崩，但六套皮肤会一起消失、只剩内置那套朴素的
+	|| { echo "Error: safety_db.json missing from .app, Caches page would be empty" >&2; exit 1; }
+# Losing the skin catalog won't crash, but all six skins vanish, leaving only the plain built-in one
 [ -f "$APP_DIR/Contents/Resources/skins.json" ] \
-	|| { echo "错误：skins.json 没进 .app，皮肤页会只剩内置兜底皮肤" >&2; exit 1; }
-# 图标丢了不报错，Dock 就退回那张通用白纸——正是这次要消灭的「裸打包」
+	|| { echo "Error: skins.json missing from .app, Skins page would only have the built-in fallback skin" >&2; exit 1; }
+# A missing icon raises no error; the Dock just shows the generic blank icon - exactly the "bare build" to avoid
 [ -f "$APP_DIR/Contents/Resources/AppIcon.icns" ] \
-	|| { echo "错误：AppIcon.icns 没进 .app，Dock 会显示通用图标" >&2; exit 1; }
-# 译文目录丢了不报错，只是那门语言整体退回中文——静默发布等于没做多语言。
-# 按「目录数」和「每门都有词表」两层核，不只看 en 在不在。
+	|| { echo "Error: AppIcon.icns missing from .app, Dock would show the generic icon" >&2; exit 1; }
+# A missing translation dir raises no error; that language just falls back entirely - a silent release means no localization.
+# Check two levels: dir count and a string table per language, not just whether en exists.
 LPROJ_N_IN=$(find "$RES_DIR" -maxdepth 1 -name '*.lproj' | wc -l | tr -d ' ')
 LPROJ_N_OUT=$(find "$APP_DIR/Contents/Resources" -maxdepth 1 -name '*.lproj' | wc -l | tr -d ' ')
 [ "$LPROJ_N_IN" = "$LPROJ_N_OUT" ] && [ "$LPROJ_N_OUT" != "0" ] \
-	|| { echo "错误：语言目录只进了 $LPROJ_N_OUT/$LPROJ_N_IN 个" >&2; exit 1; }
+	|| { echo "Error: only $LPROJ_N_OUT/$LPROJ_N_IN language dirs made it in" >&2; exit 1; }
 for LPROJ in "$APP_DIR/Contents/Resources"/*.lproj; do
-	# 词表只有 en 有：中文是源码里的原文，其余语言各一份 Localizable.strings
-	[ "$(basename "$LPROJ")" = "zh-Hans.lproj" ] && continue
+	# Every language directory, en included, ships its own Localizable.strings
 	[ -f "$LPROJ/Localizable.strings" ] \
-		|| { echo "错误：$(basename "$LPROJ")/Localizable.strings 没进 .app，这门语言会退回中文" >&2; exit 1; }
+		|| { echo "Error: $(basename "$LPROJ")/Localizable.strings missing from .app, that language would fall back to English" >&2; exit 1; }
 done
-# 反馈页没图不会崩，但只剩一行群号——用户找到人的入口不能这么静默丢掉
-[ -f "$APP_DIR/Contents/Resources/qq-group.png" ] \
-	|| { echo "错误：qq-group.png 没进 .app，反馈页的二维码会是空的" >&2; exit 1; }
-# 品牌标丢了也不崩，只是那些没有 .app 的行（Ollama、uv、JetBrains…）静默退回通用文件夹，
-# 也就是这次要消灭的那一排一模一样的蓝文件夹——所以按「文件数」核，不按「目录存在」核。
+# Missing brand icons won't crash either; rows without a .app (Ollama, uv, JetBrains...) silently fall back to the generic folder,
+# i.e. the row of identical blue folders we set out to remove - so check file count, not dir existence.
 BRAND_N_IN=$(find "$RES_DIR/BrandIcons" -name '*.png' | wc -l | tr -d ' ')
 BRAND_N_OUT=$(find "$APP_DIR/Contents/Resources/BrandIcons" -name '*.png' 2>/dev/null | wc -l | tr -d ' ')
 [ "$BRAND_N_IN" = "$BRAND_N_OUT" ] && [ "$BRAND_N_OUT" != "0" ] \
-	|| { echo "错误：BrandIcons 只进了 $BRAND_N_OUT/$BRAND_N_IN 张，无 .app 的工具行会退回通用文件夹" >&2; exit 1; }
+	|| { echo "Error: only $BRAND_N_OUT/$BRAND_N_IN BrandIcons made it in; tool rows without a .app would fall back to the generic folder" >&2; exit 1; }
 
-# CFBundleLocalizations 跟着语言目录走：写死清单的话，加一门语言要记得改两处，
-# 迟早有一门因为漏改而拿不到系统级语言匹配。
+# CFBundleLocalizations follows the language dirs: with a hardcoded list, adding a language means editing two places,
+# and sooner or later one misses system-level language matching.
 LOCALIZATIONS=""
 for LPROJ in "$RES_DIR"/*.lproj; do
 	LOCALIZATIONS="${LOCALIZATIONS}		<string>$(basename "$LPROJ" .lproj)</string>
@@ -259,7 +266,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST_EOF
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>zh_CN</string>
+	<string>en</string>
 	<key>CFBundleLocalizations</key>
 	<array>
 $LOCALIZATIONS	</array>
@@ -277,67 +284,90 @@ $LOCALIZATIONS	</array>
 </plist>
 PLIST_EOF
 
-# Dock / 权限弹窗里显示的名字与说明：跟着界面语言走。
-# 内容住在源码树的 <语言>.lproj/InfoPlist.strings 里，上面那个循环已经一起拷进来了。
-# 这里只单独断言 zh-Hans 那份：它是唯一没有 Localizable.strings 的语言目录，
-# 上面那圈「每门都得有词表」的检查会跳过它，漏拷了就没人管。
-[ -f "$APP_DIR/Contents/Resources/zh-Hans.lproj/InfoPlist.strings" ] \
-	|| { echo "错误：zh-Hans.lproj/InfoPlist.strings 没进 .app，Dock 名与权限弹窗会退回英文" >&2; exit 1; }
+# Name and descriptions shown in the Dock / permission prompts follow the UI language.
+# They live in <lang>.lproj/InfoPlist.strings in the source tree, already copied by the loop above.
+[ -f "$APP_DIR/Contents/Resources/en.lproj/InfoPlist.strings" ] \
+	|| { echo "error: en.lproj/InfoPlist.strings missing from the .app" >&2; exit 1; }
 
 plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
 plutil -lint "$ENTITLEMENTS" >/dev/null
 
-echo "==> [5/7] 签名"
-# 两个渠道两张证书：直链分发要 Developer ID Application，商店要 Apple Distribution。
-# 拿错证书签出来的东西传不上去，也装不到对应的地方。
+echo "==> [5/7] Signing"
+# One certificate per channel: direct download needs Developer ID Application, App Store needs Apple Distribution.
+# Signing with the wrong one can't be uploaded or installed where it's meant to go.
 if [ "$CHANNEL" = "appstore" ]; then
 	IDENT_PATTERN="Apple Distribution:"
 else
 	IDENT_PATTERN="Developer ID Application:"
 fi
-# SIGN_IDENTITY=none 强制走 ad-hoc（用来测回退路径）
+# Personal signing only. This keychain also holds company certificates (other teams); they
+# must never be picked automatically. Developer ID / Apple Distribution identities carry the
+# team ID in their name ("Name (TEAMID)"), so auto-detection requires our team's suffix.
+SIGN_TEAM_ID="${SIGN_TEAM_ID:-HN2G8HJ96Q}"
+DEV_SIGN_IDENTITY="${DEV_SIGN_IDENTITY:-Apple Development: huynhtrungthoai@gmail.com}"
+# SIGN_IDENTITY=none forces ad-hoc (to test the fallback path)
 IDENTITY="${SIGN_IDENTITY:-}"
 if [ -z "$IDENTITY" ]; then
 	IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
-		| awk -F'"' -v pat="$IDENT_PATTERN" 'index($2, pat) == 1 {print $2; exit}')" || true
+		| awk -F'"' -v pat="$IDENT_PATTERN" -v team="($SIGN_TEAM_ID)" \
+			'index($2, pat) == 1 && substr($2, length($2) - length(team) + 1) == team {print $2; exit}')" || true
 fi
-if [ "$IDENTITY" = "none" ]; then IDENTITY=""; fi
+# SIGN_MODE: dist = Developer ID / Apple Distribution (shippable)
+#            dev  = Apple Development (stable local identity, not distributable/notarizable)
+#            adhoc
+SIGN_MODE=""
+if [ -n "$IDENTITY" ] && [ "$IDENTITY" != "none" ]; then
+	case "$IDENTITY" in "$IDENT_PATTERN"*) SIGN_MODE="dist" ;; *) SIGN_MODE="dev" ;; esac
+fi
+if [ -z "$IDENTITY" ] && [ "${RELEASE:-0}" != 1 ] && [ "$CHANNEL" != "appstore" ]; then
+	# Prefix match on the personal account's development certificate only.
+	IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+		| awk -F'"' -v pat="$DEV_SIGN_IDENTITY" 'index($2, pat) == 1 {print $2; exit}')" || true
+	[ -n "$IDENTITY" ] && SIGN_MODE="dev"
+fi
+if [ "$IDENTITY" = "none" ]; then IDENTITY=""; SIGN_MODE=""; fi
+[ -z "$IDENTITY" ] && SIGN_MODE="adhoc"
+if [ "${RELEASE:-0}" = 1 ] && [ "$SIGN_MODE" != "dist" ]; then
+	echo "Error: RELEASE=1 requires a \"$IDENT_PATTERN ...\" identity, current mode is $SIGN_MODE." >&2
+	echo "      Release builds can't be ad-hoc or development-signed (Gatekeeper blocks them; users must click \"Open Anyway\")." >&2
+	exit 1
+fi
 
-# 商店包：描述文件必须在签名之前就位，它把沙盒 entitlements 绑到 App ID 上。
+# App Store build: the provisioning profile must be in place before signing; it binds the sandbox entitlements to the App ID.
 PROFILE="${PROVISION_PROFILE:-$BUILD_DIR/diskwise-appstore.provisionprofile}"
 if [ "$CHANNEL" = "appstore" ]; then
 	if [ -f "$PROFILE" ]; then
 		cp "$PROFILE" "$APP_DIR/Contents/embedded.provisionprofile"
-		echo "    描述文件：$(basename "$PROFILE")（$(du -h "$APP_DIR/Contents/embedded.provisionprofile" | cut -f1)）"
-		# 商店包必须自己带上描述文件授权的那条 App ID entitlement。macOS 上这条键
-		# 叫 com.apple.application-identifier（TN3125：iOS 才是不带前缀的
-		# application-identifier），Keynote / GarageBand / Notion 这些上架包都有。
-		# 少了它签名照样过，但 App Store 的「签名 + 描述文件是否配对」那关是它判的。
+		echo "    Provisioning profile: $(basename "$PROFILE") ($(du -h "$APP_DIR/Contents/embedded.provisionprofile" | cut -f1))"
+		# The App Store build must carry the App ID entitlement granted by the profile. On macOS this key
+		# is com.apple.application-identifier (TN3125: only iOS uses the unprefixed
+		# application-identifier); shipped apps like Keynote / GarageBand / Notion all have it.
+		# Signing passes without it, but App Store's "signature matches profile" check depends on it.
 		mkdir -p "$DERIVED_DIR"
 		DEC_PROFILE="$DERIVED_DIR/provisionprofile.plist"
 		security cms -D -i "$PROFILE" -o "$DEC_PROFILE"
 		PROFILE_APPID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.application-identifier' "$DEC_PROFILE" 2>/dev/null || true)"
 		PROFILE_TEAM="$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$DEC_PROFILE" 2>/dev/null || true)"
 		if [ -z "$PROFILE_APPID" ] || [ -z "$PROFILE_TEAM" ]; then
-			echo "    错误：从描述文件里读不到 App ID / Team ID，这份包不能签" >&2
+			echo "    Error: can't read App ID / Team ID from the provisioning profile; cannot sign this build" >&2
 			exit 1
 		fi
 		case "$PROFILE_APPID" in
 			*.*) ;;
 			*)
-				echo "    错误：描述文件里的 App ID 长得不像 TEAM.bundleid：$PROFILE_APPID" >&2
+				echo "    Error: App ID in the provisioning profile doesn't look like TEAM.bundleid: $PROFILE_APPID" >&2
 				exit 1
 				;;
 		esac
-		# 描述文件可以绑精确 App ID，也可以绑通配的（TEAM com.foo.*）
+		# A profile may bind an exact App ID or a wildcard (TEAM com.foo.*)
 		PROFILE_BUNDLE="${PROFILE_APPID#*.}"
 		if [ "$PROFILE_BUNDLE" = "$BUNDLE_ID" ]; then
 			:
 		elif [[ "$PROFILE_BUNDLE" == *.\* && "$BUNDLE_ID" == "${PROFILE_BUNDLE%?}"* ]]; then
 			:
 		else
-			echo "    错误：描述文件绑的 App ID 是 ${PROFILE_APPID}，不是本包的 $BUNDLE_ID" >&2
-			echo "    换一份对应这个 bundle id 的描述文件（门户 Profiles → 编辑 → 选对 App ID）" >&2
+			echo "    Error: provisioning profile is bound to App ID ${PROFILE_APPID}, not this build's $BUNDLE_ID" >&2
+			echo "    Use a profile for this bundle id (portal Profiles -> Edit -> pick the right App ID)" >&2
 			exit 1
 		fi
 		ENTITLEMENTS="$DERIVED_DIR/entitlements-appstore.plist"
@@ -347,114 +377,136 @@ if [ "$CHANNEL" = "appstore" ]; then
 				|| /usr/libexec/PlistBuddy -c "Add :${k%%=*} string ${k#*=}" "$ENTITLEMENTS" >/dev/null
 		done
 		plutil -lint "$ENTITLEMENTS" >/dev/null
-		echo "    App ID entitlement：${PROFILE_APPID}（team ${PROFILE_TEAM}）"
+		echo "    App ID entitlement: ${PROFILE_APPID} (team ${PROFILE_TEAM})"
 	else
-		echo "    没有描述文件（$PROFILE 不存在）——本地能跑，但这份包传不上 App Store Connect"
+		echo "    No provisioning profile ($PROFILE not found) - runs locally, but this build can't be uploaded to App Store Connect"
 	fi
 fi
 
-# 描述文件这类素材是用浏览器从门户下载的，自带 com.apple.quarantine；上面的 cp 会原样
-# 把它带进 payload，productbuild 再烘进 pkg，App Store 处理阶段以 91109 判整包无效
-# （"This attribute isn't permitted in macOS apps distributed on TestFlight or the App Store"）。
-# 只删这一个属性——com.apple.provenance 是系统记的，不该也清不掉。
+# Profiles are downloaded from the portal in a browser and carry com.apple.quarantine; the cp above carries it
+# into the payload, productbuild bakes it into the pkg, and App Store processing rejects the whole package with 91109
+# ("This attribute isn't permitted in macOS apps distributed on TestFlight or the App Store").
+# Remove only this attribute - com.apple.provenance is recorded by the system and shouldn't (and can't) be cleared.
 QFILES="$(find "$APP_DIR" -exec sh -c 'xattr "$1" 2>/dev/null | grep -qx com.apple.quarantine && echo q' _ {} \; | wc -l | tr -d ' ')"
 if [ "$QFILES" != "0" ]; then
-	echo "    清 quarantine 属性：$QFILES 个文件"
+	echo "    Clearing quarantine attribute: $QFILES files"
 	xattr -r -d com.apple.quarantine "$APP_DIR" 2>/dev/null || true
 fi
 
-# 嵌套可执行 diskwise 必须先单独签、再签整包：codesign 不递归（--deep 被 Apple
-# 明确不推荐），而公证要求嵌套代码有自己的签名。ad-hoc 分支同样要先签——
-# 否则下面那道 codesign --verify --strict 在本机就直接失败，轮不到公证。
+# The nested diskwise executable must be signed on its own before the bundle: codesign doesn't recurse (--deep is
+# explicitly discouraged by Apple), and notarization requires nested code to carry its own signature. The ad-hoc branch signs it first too -
+# otherwise the codesign --verify --strict below fails locally before notarization is even reached.
 if [ -f "$APP_DIR/Contents/MacOS/diskwise" ]; then
-	if [ -n "$IDENTITY" ]; then
+	if [ "$SIGN_MODE" = "dist" ]; then
 		codesign --force --options runtime --timestamp \
 			--sign "$IDENTITY" "$APP_DIR/Contents/MacOS/diskwise"
+	elif [ "$SIGN_MODE" = "dev" ]; then
+		codesign --force --options runtime --sign "$IDENTITY" "$APP_DIR/Contents/MacOS/diskwise"
 	else
-		codesign --force --sign - "$APP_DIR/Contents/MacOS/diskwise"
+		codesign --force --options runtime --sign - "$APP_DIR/Contents/MacOS/diskwise"
 	fi
 fi
 
 SIGNED=0
-if [ -n "$IDENTITY" ]; then
+if [ "$SIGN_MODE" = "dev" ]; then
+	# SIGNED stays 0: a development certificate cannot be notarized or shipped. It only gives
+	# this Mac a stable code identity so TCC grants (Full Disk Access, Automation) survive rebuilds.
+	echo "    Development certificate (local only): $IDENTITY"
+	codesign --force --options runtime \
+		--entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP_DIR"
+elif [ -n "$IDENTITY" ]; then
 	SIGNED=1
-	echo "    身份：$IDENTITY"
-	# --deep 是 Apple 明确不推荐的写法；嵌套可执行 diskwise 已在上面单独签过，
-	# 这里直接签整包。hardened runtime + 安全时间戳是公证的硬门槛，少一个 notarytool 直接拒。
+	echo "    Identity: $IDENTITY"
+	# --deep is explicitly discouraged by Apple; the nested diskwise executable was signed separately above,
+	# so sign the bundle directly. Hardened runtime + secure timestamp are hard notarization requirements; notarytool rejects without either.
 	codesign --force --options runtime --timestamp \
 		--entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP_DIR"
 else
-	echo "    钥匙串里没有 $IDENT_PATTERN → ad-hoc 签名"
+	echo "    No $IDENT_PATTERN in keychain -> ad-hoc signing"
 	if [ "$CHANNEL" = "appstore" ]; then
-		echo "    沙盒照样生效（能本地验授权流），但这份包不能上传，只用于测试。"
+		echo "    Sandbox still applies (grant flows can be tested locally), but this build can't be uploaded; testing only."
 	else
-		echo "    产物照出，但用户首次打开会被 Gatekeeper 拦一次；不能送公证。"
+		echo "    Artifact still produced, but Gatekeeper blocks the first launch once; cannot be notarized."
 	fi
-	codesign --force --sign - --entitlements "$ENTITLEMENTS" "$APP_DIR"
+	codesign --force --options runtime --sign - --entitlements "$ENTITLEMENTS" "$APP_DIR"
 fi
 codesign --verify --strict --verbose=2 "$APP_DIR" 2>&1 | tail -n 1 | sed 's/^/    /'
-# 冒烟：签完的 CLI 真能跑（商店包没有 CLI，跳过）
+# Smoke test: the signed CLI actually runs (App Store build has no CLI, skipped)
 if [ -f "$APP_DIR/Contents/MacOS/diskwise" ]; then
-	"$APP_DIR/Contents/MacOS/diskwise" --version | sed 's/^/    CLI 冒烟：/'
+	"$APP_DIR/Contents/MacOS/diskwise" --version | sed 's/^/    CLI smoke test: /'
 fi
-# 直链版的 entitlements 是空 dict，grep 不中会带着 set -e 把整个构建掀了，所以先落变量。
+# Direct-build entitlements are an empty dict; a grep miss under set -e would kill the build, so capture into a variable first.
 ENT_SUMMARY="$(plutil -p "$ENTITLEMENTS" | grep -E 'app-sandbox|user-selected|apple-events|application-identifier|team-identifier' || true)"
 if [ -n "$ENT_SUMMARY" ]; then
 	echo "$ENT_SUMMARY" | sed 's/^/    /'
 else
-	echo "    entitlements：空 dict（直链版 hardened runtime 不需要任何键）"
+	echo "    entitlements: empty dict (direct build's hardened runtime needs no keys)"
 fi
 codesign -dv --verbose=4 "$APP_DIR" 2>&1 \
 	| grep -E "^(Identifier|Format|CodeDirectory)|Signature=|TeamIdentifier|Runtime" \
 	| sed 's/^/    /'
+# Guard: a signed bundle must belong to OUR team, never a company team that happens to have
+# a certificate in this keychain (explicit SIGN_IDENTITY included).
+if [ "$SIGN_MODE" != "adhoc" ]; then
+	for BIN in "$APP_DIR" "$APP_DIR/Contents/MacOS/diskwise"; do
+		[ -e "$BIN" ] || continue
+		GOT_TEAM="$(codesign -dv --verbose=4 "$BIN" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+		if [ "$GOT_TEAM" != "$SIGN_TEAM_ID" ]; then
+			echo "Error: $(basename "$BIN") was signed with team '$GOT_TEAM', only '$SIGN_TEAM_ID' (personal account) is allowed." >&2
+			echo "      Check SIGN_IDENTITY / DEV_SIGN_IDENTITY, or use SIGN_IDENTITY=none for ad-hoc." >&2
+			exit 1
+		fi
+	done
+	echo "    Team check: $SIGN_TEAM_ID ✓"
+fi
 
-echo "==> [6/7] 组装发布物"
+echo "==> [6/7] Assembling release artifact"
 mkdir -p "$DIST_DIR"
 if [ "$CHANNEL" = "appstore" ]; then
-	# 商店只收 .pkg（Transporter / altool 都不接 DMG），所以这一支不出 DMG，
-	# 也不写 README.txt——那份首次打开说明是直链分发才有的东西。
-	# 两张证书不能混用：.app 用 Apple Distribution，.pkg 必须用 Mac Installer
-	# Distribution 签（Apple 证书分工表里写死的区别），拿错身份 productbuild 直接失败。
+	# The App Store only accepts .pkg (Transporter / altool don't take DMGs), so this branch makes no DMG
+	# and no README.txt - that first-launch note is only for direct downloads.
+	# The two certificates can't be mixed: .app uses Apple Distribution, .pkg must be signed with Mac Installer
+	# Distribution (a fixed split in Apple's certificate table); with the wrong identity productbuild fails.
 	ARTIFACT="$DIST_DIR/$PKG_NAME"
 	INSTALLER_IDENT=""
 	if [ "$SIGNED" = 1 ]; then
-		# 这里不能加 -p codesigning：installer 身份不属于 codesigning 策略，
-		# 那个过滤器会把 Mac Installer Distribution 整个滤掉（Apple 打包文档明确提醒过）。
+		# Don't add -p codesigning here: installer identities aren't in the codesigning policy,
+		# and that filter would drop Mac Installer Distribution entirely (Apple's packaging docs warn about this).
 		INSTALLER_IDENT="$(security find-identity -v 2>/dev/null \
 			| awk -F'"' 'index($2, "Mac Installer Distribution:") == 1 ||
 					index($2, "3rd Party Mac Developer Installer:") == 1 {print $2; exit}')" || true
 	fi
-	# productbuild 会把组件交给系统里的打包助手去读，而 ~/Desktop 是 TCC 保护目录：仓库放在
-	# 桌面上时，同一份 .app 从桌面打包报「not a valid bundle component」，搬到别处就正常。
-	# 所以先原样搬一份到临时目录再打——签名跟着目录走，产物里不含这个路径。
+	# productbuild hands the component to a system packaging helper, and ~/Desktop is TCC-protected: with the repo
+	# on the Desktop, the same .app fails with "not a valid bundle component" but works elsewhere.
+	# So copy it to a temp dir first - the signature travels with the dir and the path isn't in the artifact.
 	PKG_STAGE="$(mktemp -d "${TMPDIR:-/tmp}/diskwise-pkg.XXXXXX")"
 	ditto "$APP_DIR" "$PKG_STAGE/${APP_NAME}.app"
 	COMPONENT="$PKG_STAGE/${APP_NAME}.app"
 	PKG_LOG="$BUILD_DIR/productbuild.log"
 	if [ -n "$INSTALLER_IDENT" ] && productbuild --component "$COMPONENT" /Applications \
 			--sign "$INSTALLER_IDENT" "$ARTIFACT" >"$PKG_LOG" 2>&1; then
-		echo "    pkg 已签名：$INSTALLER_IDENT"
+		echo "    pkg signed: $INSTALLER_IDENT"
 	else
 		rm -f "$ARTIFACT"
 		if ! productbuild --component "$COMPONENT" /Applications "$ARTIFACT" >>"$PKG_LOG" 2>&1; then
-			# 不接住这一条，set -e 会让脚本在这里静悄悄退出，只剩一行「[6/7]」可看
-			echo "    pkg 打包失败，productbuild 原话："
+			# Without catching this, set -e exits silently here, leaving only a "[6/7]" line
+			echo "    pkg build failed, productbuild output:"
 			sed 's/^/      /' "$PKG_LOG" | tail -6
 			rm -rf "$PKG_STAGE"
 			exit 1
 		fi
 		if [ "$SIGNED" != 1 ]; then
-			echo "    pkg 未签名：App 本身是 ad-hoc 的，这份只能本地验授权流"
+			echo "    pkg unsigned: the app itself is ad-hoc; only for testing grant flows locally"
 		elif [ -z "$INSTALLER_IDENT" ]; then
-			echo "    pkg 未签名：App 签好了，但钥匙串里没有 \"Mac Installer Distribution: ...\""
-			echo "    商店要求 product archive 由这张证书签，缺它 Transporter 会拒——门户上再建一张，CSR 用同一份即可"
+			echo "    pkg unsigned: app is signed, but no \"Mac Installer Distribution: ...\" in the keychain"
+			echo "    The App Store requires the product archive be signed with this cert; Transporter rejects without it - create one in the portal, same CSR is fine"
 		else
-			echo "    pkg 签名失败，productbuild 原话："
+			echo "    pkg signing failed, productbuild output:"
 			sed 's/^/      /' "$PKG_LOG" | tail -6
 		fi
 	fi
 	rm -rf "$PKG_STAGE"
-	echo "    ${PKG_NAME}：$(du -h "$ARTIFACT" | cut -f1)"
+	echo "    ${PKG_NAME}: $(du -h "$ARTIFACT" | cut -f1)"
 else
 rm -rf "$STAGING"
 mkdir -p "$STAGING"
@@ -462,31 +514,23 @@ cp -R "$APP_DIR" "$STAGING/"
 ln -s /Applications "$STAGING/Applications"
 
 if [ "${NOTARIZE:-0}" = 1 ]; then
-	# 敢提前写这行，是因为第 7 步在没身份/没凭据时会硬失败，不会出一个「写着公证其实没有」的包
+	# Safe to write this early: step 7 hard-fails without identity/credentials, so no build claims notarization it lacks
 	LAUNCH_EN='[ First launch ]
 Double-click it. The build is signed by a Developer ID identity and notarized by
 Apple, so Gatekeeper lets it open with no extra step.'
-	LAUNCH_ZH='【首次打开】
-双击即可。这个包用 Developer ID 证书签名并经 Apple 公证，Gatekeeper 不会拦。'
 	HEADER_EN="signed + notarized"
-	HEADER_ZH="已签名 · 已公证"
 else
-	# 签名不等于公证：从网上下来的包缺了票据照样被 Gatekeeper 拦，所以文案不能写反
+	# Signed is not notarized: a downloaded build without a ticket is still blocked by Gatekeeper, so the text must not claim otherwise
 	if [ "$SIGNED" = 1 ]; then
 		HEADER_EN="signed, NOT notarized"
-		HEADER_ZH="已签名 · 未公证"
 	else
 		HEADER_EN="unsigned"
-		HEADER_ZH="未签名"
 	fi
 	LAUNCH_EN="[ First launch ($HEADER_EN) ]
 Double-click is blocked the first time. Then open
 System Settings -> Privacy & Security -> \"Open Anyway\" -> Open.
 (On macOS 13-14 the older right-click -> Open works too;
 Sequoia removed that shortcut.)"
-	LAUNCH_ZH="【首次打开（${HEADER_ZH}，只需一次）】
-双击会被拦下，然后到 系统设置 → 隐私与安全性 → 点「仍要打开」→ 再点「打开」。
-（macOS 13–14 上还可以按住 Control 点按 App → 「打开」；Sequoia 起这条捷径已移除。）"
 fi
 
 cat > "$STAGING/README.txt" <<README_EOF
@@ -513,62 +557,35 @@ first time. Click OK. (Change it later in
 System Settings -> Privacy & Security -> Automation.)
 
 [ Switch language ]
-Skins page -> globe control -> English / 中文. Applies at once, no restart.
+Skins page -> globe control -> pick a language. Applies at once, no restart.
 
 [ Uninstall ]
 Drag the app to the Trash. No leftovers, no background agents.
-
-------------------------------------------------------------
-
-${APP_NAME} v${VERSION}（SwiftUI 原生 · ${HEADER_ZH}）
-============================================================
-
-【这是什么】
-不依赖 Python、不起本地服务、没有端口——双击就是原生 App。
-扫描占空间的东西，每一项解释「这是什么 / 删了会怎样 / 怎么恢复」，
-删除只进废纸篓，随时撤销。不联网、无遥测、无广告。
-
-【安装】
-1. 双击打开本 DMG；
-2. 把「${APP_NAME}」拖进「应用程序」文件夹；
-3. 推出 DMG。
-
-$LAUNCH_ZH
-
-【清空废纸篓的授权】
-“清空废纸篓”交给访达执行，首次点击时系统弹窗问一次，点「好」即可
-（系统设置 → 隐私与安全性 → 自动化 里可改）。
-
-【切换语言】
-外观皮肤页 → 地球图标 → English / 中文，点一下就换，不用重启。
-
-【卸载】
-把 App 拖进废纸篓即可，无残留、无后台常驻。
 README_EOF
 
 hdiutil create -volname "$VOLNAME" -srcfolder "$STAGING" -ov -format UDZO "$DIST_DIR/$DMG_NAME" >/dev/null
 ARTIFACT="$DIST_DIR/$DMG_NAME"
-echo "    ${DMG_NAME}：$(du -h "$ARTIFACT" | cut -f1)"
+echo "    ${DMG_NAME}: $(du -h "$ARTIFACT" | cut -f1)"
 fi
 
-echo "==> [7/7] 公证"
+echo "==> [7/7] Notarization"
 if [ "$CHANNEL" = "appstore" ]; then
-	echo "    跳过：商店包由 Apple 上传后自己公证，我们 staple 是多余动作（钉了票据的 pkg 反而是拒点）"
+	echo "    Skipped: Apple notarizes App Store builds after upload; stapling is redundant (a stapled pkg is actually a rejection point)"
 	ART_SHA="$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
 elif [ "${NOTARIZE:-0}" != 1 ]; then
 	if [ "$SIGNED" = 1 ]; then
-		echo "    已签名但没送公证（要出双击即开的包：NOTARIZE=1 bash build.sh）"
+		echo "    Signed but not notarized (for a double-click-to-open build: NOTARIZE=1 bash build.sh)"
 	else
-		echo "    跳过：ad-hoc 包送不了公证，先装 Developer ID 证书"
+		echo "    Skipped: $SIGN_MODE-signed builds can't be notarized (needs a Developer ID Application cert for the personal team)"
 	fi
 	ART_SHA="$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
 else
 	[ "$SIGNED" = 1 ] || {
-		echo "错误：公证需要 Developer ID Application 身份，现在只有 ad-hoc。" >&2
-		echo "      先在 钥匙串访问 里建好证书，再重跑；或 export SIGN_IDENTITY=\"Developer ID Application: ...\"" >&2
+		echo "Error: notarization needs a Developer ID Application identity, only ad-hoc available." >&2
+		echo "      Create the certificate in Keychain Access, then rerun; or export SIGN_IDENTITY=\"Developer ID Application: ...\"" >&2
 		exit 1
 	}
-	# DMG 本身也要签，公证的是这个容器
+	# The DMG itself must be signed too; it's the container that gets notarized
 	codesign --force --timestamp --sign "$IDENTITY" "$ARTIFACT"
 
 	if [ -n "${NOTARY_PROFILE:-}" ]; then
@@ -577,21 +594,21 @@ else
 		xcrun notarytool submit "$ARTIFACT" \
 			--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APP_SPECIFIC_PASSWORD" --wait
 	else
-		echo "错误：没有公证凭据。三选一：" >&2
-		echo "      1) 存一次到钥匙串，之后只带 NOTARY_PROFILE：export NOTARY_PROFILE=diskwise" >&2
-		echo "         xcrun notarytool store-credentials diskwise --apple-id 你的邮箱 --team-id TEAMID --password xxxx-xxxx-xxxx-xxxx" >&2
-		echo "      2) export APPLE_ID / APPLE_TEAM_ID / APP_SPECIFIC_PASSWORD（app 专用密码在 appleid.apple.com 建）" >&2
-		echo "      3) CI 上把这三项配成 secrets" >&2
+		echo "Error: no notarization credentials. Pick one:" >&2
+		echo "      1) store once in the keychain, then just set NOTARY_PROFILE: export NOTARY_PROFILE=cleanpilot" >&2
+		echo "         xcrun notarytool store-credentials cleanpilot --apple-id YOUR_EMAIL --team-id TEAMID --password xxxx-xxxx-xxxx-xxxx" >&2
+		echo "      2) export APPLE_ID / APPLE_TEAM_ID / APP_SPECIFIC_PASSWORD (create the app-specific password at appleid.apple.com)" >&2
+		echo "      3) on CI, configure these three as secrets" >&2
 		exit 1
 	fi
 
 	xcrun stapler staple "$ARTIFACT"
 	xcrun stapler validate "$ARTIFACT" 2>&1 | tail -n 1 | sed 's/^/    /'
-	# 这一步就是用户双击时 Gatekeeper 走的那条判定
+	# This is the same check Gatekeeper runs when the user double-clicks
 	spctl --assess --type open --context context:primary-signature -vv "$ARTIFACT" 2>&1 | sed 's/^/    /'
 	ART_SHA="$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
 fi
 
-echo "---- 完成 ----"
+echo "---- Done ----"
 ls -lh "$ARTIFACT"
 echo "SHA256: $ART_SHA"

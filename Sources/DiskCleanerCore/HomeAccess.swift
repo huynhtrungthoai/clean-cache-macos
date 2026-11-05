@@ -49,6 +49,10 @@ public enum HomeAccess {
     /// 返回 false 说明系统没给到 security scope，界面得提示重试而不是假装成功。
     @discardableResult
     public static func grant(_ url: URL) -> Bool {
+        // P0-9: the granted folder BECOMES homeDir(), i.e. the deletion boundary and the anchor
+        // of the protected set. Picking /Users (other users' homes become deletable) or an
+        // external drive (every ~/Library rule points at the wrong tree) must be refused.
+        guard isRealHome(url) else { return false }
         guard let data = try? bookmarkData(for: url) else { return false }
         // 实测：面板返回的那个 URL 直接 startAccessing 会给出 false，
         // 必须把刚写下的书签解析回来、拿解析出的 URL 去访问才认。
@@ -59,6 +63,15 @@ public enum HomeAccess {
         guard adopt(scoped) else { return false }
         UserDefaults.standard.set(data, forKey: bookmarkKey)
         return true
+    }
+
+    /// Is `url` the user's real home directory (symlinks / case resolved)?
+    public static func isRealHome(_ url: URL) -> Bool {
+        let want = realHomeDir().standardizedFileURL.path
+        let got = url.standardizedFileURL.path
+        let a = foldPath(realpathString(got) ?? got)
+        let b = foldPath(realpathString(want) ?? want)
+        return a == b
     }
 
     /// 授权完成后由 UI 层调用；会持有 security scope 直到进程退出。
@@ -91,6 +104,11 @@ public enum HomeAccess {
         guard let url = try? URL(resolvingBookmarkData: raw,
                                  options: [.withSecurityScope],
                                  relativeTo: nil, bookmarkDataIsStale: &stale) else {
+            UserDefaults.standard.removeObject(forKey: bookmarkKey)
+            return false
+        }
+        // A bookmark saved by an older build may point anywhere (P0-9): drop it and ask again.
+        guard isRealHome(url) else {
             UserDefaults.standard.removeObject(forKey: bookmarkKey)
             return false
         }

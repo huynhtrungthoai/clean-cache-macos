@@ -57,44 +57,44 @@ struct CleanupGuide: View {
     static let pages: [GuidePage] = [
         GuidePage(
             id: 1,
-            kicker: L("01 / 环心的那个数"),
-            headline: L("最大的数，不再是「还能腾出」"),
-            lede: L("上一版的环心写一笔预期——「还能腾出 12.9」。这一版换成这块盘此刻真实的可用量；预期收得走多少，退到账上那一行。"),
+            kicker: L("01 / The number in the middle"),
+            headline: L("The biggest number is no longer “can still free”"),
+            lede: L("The old ring centre printed a promise: “can still free 12.9”. This version puts the space you actually have right now, and what you might reclaim moved down into the ledger."),
             notes: [
-                (L("环心 = 现在就能用的"), L("不是清完以后能到多少。那个数只会在废纸篓真的清空后变。")),
-                (L("收得走多少，写在账上"), L("每段各占多少，条子长度就是它；环心不替它们相加。")),
-                (L("没量到的另算"), L("不混进「共用了多少」——那一笔随时会缩，混进来就会骗人。")),
+                (L("Ring centre = what's usable right now"), L("Not how much you'd have after cleaning. That number only changes once the Trash is genuinely emptied.")),
+                (L("How much is reclaimable lives in the ledger"), L("Each segment's share is exactly how long its bar is; the ring centre doesn't add them up for you.")),
+                (L("What wasn't measured counts separately"), L("It isn't folded into “used” — that figure shrinks at any moment, and mixing them would lie to you.")),
             ]),
         GuidePage(
             id: 2,
-            kicker: L("02 / 动手"),
-            headline: L("点两下才真的动，3 秒不点就撤"),
-            lede: L("第一下只上膛，第二下才把这一段移进废纸篓。中间这三秒，点别处、换一段或按 Esc，都能撤。"),
+            kicker: L("02 / Taking action"),
+            headline: L("Two clicks to actually move anything, 3 s to stand down"),
+            lede: L("The first click only arms it; the second moves this segment to the Trash. During those three seconds, clicking elsewhere, switching segment or pressing Esc all stand it down."),
             notes: [
-                (L("第一下：只是上膛"), L("环心报这一段的量，主钮写明要做什么；还没动任何文件。")),
-                (L("第二下：才移进废纸篓"), L("同一段再点一次。不点，3 秒后自己回到原样。")),
-                (L("点别的段，就是改主意"), L("上膛挪到新的一段，原来那段撤下；按 Esc 也一样。")),
+                (L("First click: just arming"), L("The ring centre reports that segment's size and the main button says what it will do; no file has been touched yet.")),
+                (L("Second click: only now does it move to the Trash"), L("Click the same segment again. If you don't, it returns to normal after 3 s.")),
+                (L("Clicking another segment means you changed your mind"), L("Arming moves to the new segment and the old one stands down; Esc does the same.")),
             ]),
         GuidePage(
             id: 3,
-            kicker: L("03 / 字节去哪了"),
-            headline: L("进了废纸篓，空间还没回来"),
-            lede: L("本工具只做「移进废纸篓」这一步：字节还在盘上，可用数不会立刻涨。清空那一下归访达——你去访达按，或从废纸篓页请访达动手，让出空间的都是那一下。"),
+            kicker: L("03 / Where the bytes went"),
+            headline: L("It's in the Trash — the space isn't back yet"),
+            lede: L("This tool only does the “move to Trash” step: the bytes are still on disk and the available figure doesn't jump. Emptying is Finder's move — press it in Finder or call Finder from the Trash page, either way that's the moment the space comes back."),
             notes: [
-                (L("移入后：可用数不动"), L("环上那一段只是换了颜色——它还在占地方。")),
-                (L("清空后：可用数才涨"), L("这一步交给访达。本工具不替你倒垃圾，也不偷偷清。")),
-                (L("还想找回来"), L("废纸篓页能打开访达；清空之前，整批都能原样放回去。")),
+                (L("After moving in: available doesn't move"), L("That segment on the ring only changed colour — it still occupies space.")),
+                (L("After emptying: only now does available grow"), L("Finder does this step. This tool doesn't take your rubbish out for you, and doesn't clean behind your back.")),
+                (L("Want a file back"), L("The Trash page can open Finder; until you empty it, the whole batch goes back as it was.")),
             ]),
         GuidePage(
             id: 4,
-            kicker: L("04 / 点不动的时候"),
-            headline: L("不给清的，会当场说为什么"),
-            lede: L("不是所有段都能动。点不动的段不会假装在忙，会直接给一句原因；已经移进去的，都能还原。"),
+            kicker: L("04 / When a click does nothing"),
+            headline: L("If it can't be cleaned, you're told why on the spot"),
+            lede: L("Not every segment can be moved. One that can't won't pretend to be busy — it gives you the reason straight away. Anything already moved in can come back."),
             notes: [
-                (L("受系统保护"), L("比如系统数据那一段：整块根目录不许整个搬走。里面的东西能清，去别的清理页挑。")),
-                (L("不在这次范围"), L("比如其他用户和盘顶那些系统区：量得到、报得出数，但删除那一步只认家目录、应用程序与两个临时区。")),
-                (L("只是一笔汇总"), L("「没量到的」这类合账背后不是一个目录，整个搬不走；要逐块看，点开右边账上那一行。")),
-                (L("移错了：还原"), L("废纸篓页把这一批原样放回去；清空之前都还在。")),
+                (L("Protected by the system"), L("Take the System Data arc: a whole root folder never moves as one piece. What's inside still gets cleaned — pick it on the other cleanup pages.")),
+                (L("Outside this scope"), L("Other users' folders and the system areas at the top of the disk: we measure them and report the number, but deleting only touches your home folder, /Applications and the two temp folders.")),
+                (L("Just a combined total"), L("A combined line like “Not measured” isn't one folder, so it can't move as a whole — open that row in the ledger on the right to see it block by block.")),
+                (L("Moved the wrong thing: put it back"), L("The Trash page puts this batch back exactly as it was; it's all still there until you empty it.")),
             ]),
     ]
 
@@ -144,7 +144,7 @@ struct CleanupGuide: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Text(L("升级后的第一次 · 清理说明"))
+            Text(L("First run after upgrading · How cleaning works"))
                 .font(theme.bodyFont(.caption))
                 .foregroundStyle(theme.palette.inkSecondary)
             Spacer(minLength: 8)
@@ -152,15 +152,15 @@ struct CleanupGuide: View {
                 .font(theme.bodyFont(.caption))
                 .monospacedDigit()
                 .foregroundStyle(theme.palette.inkTertiary)
-                .accessibilityLabel(LF("第 %1$@ 页，共 %2$@ 页",
+                .accessibilityLabel(LF("Page %1$@ of %2$@",
                                        String(page), String(Self.pages.count)))
             Button(action: onClose) {
-                Text(L("跳过"))
+                Text(L("Skip"))
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkTertiary)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(L("跳过清理说明"))
+            .accessibilityLabel(L("Skip the cleanup walkthrough"))
         }
         .padding(.horizontal, 24)
         .frame(height: 44)
@@ -223,7 +223,7 @@ struct CleanupGuide: View {
             case 3: visualThree
             default: visualFour
             }
-            Text(L("示意数字，不是你这台盘的数"))
+            Text(L("Illustrative numbers, not readings from your disk"))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -247,7 +247,7 @@ struct CleanupGuide: View {
     /// 这条规矩是 `FirstRunView.hero` 先立下的，这里照办。
     private var visualOne: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(L("可用"))
+            Text(L("Available"))
                 .font(theme.bodyFont(.caption2))
                 .tracking(2.2)
                 .foregroundStyle(theme.palette.tint)
@@ -259,10 +259,10 @@ struct CleanupGuide: View {
                     .font(theme.bodyFont(.footnote))
                     .foregroundStyle(theme.palette.inkTertiary)
             }
-            Text(LF("整块盘 %1$@ · 已用 %2$@", "96.0 GB", "80.0 GB"))
+            Text(LF("Disk %1$@ · %2$@ used", "96.0 GB", "80.0 GB"))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkSecondary)
-            Text(L("还能腾出 12.9"))
+            Text(L("can still free 12.9"))
                 .font(theme.bodyFont(.caption2))
                 .strikethrough()
                 .foregroundStyle(theme.palette.inkTertiary.opacity(0.7))
@@ -273,15 +273,15 @@ struct CleanupGuide: View {
     /// 第 2 页：同一段的两下，中间那三秒。
     private var visualTwo: some View {
         VStack(alignment: .leading, spacing: 9) {
-            stepRow(L("第一下"), L("上膛 · 应用缓存 6.3 GB"), lit: true)
+            stepRow(L("First click"), L("Armed · App Caches 6.3 GB"), lit: true)
             HStack(spacing: 7) {
                 Rectangle().fill(theme.palette.separator).frame(height: 1)
-                Text(L("3 秒不点就撤"))
+                Text(L("Or it stands down after 3 s"))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                 Rectangle().fill(theme.palette.separator).frame(height: 1)
             }
-            stepRow(L("第二下"), L("移入废纸篓 +6.3 GB"), lit: false)
+            stepRow(L("Second click"), L("Moved to Trash +6.3 GB"), lit: false)
         }
         .accessibilityElement(children: .combine)
     }
@@ -289,17 +289,17 @@ struct CleanupGuide: View {
     /// 第 3 页：移入与清空是两件事，可用数只认后者。
     private var visualThree: some View {
         VStack(alignment: .leading, spacing: 9) {
-            stepRow(L("移入后"), L("可用 16.0 GB · 没变"), lit: false)
+            stepRow(L("After moving in"), L("Available 16.0 GB · unchanged"), lit: false)
             HStack(spacing: 7) {
                 Image(systemName: "arrow.right")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(theme.palette.inkTertiary)
-                Text(L("在访达里清空"))
+                Text(L("Empty it in Finder"))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                 Spacer(minLength: 0)
             }
-            stepRow(L("清空后"), L("可用 22.3 GB"), lit: true)
+            stepRow(L("After emptying "), L("Available 22.3 GB"), lit: true)
         }
         .accessibilityElement(children: .combine)
     }
@@ -352,16 +352,16 @@ struct CleanupGuide: View {
                             .frame(width: 6, height: 6)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(LF("第 %1$@ 页", String(p.id)))
+                    .accessibilityLabel(LF("Page %1$@", String(p.id)))
                 }
             }
             Spacer(minLength: 0)
-            Text(L("升级后只出现一次 · 之后从右上角 ? 复看"))
+            Text(L("Shows once after an upgrade · reopen it any time from the ? at the top right"))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkTertiary)
                 .layoutPriority(1)
             Spacer(minLength: 0)
-            ThemeButton(kind: .ghost, title: L("上一页")) {
+            ThemeButton(kind: .ghost, title: L("Previous")) {
                 guard page > 1 else { return }
                 withAnimation(theme.animation) { page -= 1 }
             }
@@ -369,7 +369,7 @@ struct CleanupGuide: View {
             // 走完最后一张与中途关掉是同一件事：都回到这块盘。所以最后一张
             // 不另起一颗钮，把「下一页」那颗改名字、换主色、改成收口。
             ThemeButton(kind: isLast ? .primary : .secondary,
-                        title: isLast ? L("开始用这块盘") : L("下一页")) {
+                        title: isLast ? L("Start using this disk") : L("Next")) {
                 if isLast { onClose() } else { withAnimation(theme.animation) { page += 1 } }
             }
         }
@@ -400,7 +400,7 @@ struct GuideButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help(L("清理说明：这一版哪几处和上一版不一样"))
-        .accessibilityLabel(L("清理说明"))
+        .help(L("How cleaning works: what changed since the last version"))
+        .accessibilityLabel(L("How cleaning works"))
     }
 }

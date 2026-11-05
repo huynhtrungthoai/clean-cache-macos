@@ -17,7 +17,7 @@
 서버 없음, 텔레메트리 없음, 구독 없음. UI는 10개 언어. DMG는 약 8 MB이고 Apple Silicon과 Intel을 한
 파일에 담았습니다.
 
-[English](./README.md) | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | 한국어
+[English](./README.md) | [日本語](./README.ja.md) | 한국어
 
 ![공간 개요의 한 바퀴: 다시 스캔하면 링이 한 구획씩 자라나 멈추고, 빛의 띠가 링을 한 바퀴 돌고, 대장의 한 행을 열면 그 행의 내역이 그 자리에서 펼쳐지며 링은 작은 참조 다이얼로 물러서고, 호를 한 번 탭하면 장전되고 두 번째 탭에 휴지통으로 가며, 되돌리면 원래대로 돌아온다](docs/demo/overview-en.gif)
 
@@ -279,7 +279,7 @@ WeChat, DingTalk, WeCom이 들어 있는 이유는 많은 기기에서 이 셋�
 |---|---|---|
 | <img src="docs/screenshots/skins/graphite.png" width="270" alt="Graphite 스킨"> | <img src="docs/screenshots/skins/mint.png" width="270" alt="Mint 스킨"> | <img src="docs/screenshots/skins/midnight.png" width="270" alt="Polar Night 스킨"> |
 
-UI는 10개 언어 —— 영어, 简体中文, 繁體中文, 日本語, 한국어, Deutsch, Español, Français, Русский,
+UI는 10개 언어 —— 영어, Tiếng Việt, 日本語, 한국어, Deutsch, Español, Français, Русский,
 Português(브라질) —— 이고 스킨 페이지의 언어 메뉴에서 바꿀 수 있으며 기본값은 시스템 언어입니다. 수 표현도
 영어를 그대로 붙이지 않고 언어마다 굴절합니다. 러시아어는 수마다 형태를 고르고(`1 файл`, `3 файла`,
 `11 групп`), 독일어와 로망스어는 단수·복수를 구분하며, 일본어와 한국어는 각 언어가 실제로 쓰는 조수를

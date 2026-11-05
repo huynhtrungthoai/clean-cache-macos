@@ -1,34 +1,34 @@
 import SwiftUI
 import DiskCleanerCore
 
-// ── 首次运行那一屏 ──────────────────────────────────────────────────────────
+// ── First-run screen ──────────────────────────────────────────────────────────
 //
-// **为什么盖在窗口上，而不是侧栏里的一页**：这一屏要在任何数字出现之前把「一整圈＝整块盘」
-// 这句话讲完。放进侧栏就会被绕过——第一次打开的人点的是「空间总览」，看到的是一圈还没量完的
-// 弧加右边一排「统计中…」，那正是这一屏要避免的第一印象。
+// **Why it covers the window instead of being a sidebar page**: this screen must finish saying "one full ring = the whole disk"
+// before any number appears. In the sidebar it would be bypassed: a first-time user clicks "Overview" and sees a ring still
+// being measured plus a column of "Counting...", exactly the first impression this screen exists to avoid.
 //
-// **为什么不用 sheet**：截图链路只拍自己这一扇窗（`SnapshotMode.pngData(window…)`），
-// 而 sheet 是另一扇子窗（见 `shootSheet` 那段：父窗的合成结果里没有它）。用 sheet 的话
-// `DISKWISE_FIRST_RUN=1` 一张图都拍不到，这一屏就永远没有证据图。
+// **Why not a sheet**: the screenshot pipeline only captures its own window (`SnapshotMode.pngData(window…)`),
+// and a sheet is a separate child window (see `shootSheet`: it's absent from the parent's composite). With a sheet,
+// `DISKWISE_FIRST_RUN=1` captures nothing, so this screen would never have evidence shots.
 //
-// **为什么盖着的时候扫描已经在跑**：底下那一屏的 `onAppear` 照常起来，扫描在这一屏后面就开始了。
-// 于是它同时是「等第一趟量完」的等待页——按下去直接有账，不用干等一圈光带走完。
+// **Why the scan is already running while it's covering**: the underlying screen's `onAppear` fires as usual, so the scan starts behind this one.
+// That makes it double as the "wait for the first pass" page: pressing through lands on real numbers, no waiting for the sweep.
 //
-// **环上为什么是示例数**：沙盒版在授权前压根量不到东西，而任何造出来的数都必须当场说明是造的
-// （环底下那句「示例环，不是你这台盘的数」）。这一屏是全 App 第一句自我介绍，它不许撒谎。
-// 示例那五段照旧要加得起来（`docs/DESIGN.md` 第 6 节第 7 条）：42.4 + 33.8 + 27.5 + 240.0
-// + 168.3 = 512.0，圆心那句「整块盘 512.0 GB · 已用 343.7 GB」与「全部清空后可用
-// 272.0 GB」都是拿这五个数算的，不是另外编的。
+// **Why the ring shows sample numbers**: the sandboxed build can't measure anything before authorization, and any made-up number must say so on the spot
+// (the line under the ring: "Sample ring, not your disk's numbers"). This is the app's first self-introduction; it may not lie.
+// The five sample segments must still add up (`docs/DESIGN.md` section 6, item 7): 42.4 + 33.8 + 27.5 + 240.0
+// + 168.3 = 512.0; the center lines "Whole disk 512.0 GB · Used 343.7 GB" and "Available after cleaning everything
+// 272.0 GB" are computed from these five numbers, not invented separately.
 //
-// **环是真环**：`SweepRing` 本体，材质由此刻生效的皮肤决定（`skins.json` 的 `ring` 字段 →
-// `Theme.ring` → `RingStyle`）。所以下面那排皮肤点一下，环就换成那一套的画法。
-// 说清楚现在换的是什么：六套内置皮肤**都选 `crystal`**，所以点下去变的是墨色、灯光、
-// 字体和环的粗细，材质本身不变——材质这一档目前只有投放进来的 `skins.json` 能给出第二款。
-// 因此这一屏讲的是「整张脸跟着这一排走」，不讲「这里能试两种材质」；那句假话以前写在这里，
-// 2026-10-21 拍图时对不上，删了。示例段用的灰走 `SweepRing.blockedInk` / `freeInk`，
-// 与总览页同一份配方，不是重抄一遍的近似色。
+// **The ring is real**: the actual `SweepRing`, its material set by the active skin (`skins.json` `ring` field ->
+// `Theme.ring` -> `RingStyle`). So tapping a skin below redraws the ring in that skin's style.
+// To be precise about what changes: all six built-in skins **use `crystal`**, so tapping changes ink, lighting,
+// fonts and ring thickness, not the material; currently only a dropped-in `skins.json` can supply a second material.
+// Hence this screen says "the whole face follows this row", not "try two materials here"; that false claim used to live here
+// and was removed on 2026-10-21 when the screenshots didn't match. Sample-segment greys use `SweepRing.blockedInk` / `freeInk`,
+// the same recipe as the Overview page, not a re-copied approximation.
 
-/// 首次运行那一屏。由 `ContentView` 盖在窗口上，看完或跳过之后 `Prefs.finishFirstRun()` 收起。
+/// First-run screen. `ContentView` overlays it on the window; after viewing or skipping, `Prefs.finishFirstRun()` dismisses it.
 struct FirstRunView: View {
     @EnvironmentObject private var themeManager: ThemeManager
     @Environment(\.theme) private var theme
@@ -41,10 +41,10 @@ struct FirstRunView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     chrome
-                    // 上面这一道 `Spacer` 不是留白，是把「标题 + 环」这一块**立到窗口中间去**。
-                    // 少了它，窗口一高（截图那趟实测 852 磅），内容全贴在顶上、按钮孤零零站在
-                    // 底下，中间空出一整屏——读者会以为这一屏还没画完。有了它，700 高的默认窗
-                    // 和 850 高的大窗是同一张构图，只是上下各多一点呼吸。
+                    // The `Spacer` above isn't padding: it **centers the "title + ring" block vertically in the window**.
+                    // Without it, on a tall window (852 pt measured in screenshots) content sticks to the top with buttons alone at
+                    // the bottom and a screenful of empty space between, making the screen look unfinished. With it, the default 700-high window
+                    // and an 850-high window share one composition, just with a bit more breathing room.
                     Spacer(minLength: 8)
                     HStack(alignment: .top, spacing: 34) {
                         story.frame(width: storyWidth(in: geo.size))
@@ -56,25 +56,25 @@ struct FirstRunView: View {
                 }
                 .padding(.horizontal, 28)
                 .padding(.bottom, 22)
-                // 内容矮于一屏时也要占满整屏高度：上面那个 `Spacer` 靠这一行才有得撑，
-                // 按钮才始终落在窗口下沿，而不是悬在半空。
+                // Fill the full height even when content is shorter than a screen: the `Spacer` above relies on this to stretch,
+                // keeping the buttons on the window's bottom edge instead of floating mid-air.
                 .frame(minHeight: geo.size.height, alignment: .top)
             }
-            // 容器尺寸钉在窗口上（同 `ContentView.detail` 那一手）：macOS 13 的 ScrollView
-            // 会把内容的完整高度报成自己的理想尺寸，不钉就会把窗口越撑越高。
+            // Pin the container size to the window (same as `ContentView.detail`): on macOS 13 ScrollView
+            // reports the content's full height as its ideal size; unpinned, it keeps growing the window.
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
         .background(ThemedBackdrop().ignoresSafeArea())
     }
 
-    // MARK: 让位与语言
+    // MARK: Clearance and language
 
-    /// 顶部这一条只有一颗语言开关。红绿灯那 52pt 不归这里管：这一屏是 `ContentView` 的
-    /// overlay，落在系统安全区内侧（和 `detail` 同一档），带子是系统让的——
-    /// 拿 `Chrome.trafficLightInset` 再让一次，就是 `Chrome.topClearance` 那句注释
-    /// 骂过的「叠成一条 58pt 的空档」。
-    /// 语言挑在这一屏右上角：它必须在**看懂这句话之前**就能换，放到页脚等于让不懂中文的人
-    /// 先读一整屏中文再去找开关。
+    /// The top strip holds only a language switch. The traffic lights' 52pt isn't handled here: this screen is a `ContentView`
+    /// overlay inside the system safe area (same tier as `detail`), so the system already yields that band;
+    /// yielding `Chrome.trafficLightInset` again produces what the `Chrome.topClearance` comment
+    /// complains about: "a stacked 58pt gap".
+    /// Language sits at the top-right: it must be switchable **before the text is understood**; putting it in the footer would make
+    /// non-Chinese readers read a whole screen of Chinese before finding the switch.
     private var chrome: some View {
         HStack(spacing: 0) {
             Spacer(minLength: 0)
@@ -83,17 +83,17 @@ struct FirstRunView: View {
         .padding(.top, 6)
     }
 
-    // MARK: 左栏：怎么说清这块盘
+    // MARK: Left column: explaining the disk
 
     private var story: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(L("一整圈，就是这块盘"))
+                Text(L("One ring, one disk"))
                     .font(theme.display(.largeTitle))
                     .tracking(theme.titleTracking)
                     .foregroundStyle(theme.palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(L("每条弧是盘上一块真实的字节，长短就是它占多少。"))
+                Text(L("Every arc is real bytes on the disk — its length is exactly how much they take up."))
                     .font(theme.prose(size: 15))
                     .foregroundStyle(theme.palette.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -101,17 +101,17 @@ struct FirstRunView: View {
             .accessibilityElement(children: .combine)
 
             VStack(alignment: .leading, spacing: 9) {
-                promise(symbol: "wifi.slash", text: L("不联网、不上传"))
-                promise(symbol: "trash", text: L("删除先进废纸篓，随时可撤"))
-                promise(symbol: "checkmark.shield", text: L("系统文件一律不碰"))
+                promise(symbol: "wifi.slash", text: L("No network, no uploads"))
+                promise(symbol: "trash", text: L("Deletes go to the Trash first, and you can undo them"))
+                promise(symbol: "checkmark.shield", text: L("System files stay off-limits"))
             }
 
             skins
         }
     }
 
-    /// 三句承诺。字号压到 12、只用 `inkSecondary`：它们要在第一屏就被扫到，
-    /// 但不能比「一整圈就是这块盘」这句话更抢眼。
+    /// Three promises. Font size 12, `inkSecondary` only: they should be scanned on first view,
+    /// but not outshine the line "one full ring is this disk".
     private func promise(symbol: String, text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: symbol)
@@ -126,22 +126,22 @@ struct FirstRunView: View {
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: 皮肤那一排
+    // MARK: Skin row
 
-    /// 六套皮肤排成 2 列 3 行。为什么不是 3 列 2 行：这一栏定宽 420（`storyWidth` 在
-    /// 1000 宽的窗口上就已经顶到 420 了），三列分下来每颗只有 ~100 磅能放字，
-    /// 俄语那句「Стекло северного сияния」两行都装不下，只能截成「северного си…」。
-    /// 两列给到 ~170 磅，最长的那两个名字（俄语、德语）刚好两行收完。
+    /// Six skins in 2 columns x 3 rows. Why not 3x2: this column is fixed at 420 (`storyWidth` already hits 420
+    /// on a 1000-wide window), so three columns leave only ~100 pt per label;
+    /// the Russian "Стекло северного сияния" doesn't fit in two lines and truncates to "северного си…".
+    /// Two columns give ~170 pt, and the longest two names (Russian, German) fit in exactly two lines.
     private var skins: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionLabel(text: L("外观皮肤"), detail: cnt(SkinCatalog.all.count, "套"))
+            SectionLabel(text: L("Skins"), detail: cnt(SkinCatalog.all.count, "skins"))
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2),
                       alignment: .leading, spacing: 8) {
                 ForEach(SkinCatalog.all) { skin in
                     skinChip(skin)
                 }
             }
-            Text(L("这一排换的是整张脸：颜色、字体、环怎么画都跟着走。不满意随时能换，设置 › 外观皮肤里还有每一套的缩略图。"))
+            Text(L("This row changes the whole face — colors, type, even how the ring is drawn. Swap it any time; Settings › Skins has a thumbnail of each one."))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -152,21 +152,21 @@ struct FirstRunView: View {
         let chosen = themeManager.effective.id == skin.id
         let usable = themeManager.canUse(skin)
         return Button {
-            // 走的是皮肤页同一颗按钮的路：`select` 自己判能不能用，用不了就什么都不发生
-            // （这一屏不该弹付费墙，第一屏谈钱是最糟的开场）。
+            // Same path as the skin page's button: `select` decides availability itself; if unavailable nothing happens
+            // (this screen must not show a paywall; talking money on the first screen is the worst opening).
             themeManager.select(skin)
         } label: {
             HStack(spacing: 6) {
                 swatch(skin)
                 Text(L(skin.name))
                     .font(theme.bodyFont(.caption))
-                    // 两行，不是一行截断：这一屏的名字就是控件本身，点的人得看清自己挑的是哪一套。
-                    // 皮肤页那张卡可以截（卡上有缩略图、tagline 和整页可滚，截掉的只是尾巴），
-                    // 这里截了就只剩「Тушь и рисовая б…」——2026-10-21 俄语实拍，六个名字截了两个。
-                    // 中文和英文一行就够，多出来的那一行只在长名字的语言里出现。
-                    // 两行是上限：再放宽一颗名字三行的话，六颗胶囊就长成六张卡，
-                    // 这一栏会从「一排可选的脸」退化成「一列要读的文案」。列数改窄之后两行够用
-                    // （见 `skins` 那段）。
+                    // Two lines, not one truncated line: the name is the control itself here; users need to see which skin they pick.
+                    // The skin page card may truncate (it has a thumbnail, tagline and scrolls, so only the tail is lost);
+                    // here truncation leaves just "Тушь и рисовая б…" (Russian screenshot 2026-10-21: two of six names truncated).
+                    // Chinese and English fit in one line; the second line only appears for long-name languages.
+                    // Two lines is the cap: widening further for three-line names would turn six capsules into six cards,
+                    // degrading this column from "a row of faces to pick" into "a column of copy to read". With fewer columns two lines suffice
+                    // (see `skins`).
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
@@ -191,11 +191,11 @@ struct FirstRunView: View {
         }
         .buttonStyle(.plain)
         .disabled(!usable)
-        .accessibilityLabel(LF("%1$@，%2$@", L(skin.name), chosen ? L("使用中") : L("使用")))
+        .accessibilityLabel(LF("%1$@, %2$@", L(skin.name), chosen ? L("In use") : L("Use")))
     }
 
-    /// 一颗小色卡：纸色当底、主色当点。缩略图那一套（真迷你界面）留在皮肤页——
-    /// 这一屏要的是「点一下换一套」的密度，132 磅高的卡在 560 高的窗口里放不下。
+    /// A small swatch: paper color as background, accent as dot. Thumbnails (real mini UI) stay on the skin page;
+    /// this screen needs "tap to switch" density, and 132pt-tall cards don't fit in a 560-high window.
     private func swatch(_ skin: Theme) -> some View {
         ZStack {
             Circle().fill(skin.palette.paper)
@@ -206,21 +206,21 @@ struct FirstRunView: View {
         .accessibilityHidden(true)
     }
 
-    // MARK: 右栏：那枚环
+    // MARK: Right column: the ring
 
     private func hero(diameter: CGFloat) -> some View {
         VStack(spacing: 14) {
             SweepRing(segments: sampleSegments,
-                      centerTop: L("可用"),
+                      centerTop: L("Available"),
                       centerValue: human(sampleFree),
-                      // 盘心那两行用的是总览页同一对键，不另造一句：同一屏上「整块盘 /
-                      // 已用 / 全部清空后可用」若两处措辞不一样，人就当成两本账。
-                      centerCap: LF("整块盘 %1$@ · 已用 %2$@", human(sampleTotal), human(sampleUsed))
-                          + "\n" + LF("全部清空后可用 %1$@", human(sampleAfterClear)),
+                      // The two center lines reuse the Overview page's keys, no new strings: if "Whole disk /
+                      // Used / Available after cleaning everything" were worded differently in two places on one screen, people would read two ledgers.
+                      centerCap: LF("Disk %1$@ · %2$@ used", human(sampleTotal), human(sampleUsed))
+                          + "\n" + LF("%1$@ free once it's all cleared", human(sampleAfterClear)),
                       diameter: diameter)
                 .frame(width: diameter, height: diameter)
 
-            Text(L("示例环，不是你这台盘的数"))
+            Text(L("A sample ring — these aren't your disk's numbers"))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkTertiary)
 
@@ -228,17 +228,17 @@ struct FirstRunView: View {
         }
     }
 
-    /// 两条颜色规矩。放在环底下而不是左栏里：它解释的是眼前这一圈，
-    /// 挪到三句承诺旁边就得让人自己把「灰」这个字和图上那一块对上。
+    /// Two color rules. Placed under the ring, not in the left column: they explain this ring,
+    /// and next to the three promises readers would have to match the word "grey" to the chart themselves.
     ///
-    /// 第三条「虚线 = 已进废纸篓」原来在这里，2026-10-21 实拍删了：示例给这一档是撒谎
-    /// （第一次开机的人压根还没清过东西，废纸篓那一档不可能有数），而它画出来也不像虚线
-    /// ——6% 那一档的宽度上，虚线描边被切成一叠同心细条，读起来是「渲染坏了」而不是「已搬走」。
-    /// 那一档留给它真正出现的那一刻：清完一轮，总览页上自己会长出来。
+    /// A third rule, "dashed = moved to Trash", used to be here; removed after 2026-10-21 screenshots: showing that tier in a sample is a lie
+    /// (a first-time user hasn't cleaned anything, so the Trash tier can't have data), and it didn't even look dashed:
+    /// at 6% width the dashed stroke split into stacked concentric slivers, reading as "rendering broken" rather than "moved away".
+    /// That tier is left for when it really appears: after a cleanup round, it shows up on the Overview page by itself.
     private var legend: some View {
         VStack(alignment: .leading, spacing: 7) {
-            legendRow(tone: .hot, text: L("彩色 = 收得走"))
-            legendRow(tone: .grey, text: L("灰 = 动不了"))
+            legendRow(tone: .hot, text: L("Color = reclaimable"))
+            legendRow(tone: .grey, text: L("Gray = nothing we can move"))
         }
         .padding(.top, 2)
     }
@@ -256,7 +256,7 @@ struct FirstRunView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// 图例那一小段带子：吃的是环上同一份配方，所以「灰」这一条在图上和在这里是同一个灰。
+    /// The small legend strip: uses the ring's recipe, so "grey" is the same grey here and on the chart.
     private func swatchBar(_ tone: LegendTone) -> some View {
         let ink: Color = {
             switch tone {
@@ -272,80 +272,80 @@ struct FirstRunView: View {
 
     private var isDark: Bool { (theme.scheme ?? systemScheme) == .dark }
 
-    // MARK: 示例那五段
+    // MARK: The five sample segments
 
-    /// 整块盘：一块常见容量的 SSD。
+    /// Whole disk: an SSD of a common capacity.
     private var sampleTotal: Int64 { 512 * GB }
-    /// 空闲那一档＝系统口径的可用（示例里没有「系统可清除」那一段，所以可用就是空闲）。
+    /// Free tier = system-reported available (the sample has no "system purgeable" segment, so available equals free).
     private var sampleFree: Int64 { 168_300_000_000 }
-    /// 已用＝整块盘减空闲。圆心那两行和环上那五段必须是同一本账，所以这个数只能算出来，
-    /// 不能另外挑一个「看起来合理」的——挑了就会出现五段加起来不等于那行字的图。
+    /// Used = whole disk minus free. The center lines and the five ring segments must be one ledger, so this number must be computed,
+    /// not picked to "look reasonable"; picking would produce a chart whose segments don't sum to the label.
     private var sampleUsed: Int64 { sampleTotal - sampleFree }
-    /// 走完这一步之后：空闲 + 三段收得走的。示例里没有废纸篓那一段（见下面 `sampleSegments`），
-    /// 所以「全部清空后可用」就是 168.3 + 42.4 + 33.8 + 27.5 = 272.0。
+    /// After this step: free + the three reclaimable segments. The sample has no Trash segment (see `sampleSegments` below),
+    /// so "available after cleaning everything" is 168.3 + 42.4 + 33.8 + 27.5 = 272.0.
     private var sampleAfterClear: Int64 { sampleFree + 42_400_000_000 + 33_800_000_000 + 27_500_000_000 }
 
-    /// 五段示例账。名字全用产品里真会出现的那几个（`应用缓存`/`开发缓存`/`大文件`/
-    /// `其他已统计`/`空闲`），为的是这一屏教会的那套名字，点进总览页之后一个都不用重新学。
+    /// Five sample segments. Names are all ones the product really shows (`App caches`/`Dev caches`/`Large files`/
+    /// `Other counted`/`Free`), so the names this screen teaches need no relearning on the Overview page.
     ///
-    /// `reclaim` 一律留 0：这几段收不走任何东西，给了可回收量，环上就会画出那道「点我」的
-    /// 内侧暖沿、光标也会变手型（见 `SweepRing.ringHitLayer`）——示例环邀请人来点是骗人。
-    /// 上色照旧走 `.hot`，颜色说的是「这类东西在真盘上动得了」，不是「点这里」。
+    /// `reclaim` is always 0: these segments reclaim nothing; giving a reclaimable amount would draw the "click me"
+    /// inner warm edge and turn the cursor into a hand (see `SweepRing.ringHitLayer`); a sample ring inviting clicks would be deceptive.
+    /// Coloring still uses `.hot`: the color says "this kind of thing is movable on a real disk", not "click here".
     ///
-    /// 没有「本次移入废纸篓」那一段：第一次开机的人还没清过任何东西，这一档在真盘上必然是 0，
-    /// 摆在示例里就是编一个不可能存在的状态。它在清完第一轮之后自己会出现在总览页上。
+    /// No "moved to Trash this time" segment: a first-time user hasn't cleaned anything, so on a real disk this tier is necessarily 0;
+    /// showing it in the sample invents an impossible state. It appears on the Overview page by itself after the first cleanup.
     private var sampleSegments: [GaugeSegment] {
         let lamp = SweepRing.lamp(theme.palette.tint)
         return [
-            GaugeSegment(label: L("应用缓存"), value: 42_400_000_000, color: lamp, tone: .hot),
-            GaugeSegment(label: L("开发缓存"), value: 33_800_000_000, color: lamp, tone: .hot),
-            GaugeSegment(label: L("大文件"), value: 27_500_000_000, color: lamp, tone: .hot),
-            GaugeSegment(label: L("其他已统计"), value: 240_000_000_000,
+            GaugeSegment(label: L("App Caches"), value: 42_400_000_000, color: lamp, tone: .hot),
+            GaugeSegment(label: L("Dev Caches"), value: 33_800_000_000, color: lamp, tone: .hot),
+            GaugeSegment(label: L("Large Files"), value: 27_500_000_000, color: lamp, tone: .hot),
+            GaugeSegment(label: L("Other counted"), value: 240_000_000_000,
                          color: SweepRing.blockedInk(theme: theme, dark: isDark),
                          tone: .neutral),
-            GaugeSegment(label: L("空闲"), value: sampleFree,
+            GaugeSegment(label: L("Free"), value: sampleFree,
                          color: SweepRing.freeInk(theme: theme, dark: isDark),
                          tone: .neutral),
         ]
     }
 
-    // MARK: 尺寸
+    // MARK: Sizes
 
-    /// 左栏给到 420，窗口再窄就按比例让。窄窗里右边那一圈跟着缩，不会挤出滚动条。
+    /// Left column gets 420, yielding proportionally on narrower windows. On narrow windows the ring shrinks too, no scrollbars.
     private func storyWidth(in size: CGSize) -> CGFloat {
         min(420, max(280, size.width * 0.42))
     }
 
-    /// 环的直径。地板 260 不是凑的：那是弧上印不印数的那道闸（`RingStyle.labelMinDiameter`），
-    /// 低于它这一屏就退化成「一枚没数的小饼」——上一版最小窗实拍到的正是这个样子。
-    /// 天花板 320：再大就把右边这一栏顶到窗口边上，而左栏的字要开始折第三行。
+    /// Ring diameter. The 260 floor isn't arbitrary: it's the gate for printing numbers on the arcs (`RingStyle.labelMinDiameter`);
+    /// below it this screen degrades into "a small pie with no numbers", exactly what the previous version's minimum-window shot showed.
+    /// The 320 ceiling: larger pushes the right column to the window edge while left-column text starts wrapping to a third line.
     private func ringDiameter(in size: CGSize) -> CGFloat {
         let room = size.height - 200
         let roomW = size.width - storyWidth(in: size) - 120
         return min(320, max(260, min(room, roomW)))
     }
 
-    // MARK: 底部动作
+    // MARK: Bottom actions
 
-    /// 两个出口：按下去开始（沙盒版还没授权时，那颗就是「授权家目录」），或者以后再说。
-    /// 顺序照 macOS：默认动作在最右，回车就是它。
+    /// Two exits: start (in the sandboxed build before authorization, that button is "Authorize home folder"), or later.
+    /// Order follows macOS: default action on the far right, triggered by Return.
     private var actions: some View {
         HStack(spacing: 10) {
             Spacer(minLength: 0)
-            ThemeButton(kind: .ghost, title: L("以后再说")) { prefs.finishFirstRun() }
+            ThemeButton(kind: .ghost, title: L("Not now")) { prefs.finishFirstRun() }
             ThemeButton(kind: .primary,
                         symbol: grant.needsGrant ? "folder.badge.gearshape" : "magnifyingglass",
-                        title: grant.needsGrant ? L("授权家目录") : L("开始看这块盘"),
+                        title: grant.needsGrant ? L("Grant home folder") : L("Look at this disk"),
                         shortcut: KeyboardShortcut(.return, modifiers: []),
                         action: start)
         }
     }
 
-    /// 开始用这块盘。
+    /// Start using this disk.
     ///
-    /// 沙盒版还没授权时，这颗直接走授权那一趟（同一套 `NSOpenPanel`，与总览页被拦住时
-    /// 画的那一屏共用一个 `HomeGrant`）。**没授权成功就不收这一屏**：引导消失、界面却
-    /// 还一屏数字都不给，那是把两屏都不见了。
+    /// In the sandboxed build before authorization, this goes straight to authorization (same `NSOpenPanel`, sharing one `HomeGrant`
+    /// with the screen drawn when Overview is blocked). **Don't dismiss this screen unless authorization succeeds**: the guide disappearing while
+    /// the UI still shows no numbers would mean both screens vanish.
     private func start() {
         if grant.needsGrant {
             grant.request()

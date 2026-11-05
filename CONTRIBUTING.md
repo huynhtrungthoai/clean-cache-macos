@@ -48,14 +48,14 @@ which is worse than saying nothing.
 Every row answers two independent questions, and each has its own phrasing. They must never share
 vocabulary:
 
-| The question | Decided by | The words (Chinese source → English) |
+| The question | Decided by | The words |
 |---|---|---|
-| Does this app act on this row at all? | `isDeletable()` | `本工具能清` / `本工具不碰` → "Ours to clean" / "Not ours to touch" |
-| What does deleting it cost? | `VerdictTier` (`level` + `cost` in `safety_db.json`) | `删了没影响` / `删了要重新下载` / `删了会丢数据` → "No impact" / "Needs re-download" / "Loses data" |
+| Does this app act on this row at all? | `isDeletable()` | "Ours to clean" / "Not ours to touch" |
+| What does deleting it cost? | `VerdictTier` (`level` + `cost` in `safety_db.json`) | "No impact" / "Needs re-download" / "Loses data" |
 
-- The retired words are `安全` ("Safe"), `能重下` ("Re-downloadable"), `动得了` and `只能看`: they
+- The retired words are "Safe", "Re-downloadable", "Can touch" and "View only": they
   mixed permission, capability and cost onto one axis. Don't reintroduce them.
-- The three cost badges are one pattern — `删了` plus what happens — and each is a complete verdict
+- The three cost badges are one pattern — what happens if you delete it — and each is a complete verdict
   on its own. They say nothing about whether the row may be deleted; that is the other axis.
 - The badge comes from one place: `verdictBadge(_:)` in `SharedViews.swift`. Don't `switch` on the
   tier at the call site. That is how one page ends up saying "loses data" while another says
@@ -84,10 +84,10 @@ coverage lives in the `SelfTest` executable target. Add a check there when you a
 
 ```json
 {
-  "name": "Codex 崩溃转储",
-  "what": "Codex 崩溃时生成的 .dmp 报告，只用于上报诊断",
-  "whatif": "删掉不影响任何功能",
-  "rec": "无需恢复；下次程序崩溃会自动生成新的报告",
+  "name": "ChatGPT desktop crash dumps",
+  "what": ".dmp reports the app writes when it crashes, used only for diagnostics",
+  "whatif": "Deleting changes nothing functional",
+  "rec": "Nothing to restore; the next crash writes a fresh report",
   "path": "~/Library/Application Support/Codex/Crashpad/pending",
   "level": "safe",
   "grp": "general",
@@ -122,7 +122,7 @@ coverage lives in the `SelfTest` executable target. Add a check there when you a
 ## Skins
 
 The six themes are data. They live in `Sources/DiskCleaner/Resources/skins.json` — one array, one
-object per theme — and the file documents every field it accepts under `_字段` at the top. The app
+object per theme — and the file documents every field it accepts under `_fields` at the top. The app
 parses it at launch with per-field fallbacks and drops back to a plain built-in theme if the file is
 unreadable, so a malformed PR can't leave anyone with a blank window; `SelfTest` will still fail,
 so run it anyway.
@@ -131,7 +131,7 @@ To add a theme:
 
 1. Append one object to `skins` in `skins.json`. `id` must be new, lowercase and hyphenated —
    changing an existing `id` is a different theme as far as saved preferences are concerned.
-2. `name` and `tagline` are Chinese source text. They go through the same gate as the rest of the
+2. `name` and `tagline` are English source text (the localization key). They go through the same gate as the rest of the
    UI, so a new theme adds two strings that need translating into all nine tables. Mention it in the
    PR description so a reviewer knows to expect them.
 3. Leave `tier` at `free` unless you are the maintainer — `premium` only groups anything when
@@ -145,14 +145,13 @@ looks like before anyone installs it.
 
 ## Translations
 
-Chinese source text **is** the localization key: `L("扫描完成")` looks up the string `扫描完成`.
-Simplified Chinese needs no table at all — reading the key *is* the Simplified rendering — which is
-why `zh-Hans.lproj` holds only `InfoPlist.strings`. Every other language owns one
+English source text **is** the localization key: `L("Scan complete")` looks up the string `Scan complete`.
+Every language, English included, owns one
 `Sources/DiskCleaner/Resources/<code>.lproj/Localizable.strings`, and there are nine of them:
-`en`, `zh-Hant`, `ja`, `ko`, `de`, `es`, `fr`, `ru`, `pt-BR`.
+`en`, `vi`, `ja`, `ko`, `de`, `es`, `fr`, `ru`, `pt-BR`.
 
-- Wrap every user-visible string: `L("…")`, or `LF("已选 %d 项", n)` when it takes arguments.
-- Counts go through `cnt(n, "个文件")`; each language inflects its own measure word. English and the
+- Wrap every user-visible string: `L("…")`, or `LF("Entries listed: %d", n)` when it takes arguments.
+- Counts go through `cnt(n, "files")`; each language inflects its own measure word. English and the
   Romance languages pick singular/plural, Russian picks a separate form for 2–4 (`3 файла` but
   `11 групп`), Japanese and Korean don't inflect. Don't also write the unit inside the template —
   that's how "27 items items listed" was born.
@@ -166,17 +165,17 @@ Languages are discovered by directory, so there is no registry to update — dro
 
 **Adding a language**
 
-1. Copy `en.lproj/Localizable.strings` to `<code>.lproj/Localizable.strings` — the keys stay Chinese.
+1. Copy `en.lproj/Localizable.strings` to `<code>.lproj/Localizable.strings` — the keys stay English.
 2. Translate the values. Keep the leading space where the English value has one (some values are
-   fragments concatenated after a `。`), and keep `%1$@`-style positional specifiers exactly as they
+   fragments concatenated after a sentence), and keep `%1$@`-style positional specifiers exactly as they
    are: mixing positional and non-positional in one string is an `EXC_BAD_ACCESS`.
 3. Add the case plus its `code` and `menuLabel` to `AppLanguage` in `Sources/DiskCleaner/L10n.swift`.
    Language self-names don't get translated; mark them `// l10n-scan: skip` or the gate will ask
-   every table to translate the word "日本語".
-4. Unless the language is Chinese (which `cnt(…)` short-circuits), add a measure-word table to
+   every table to translate the word "Deutsch".
+4. Add a measure-word table to
    `measureWords(_:)` in the same file. Follow the `measureGap(_:)` next to it for spacing — Korean
    measure words attach to the numeral (`6개`), Latin and Cyrillic ones need the space.
-5. `swift build_app/l10n_tool.swift check .` must end with `N 种语言覆盖完整 ✓`.
+5. `swift build_app/l10n_tool.swift check .` must end with its all-languages-covered ✓ line.
 
 ## Translated READMEs
 
@@ -262,7 +261,7 @@ These knobs narrow a run so you're not re-rendering 13 pages to look at one:
     1/10 s — the PNG encode and write land on top of the pump — and the arc's two-step confirm
     expires after 3.2 s. Give ⑤ more room and the second tap arrives on a disarmed ring: the run
     still prints 155 frames, but ⑥⑦ silently become "armed, then timed out", and the GIF ends up
-    advertising a move that never happened. The run says so on stderr (`放回 0 处` plus a ✗ line) —
+    advertising a move that never happened. The run says so on stderr (a "restored 0" count plus a ✗ line) —
     read that line before you encode.
   - Beat ⑥ is where bytes actually move, and the move draws a token: a small `6.3 GB` chip leaves
     the ring's centre, arcs across the page and lands on the Trash row, while that row's hatched bar

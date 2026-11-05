@@ -1,27 +1,27 @@
 import Foundation
 import Darwin
 
-// ── Agent 通道：把「知识库认识且判为安全的位置」开放给 CLI / MCP ──
+// ── Agent channel: expose "locations the knowledge base knows and judges safe" to CLI / MCP ──
 //
-// App 的入口是人点鼠标；这一层把同一套判词、同一条删除路径开放给程序调用，
-// 但收得更紧：agent 只能动知识库认识的位置**本体**（exact），risky 永远不放开，
-// 连人也不行。两步确认从界面上的「点两下」变成 plan 文件 + execute 重校验——
-// 计划只有 10 分钟有效，执行时每一项都要重新过一遍管线并核对 inode，
-// 防止计划生成之后路径被换成别的东西。
+// The app's entry point is a human clicking; this layer exposes the same verdicts and the same deletion path to programs,
+// but tighter: an agent may only touch a known knowledge-base location **itself** (exact); risky is never allowed,
+// not even for humans. Two-step confirmation turns from "click twice" in the UI into a plan file + execute re-validation:
+// a plan is valid for only 10 minutes; at execute time every item re-runs the pipeline and checks its inode,
+// so a path cannot be swapped for something else after the plan was generated.
 //
-// 状态目录（plans/ 与 operations.jsonl）全部基于 homeDir() 拼：自检靠
-// DISKWISE_HOME_SHIM 把整棵状态树搬进 /tmp，绝不能写死 NSHomeDirectory()。
+// State dirs (plans/ and operations.jsonl) are all built from homeDir(): self-tests use
+// DISKWISE_HOME_SHIM to move the whole state tree into /tmp, so never hard-code NSHomeDirectory().
 //
-// 本文件面向 agent 的输出一律英文（agent 读英文最稳），错误用原因码不拼句子；
-// 注意 l10n 覆盖闸门会扫本目录的字符串字面量，所以这里不写中文文案。
+// All agent-facing output in this file is English (agents read English most reliably); errors use reason codes, not sentences.
+// Note: the l10n coverage gate scans string literals in this directory, so no Chinese copy here.
 
-// 单次计划的上限。限制的是「一次 plan 最多带走多少」，不是单条目大小：
-// 没有它，一个被说服的 agent 可以一次把整台机器的缓存全部端走。
+// Per-plan cap. It limits "how much one plan can take at most", not individual item size:
+// without it, a persuaded agent could wipe every cache on the machine in one go.
 let agentPlanTTL: TimeInterval = 600
 let agentPlanMaxItems = 200
 let agentPlanMaxBytes: Int64 = 200 * GB
 
-// MARK: - 类型
+// MARK: - Types
 
 public enum AgentCategory: String, Codable {
     case all
@@ -30,8 +30,8 @@ public enum AgentCategory: String, Codable {
     case apps
 }
 
-/// agent_may_trash / human_may_trash 为 false 时的原因码。
-/// 顺序就是判定管线的顺序，别单独改动某一档的语义。
+/// Reason codes when agent_may_trash / human_may_trash is false.
+/// The order is the decision pipeline's order; don't change one tier's semantics in isolation.
 public enum AgentRefusal: String, Codable {
     case notFound = "not_found"
     case symlink
@@ -39,29 +39,29 @@ public enum AgentRefusal: String, Codable {
     case outsideAllowed = "outside_allowed"
     case unknownToKnowledgeBase = "unknown_to_knowledge_base"
     case mayLoseData = "may_lose_data"
-    /// 路径落在某个认识的位置**里面**，但它本身不是认识的位置。
-    /// 缓存目录里用户自己建的文件夹就是这一档：agent 不能点名它，人可以。
+    /// The path lies **inside** a known location but is not itself a known location.
+    /// User-created folders inside a cache dir are this tier: an agent can't name them, a human can.
     case notAKnownLocation = "not_a_known_location"
 }
 
-/// 一个路径在 agent 眼里的完整画像。给人看的解释字段（what 等）是英文。
+/// A path's full profile as seen by an agent. Human-readable explanation fields (what, etc.) are English.
 public struct AgentItem: Codable {
-    public let path: String            // 绝对路径（已展开 ~、已词法折叠 ..）
-    public let bytes: Int64            // 实测占盘（st_blocks × 512 口径）
-    public let name: String?           // 知识库条目名（英文，查不到回落中文）
+    public let path: String            // absolute path (~ expanded, .. lexically collapsed)
+    public let bytes: Int64            // measured on-disk usage (st_blocks × 512 basis)
+    public let name: String?           // knowledge-base entry name (English; falls back to Chinese if missing)
     public let tier: String            // safe | redo | risky | unknown
-    public let exact: Bool             // 是否就是知识库条目（或其通配实例）本体
+    public let exact: Bool             // whether this is the knowledge-base entry (or its wildcard instance) itself
     public let what: String?
     public let ifDeleted: String?
     public let howToRestore: String?
-    /// 严格模式（agent / MCP）下能否进计划并执行。
+    /// Whether it may enter a plan and be executed in strict mode (agent / MCP).
     public let agentMayTrash: Bool
-    /// --i-am-human 下能否进计划（unknown 与非 exact 放开，risky 仍拒）。
+    /// Whether it may enter a plan under --i-am-human (unknown and non-exact allowed, risky still refused).
     public let humanMayTrash: Bool
-    /// 严格模式被拒时的原因；通过时为 nil。
+    /// Reason for refusal in strict mode; nil when allowed.
     public let refusal: AgentRefusal?
-    /// 这条画像从哪来：knowledge_base（词条）或 signature（引擎自管缓存签名）。
-    /// 旧 JSON/计划文件里没有该字段，解码为 nil——当 knowledge_base 展示即可。
+    /// Where this profile came from: knowledge_base (entry) or signature (engine-managed cache signature).
+    /// Old JSON/plan files lack this field and decode to nil; display it as knowledge_base.
     public let source: String?
 
     enum CodingKeys: String, CodingKey {
@@ -92,15 +92,15 @@ public struct AgentItem: Codable {
     }
 }
 
-/// plan 的返回值，也是计划文件里除校验数据外的展示部分。
+/// Return value of plan; also the display part of the plan file besides validation data.
 public struct AgentPlan: Codable {
     public let planId: String
     public let createdAt: Date
     public let expiresAt: Date
-    public let items: [AgentItem]       // 可执行项
-    public let refused: [AgentItem]     // 被拒项（ refusal 字段说明原因）
-    /// 去嵌套后的真实可腾出：互相套着的路径只数最外面那个，
-    /// 按条目 bytes 直接相加会虚高（缓存页全选实测虚高过 5.5 GB）。
+    public let items: [AgentItem]       // executable items
+    public let refused: [AgentItem]     // refused items (the refusal field explains why)
+    /// Real reclaimable after de-nesting: nested paths count only the outermost one;
+    /// summing item bytes directly overstates (select-all on the caches page once overstated by 5.5 GB).
     public let totalBytes: Int64
 
     enum CodingKeys: String, CodingKey {
@@ -112,7 +112,7 @@ public struct AgentPlan: Codable {
     }
 }
 
-/// 执行结果里「搬走了什么」。original/in_trash 是撤销的依据。
+/// "What was moved" in an execute result. original/in_trash are the basis for undo.
 public struct AgentTrashRecord: Codable {
     public let original: String
     public let inTrash: String
@@ -133,8 +133,8 @@ public struct AgentTrashRecord: Codable {
     }
 }
 
-/// 执行时单项被拒或失败。reason 是原因码（AgentRefusal 的 rawValue，
-/// 外加 trash_failed / changed_since_plan / covered_by_earlier_item）。
+/// An item refused or failed at execute time. reason is a reason code (AgentRefusal rawValue,
+/// plus trash_failed / changed_since_plan / covered_by_earlier_item).
 public struct AgentFailure: Codable {
     public let path: String
     public let reason: String
@@ -155,13 +155,13 @@ public struct AgentResult: Codable {
 }
 
 public struct AgentUndoStatus: Codable {
-    public let path: String             // 原位置
+    public let path: String             // original location
     /// restored | gone_from_trash | failed
     public let status: String
     public let detail: String?
 
-    /// 公开给自检：`agentUndoTally` 吃的是这一叠回执，而 SelfTest 只连得到本模块，
-    /// 造不出回执就验不了「三档各几个」那笔账。
+    /// Public for self-tests: `agentUndoTally` consumes this stack of receipts, and SelfTest only links this module;
+    /// without constructing receipts it can't verify the "how many in each of the three tiers" tally.
     public init(path: String, status: String, detail: String? = nil) {
         self.path = path
         self.status = status
@@ -172,11 +172,11 @@ public struct AgentUndoStatus: Codable {
 public struct AgentOperation: Codable {
     public let id: String
     public let at: Date
-    /// 这次操作是谁发起的：MCP 客户端在 initialize 里自报的名字，或终端 CLI。
-    /// 旧日志行没有这个字段，解码为 nil——展示层要把 nil 当「未知来源」，不是错误。
+    /// Who initiated this operation: the name an MCP client self-reported in initialize, or the terminal CLI.
+    /// Old log lines lack this field and decode to nil; the UI must treat nil as "unknown source", not an error.
     public let client: String?
     public let items: [AgentTrashRecord]
-    /// 撤销后由追加的标记行回填；nil = 尚未撤销
+    /// Back-filled by an appended marker line after undo; nil = not yet undone
     public let undoneAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -193,7 +193,7 @@ public struct AgentOperation: Codable {
     }
 }
 
-/// 撤销标记：只追加、不改写原行——操作日志是账本，账本不许涂改。
+/// Undo marker: append-only, never rewrite the original line. The operation log is a ledger; ledgers are not altered.
 struct AgentUndoneMarker: Codable {
     let id: String
     let undoneAt: Date
@@ -204,13 +204,13 @@ struct AgentUndoneMarker: Codable {
     }
 }
 
-/// 计划文件的落盘结构。公开是因为它是磁盘格式：自检需要直接改
-/// expires_at 来造过期计划，不能为了测试在 Core 里开后门。
+/// On-disk structure of a plan file. Public because it's a disk format: self-tests need to edit
+/// expires_at directly to fabricate expired plans, rather than adding a test backdoor in Core.
 public struct AgentPlanRecord: Codable {
     public var planId: String
     public var createdAt: Date
     public var expiresAt: Date
-    /// 计划生成时是否处于 --i-am-human：execute 重校验必须按同一档执行
+    /// Whether the plan was generated under --i-am-human: execute re-validation must use the same tier
     public var human: Bool
     public var items: [AgentPlanItemRecord]
     public var refused: [AgentItem]
@@ -236,8 +236,8 @@ public struct AgentPlanRecord: Codable {
     }
 }
 
-/// 计划项的执行绑定：路径之外再记 dev/ino——计划生成之后原地 rename
-/// 换一份内容，路径还是那个路径、判词也没变，只有 inode 能拆穿它。
+/// Execution binding for a plan item: records dev/ino besides the path. After plan generation an in-place rename
+/// can swap the content while path and verdict stay the same; only the inode exposes it.
 public struct AgentPlanItemRecord: Codable {
     public var path: String
     public var bytes: Int64
@@ -270,7 +270,7 @@ public enum AgentAPIError: Error, CustomStringConvertible {
     }
 }
 
-// MARK: - 统一 JSON 口径（CLI 与 MCP 共用；显式键名，不用自动转换策略）
+// MARK: - Unified JSON format (shared by CLI and MCP; explicit key names, no automatic conversion strategy)
 
 extension JSONEncoder {
     public static var agentAPI: JSONEncoder {
@@ -288,26 +288,26 @@ extension JSONDecoder {
     }
 }
 
-// MARK: - 判定管线（所有入口共用，顺序固定）
+// MARK: - Decision pipeline (shared by all entry points, fixed order)
 
 struct AgentPathCheck {
-    let url: URL               // 已展开、已标准化的绝对路径
-    let tier: VerdictTier      // entry 为 nil 时是 .unknown
+    let url: URL               // expanded, standardized absolute path
+    let tier: VerdictTier      // .unknown when entry is nil
     let exact: Bool
     let entry: SafetyEntry?
-    /// 严格模式（agent / MCP）的拒绝原因；nil = 通过
+    /// Refusal reason in strict mode (agent / MCP); nil = allowed
     let refusal: AgentRefusal?
-    /// --i-am-human 模式的拒绝原因；nil = 通过（risky 与管线硬拒两种模式下都拒）
+    /// Refusal reason in --i-am-human mode; nil = allowed (risky and hard pipeline refusals are refused in both modes)
     let humanRefusal: AgentRefusal?
-    /// 知识库不认、但签名认了（引擎自管缓存）：tier 封顶 redo、exact 恒 false。
+    /// Unknown to the knowledge base but matched by a signature (engine-managed cache): tier capped at redo, exact always false.
     var signature: Bool = false
 }
 
-/// 管线顺序：展开 → 保护 → 范围 → lstat → 判词。
-/// 保护与范围放在 lstat 之前是刻意的：`/usr/local/x` 不存在时，
-/// 对 agent 有用的答案是「这里永远动不了」（outside_allowed），
-/// 而不是 not_found——前者能终结这个话题，后者只会招来下一次试探。
-/// 词法折叠在这里完成：`~/.npm/../Documents` 进管线前就折叠成 `~/Documents`。
+/// Pipeline order: expand → protect → scope → lstat → verdict.
+/// Protection and scope come before lstat on purpose: when `/usr/local/x` doesn't exist,
+/// the useful answer for an agent is "this can never be touched" (outside_allowed),
+/// not not_found; the former closes the topic, the latter only invites the next probe.
+/// Lexical collapsing happens here: `~/.npm/../Documents` collapses to `~/Documents` before entering the pipeline.
 func agentPipeline(_ raw: String, index: VerdictIndex) -> AgentPathCheck {
     let url = URL(fileURLWithPath: expandHome(raw)).standardizedFileURL
     // deletionGate = lexical + canonical (case-folded, parent symlinks resolved) checks,
@@ -327,16 +327,16 @@ func agentPipeline(_ raw: String, index: VerdictIndex) -> AgentPathCheck {
         return .init(url: url, tier: .unknown, exact: false, entry: nil,
                      refusal: .notFound, humanRefusal: .notFound)
     }
-    // 软链一律拒绝：搬的是链接本身没错，但「计划里那个位置」与「实际内容」
-    // 从此对不上号，为了让语义简单，宁可在这一档就说不。
+    // Symlinks are always refused: moving the link itself is fine, but "the location in the plan" and "the actual content"
+    // would no longer match; to keep semantics simple, say no at this tier.
     if (st.st_mode & S_IFMT) == S_IFLNK {
         return .init(url: url, tier: .unknown, exact: false, entry: nil,
                      refusal: .symlink, humanRefusal: .symlink)
     }
     let v = index.verdict(for: url.path)
-    // 知识库不认时试签名：引擎自管缓存按布局认（HF 模型仓、更新器缓存、散装权重）。
-    // tier 封顶 redo、exact 恒 false——agent 契约一字不动：redo 非 exact 照走
-    // not_a_known_location，人经 --i-am-human 照旧能带走。
+    // When the knowledge base doesn't know it, try signatures: engine-managed caches by layout (HF model repos, updater caches, loose weights).
+    // Tier capped at redo, exact always false; the agent contract is unchanged: non-exact redo still gets
+    // not_a_known_location, and a human can still take it via --i-am-human.
     if v.tier == .unknown, let sig = signatureMatch(url) {
         return .init(url: url, tier: .redo, exact: false, entry: sig.entry,
                      refusal: .notAKnownLocation, humanRefusal: nil, signature: true)
@@ -345,21 +345,21 @@ func agentPipeline(_ raw: String, index: VerdictIndex) -> AgentPathCheck {
     var humanRefusal: AgentRefusal? = nil
     switch v.tier {
     case .risky:
-        // 删了就没了：agent、--i-am-human、MCP，谁都不放
+        // Gone once deleted: agent, --i-am-human, MCP — nobody gets it
         refusal = .mayLoseData
         humanRefusal = .mayLoseData
     case .unknown:
         refusal = .unknownToKnowledgeBase
     case .safe, .redo:
-        // 认识的位置里面的子路径不是认识的位置：人可以（下钻页同款自由），agent 不行
+        // A subpath inside a known location is not a known location: humans may (same freedom as the drill-down page), agents may not
         if !v.exact { refusal = .notAKnownLocation }
     }
     return .init(url: url, tier: v.tier, exact: v.exact, entry: v.entry,
                  refusal: refusal, humanRefusal: humanRefusal)
 }
 
-/// 把管线结果装配成对外画像。解释字段查 en 词表，查不到回落中文原文——
-/// 宁可中英混排，也不在现场编一句英文。
+/// Assemble the pipeline result into the public profile. Explanation fields look up the en table, falling back to the Chinese original:
+/// better mixed languages than inventing an English sentence on the spot.
 func agentItem(_ c: AgentPathCheck, bytes: Int64) -> AgentItem {
     func en(_ zh: String?) -> String? {
         guard let zh else { return nil }
@@ -379,12 +379,12 @@ func agentItem(_ c: AgentPathCheck, bytes: Int64) -> AgentItem {
                      source: c.signature ? "signature" : "knowledge_base")
 }
 
-// MARK: - 状态目录
+// MARK: - State directory
 
 public func agentStateDir() -> URL {
-    // 基于 homeDir() 而不是 NSHomeDirectory()：后者在沙盒里是容器路径，
-    // 自检的假家目录也只认前者。公开是因为它是磁盘格式的根：
-    // 自检要直接进 plans/ 改计划文件造过期场景，不能为测试在 Core 里开后门。
+    // Based on homeDir() not NSHomeDirectory(): the latter is the container path in a sandbox,
+    // and the self-test's fake home only honors the former. Public because it's the root of the disk format:
+    // self-tests go into plans/ and edit plan files to fabricate expiry, rather than adding a test backdoor in Core.
     homeDir().appendingPathComponent("Library/Application Support/DiskWise/agent", isDirectory: true)
 }
 
@@ -406,8 +406,8 @@ func appendJSONL<T: Encodable>(_ value: T, to url: URL) throws {
     try fh.close()
 }
 
-/// 读全部操作并回填撤销标记。日志只追加：操作行在前、标记行在后，
-/// 按 id 合并即是完整历史。
+/// Read all operations and back-fill undo markers. The log is append-only: operation lines first, marker lines later;
+/// merging by id yields the full history.
 func readAgentOperations() -> [AgentOperation] {
     guard let text = try? String(contentsOf: agentOperationsFile(), encoding: .utf8) else { return [] }
     let dec = JSONDecoder.agentAPI
@@ -420,39 +420,41 @@ func readAgentOperations() -> [AgentOperation] {
         } else if let m = try? dec.decode(AgentUndoneMarker.self, from: d) {
             undone[m.id] = m.undoneAt
         }
-        // 两类都解不开的行直接跳过：日志是账本，坏行不该掀翻整个历史
+        // Skip lines that decode as neither type: the log is a ledger, a bad line shouldn't topple the whole history
     }
     return ops.map { o in
         o.undoneAt == nil && undone[o.id] != nil
-            // client 必须一起带上：漏了它，撤销过的行就在页面上变成「未知来源」，
-            // 而日志里那个自报名字好端端地躺着（AgentAPI 上面对这个字段的说明就是
-            // 「旧行才需要当未知来源」）。
+            // client must be carried along: if dropped, undone rows show up on the page as "unknown source",
+            // while the self-reported name sits right there in the log (AgentAPI's doc for this field says
+            // "only old lines should be treated as unknown source").
             ? AgentOperation(id: o.id, at: o.at, client: o.client,
                              items: o.items, undoneAt: undone[o.id])
             : o
     }
 }
 
-// MARK: - en 词表（只读；位置与 safetyDBFileURL 同构）
+// MARK: - en table (read-only; located the same way as safetyDBFileURL)
 
 private func enTableURL() -> URL? {
-    // 测试覆盖入口：指到一个资源目录（下含 en.lproj/Localizable.strings）
-    if let dir = ProcessInfo.processInfo.environment["DISKWISE_RESOURCES"], !dir.isEmpty {
+    // Test override: points to a resources dir (containing en.lproj/Localizable.strings)
+    let dir = envString("DISKWISE_RESOURCES")   // dev/test hook; ignored in release
+    if !dir.isEmpty {
         let u = URL(fileURLWithPath: (dir as NSString).expandingTildeInPath, isDirectory: true)
             .appendingPathComponent("en.lproj/Localizable.strings")
         if FileManager.default.fileExists(atPath: u.path) { return u }
     }
-    // 打包版（含 brew 的 binary symlink——proc_pidpath 解析回 .app）：
-    // 明确点名 en.lproj，不跟随系统语言，agent 拿到的永远是英文
+    // Packaged build (including brew's binary symlink; proc_pidpath resolves back to the .app):
+    // name en.lproj explicitly, don't follow system language; agents always get English
     if let u = Bundle.main.url(forResource: "Localizable", withExtension: "strings",
                                subdirectory: "en.lproj") { return u }
-    // swift run 的兜底：cwd 就是包根目录（与 safetyDBFileURL 同一条约定）
+    // swift run fallback: cwd is the package root (same convention as safetyDBFileURL). Debug/dev-hooks only.
+    guard devHooksEnabled else { return nil }
     let dev = "Sources/DiskCleaner/Resources/en.lproj/Localizable.strings"
     return FileManager.default.fileExists(atPath: dev) ? URL(fileURLWithPath: dev) : nil
 }
 
-/// 词表是机器校验过的单行一条格式（"原文" = "译文";），逐行取前两个字符串
-/// 字面量即可，与 build_app/l10n_tool.swift 的 readTable 同一算法。
+/// The table is a machine-validated one-entry-per-line format ("source" = "translation";); take the first two string
+/// literals per line, same algorithm as readTable in build_app/l10n_tool.swift.
 private func loadEnTable() -> [String: String] {
     guard let url = enTableURL(), let text = try? String(contentsOf: url, encoding: .utf8) else {
         return [:]
@@ -460,7 +462,7 @@ private func loadEnTable() -> [String: String] {
     var out: [String: String] = [:]
     for rawLine in text.split(separator: "\n") {
         let line = rawLine.trimmingCharacters(in: .whitespaces)
-        if line.isEmpty || line.hasPrefix("/") { continue }    // 空行与注释
+        if line.isEmpty || line.hasPrefix("/") { continue }    // blank lines and comments
         let segs = quotedSegments(line)
         if segs.count >= 2 { out[segs[0]] = segs[1] }
     }
@@ -492,17 +494,17 @@ private func quotedSegments(_ line: String) -> [String] {
     return out
 }
 
-// 全局常量惰性初始化自带线程安全（scan 的 TaskGroup 里并发查表也不出事）
+// Lazy init of globals is thread-safe (concurrent lookups in scan's TaskGroup are fine)
 private let enTable: [String: String] = loadEnTable()
 
-/// 中文原文 → 英文译文；词表没有这条时返回 nil，调用方回落中文原文。
+/// Chinese source → English translation; returns nil when missing, caller falls back to the Chinese original.
 public func enText(_ key: String) -> String? { enTable[key] }
 
-// MARK: - 六个入口
+// MARK: - Six entry points
 
-/// 遍历知识库条目（与缓存页同一个宇宙），量出每处的真实占盘。
-/// 产出的路径天然 exact；量到 0 的行不留——与缓存页同一条纪律，
-/// 那个 0 多半是「读不动」而不是「空」。
+/// Walk knowledge-base entries (same universe as the caches page) and measure each location's real disk usage.
+/// Produced paths are inherently exact; rows measuring 0 are dropped, same rule as the caches page:
+/// that 0 most likely means "unreadable", not "empty".
 public func agentScan(category: AgentCategory = .all, minBytes: Int64 = 0,
                       index: VerdictIndex = .shared) async -> [AgentItem] {
     let entries = loadSafetyEntries(from: safetyDBFileURL()).filter { e in
@@ -536,9 +538,9 @@ public func agentScan(category: AgentCategory = .all, minBytes: Int64 = 0,
         let item = agentItem(c, bytes: sizes[t.url.path] ?? 0)
         if item.bytes > 0 && item.bytes >= minBytes { out.append(item) }
     }
-    // 签名发现补账：知识库没报过的引擎自管缓存按布局认——HF 模型仓可以长在
-    // 任何项目的 var 里，词条追不上。与词条结果按路径去重：浅路径先记账，
-    // 被盖住的深路径不再重报（~/.cache/huggingface/hub 不会在词条底下再出一条）。
+    // Signature discovery fills gaps: engine-managed caches the knowledge base didn't report, matched by layout; HF model repos can live in
+    // any project's var, entries can't keep up. Deduped against entry results by path: shallow paths are counted first,
+    // covered deeper paths aren't reported again (~/.cache/huggingface/hub won't appear again under an entry).
     var covered = seen
     for m in await signatureScan().sorted(by: { $0.url.path.count < $1.url.path.count }) {
         let p = m.url.path
@@ -553,15 +555,15 @@ public func agentScan(category: AgentCategory = .all, minBytes: Int64 = 0,
     return out
 }
 
-/// 单个路径的完整画像（只读，不动任何文件）。
+/// Full profile of a single path (read-only, touches no files).
 public func agentExplain(path: String, index: VerdictIndex = .shared) async -> AgentItem {
     let c = agentPipeline(path, index: index)
     return agentItem(c, bytes: await pathStat(c.url).bytes)
 }
 
-/// 生成计划：不动任何文件，只写计划文件。humanOverride 对应 --i-am-human
-/// （放开 unknown 与非 exact；risky 仍拒）。超出条数或字节上限直接抛错，
-/// 一个文件都不写——上限存在的意义就是让「一次端走整台机器」在源头失败。
+/// Generate a plan: touches no files, only writes the plan file. humanOverride corresponds to --i-am-human
+/// (allows unknown and non-exact; risky still refused). Exceeding the count or byte cap throws immediately,
+/// writing nothing; the cap exists so "take the whole machine at once" fails at the source.
 public func agentPlan(paths: [String], humanOverride: Bool = false,
                       index: VerdictIndex = .shared) async throws -> AgentPlan {
     guard !paths.isEmpty else { throw AgentAPIError.invalidPath("no paths given") }
@@ -580,7 +582,7 @@ public func agentPlan(paths: [String], humanOverride: Bool = false,
         if allowed {
             items.append(item)
             var st = stat()
-            _ = lstat(c.url.path, &st)   // 管线刚确认存在；这里只为取绑定用的 inode
+            _ = lstat(c.url.path, &st)   // the pipeline just confirmed existence; this only fetches the inode for binding
             records.append(AgentPlanItemRecord(path: c.url.path, bytes: bytes,
                                                dev: UInt64(st.st_dev), ino: UInt64(st.st_ino)))
         } else {
@@ -591,8 +593,8 @@ public func agentPlan(paths: [String], humanOverride: Bool = false,
     if items.count > agentPlanMaxItems {
         throw AgentAPIError.planTooLarge(items: items.count, bytes: 0)
     }
-    // 汇总必须去嵌套：agent 给的列表可能套着（~/Library/Caches 与其子项），
-    // 按条目相加会把同一份字节数两遍，用户看到的「将腾出」就虚高
+    // Totals must be de-nested: the agent's list may be nested (~/Library/Caches and its children);
+    // summing per item counts the same bytes twice and inflates the "will free" the user sees
     let total = contentsUnionSize(items.map { ($0.path, $0.bytes) })
     if total > agentPlanMaxBytes {
         throw AgentAPIError.planTooLarge(items: items.count, bytes: total)
@@ -611,18 +613,18 @@ public func agentPlan(paths: [String], humanOverride: Bool = false,
                      items: items, refused: refused, totalBytes: total)
 }
 
-/// 只执行此前生成的计划，对每一项重跑管线并核对 inode。计划过期或不存在是
-/// 硬失败——整体拒绝，一个文件都不动；单项被拒是软失败——记录后继续，
-/// 其余照做（与 CLI 退出码 2「部分成功」的语义对齐）。
+/// Executes only a previously generated plan, re-running the pipeline and checking inode for each item. An expired or missing plan is
+/// a hard failure: rejected wholesale, no file touched; a refused item is a soft failure: recorded, then continue,
+/// the rest proceed (matches CLI exit code 2 "partial success").
 ///
-/// trash 参数默认接 Core 唯一的删除路径 trashItem；自检注入假的搬法，
-/// 不往真实废纸篓里丢测试垃圾——真废纸篓的往返由 CLI 手测覆盖。
-/// client 记进操作日志，回答「这次是谁干的」：MCP 传客户端自报名字，终端保持默认。
+/// The trash parameter defaults to Core's only deletion path, trashItem; self-tests inject a fake mover
+/// so test junk doesn't land in the real Trash; the real Trash round trip is covered by manual CLI testing.
+/// client is recorded in the operation log to answer "who did this": MCP passes the client's self-reported name, terminal keeps the default.
 public func agentExecute(planId: String, index: VerdictIndex = .shared,
                          client: String = "diskwise-cli",
                          trash: (URL) throws -> URL = trashItem) throws -> AgentResult {
-    // plan_id 是我们自己签发的 UUID：带路径分隔符或向上的段一律当「不存在」，
-    // 不给拼路径留缝（下面的 removeItem 只会碰自己签发、且解码合法的计划文件）
+    // plan_id is a UUID we issued: anything with path separators or upward segments is treated as "not found",
+    // leaving no gap for path building (removeItem below only touches plan files we issued that decode validly)
     guard !planId.isEmpty, !planId.contains("/"), !planId.contains("\\"),
           !planId.hasPrefix(".") else {
         throw AgentAPIError.planNotFound
@@ -633,9 +635,9 @@ public func agentExecute(planId: String, index: VerdictIndex = .shared,
         throw AgentAPIError.planNotFound
     }
     guard Date() < rec.expiresAt else {
-        // 过期计划就地删除：它已经不能被任何一次执行接受，留着只会堆积。
-        // 删的是自家记账文件（agent/ 下的 JSON），不进废纸篓——铁律管的是
-        // 用户数据；把内部状态丢进用户废纸篓才是错的一方。
+        // Delete expired plans on the spot: no execution can accept them anymore; keeping them only piles up.
+        // This deletes our own bookkeeping file (JSON under agent/), not via Trash; the iron rule governs
+        // user data; dumping internal state into the user's Trash would be the wrong move.
         try? FileManager.default.removeItem(at: fileURL)
         throw AgentAPIError.planExpired
     }
@@ -648,18 +650,18 @@ public func agentExecute(planId: String, index: VerdictIndex = .shared,
         let lstatOK = lstat(c.url.path, &st) == 0
         var fail: String? = nil
         if !lstatOK {
-            // 前一项已经把父目录搬走：这一项不是「失败」，是被上一项顺路带走了
+            // A previous item already moved the parent dir: this item didn't "fail", it was carried along by the earlier one
             if let anc = trashedPaths.first(where: { item.path == $0 || item.path.hasPrefix($0 + "/") }) {
                 failed.append(AgentFailure(path: item.path, reason: "covered_by_earlier_item", detail: anc))
                 continue
             }
             fail = AgentRefusal.notFound.rawValue
         } else if c.refusal != nil, !(rec.human && c.humanRefusal == nil) {
-            // 管线拒绝优先于 inode 比对：换成软链就报 symlink、换成 risky 内容就报
-            // may_lose_data——比 changed_since_plan 更能告诉 agent 下一步怎么办
+            // Pipeline refusal takes precedence over inode comparison: swapped to a symlink reports symlink, swapped to risky content reports
+            // may_lose_data, which tells the agent better what to do next than changed_since_plan
             fail = c.refusal!.rawValue
         } else if UInt64(st.st_dev) != item.dev || UInt64(st.st_ino) != item.ino {
-            // 路径还在、判词也没变，但 inode 换了：计划生成后原地换过内容
+            // Path still exists and verdict unchanged, but the inode changed: content was swapped in place after plan generation
             fail = "changed_since_plan"
         }
         if let fail {
@@ -673,7 +675,7 @@ public func agentExecute(planId: String, index: VerdictIndex = .shared,
                                             name: (c.url.path as NSString).lastPathComponent))
             trashedPaths.append(c.url.path)
         } catch let e as TrashError {
-            // 原因码对齐管线；其余归 trash_failed，系统原话放 detail
+            // Reason codes align with the pipeline; everything else is trash_failed, with the system's message in detail
             let reason: String
             switch e {
             case .protected: reason = AgentRefusal.protected.rawValue
@@ -690,17 +692,17 @@ public func agentExecute(planId: String, index: VerdictIndex = .shared,
         let opID = UUID().uuidString
         try appendJSONL(AgentOperation(id: opID, at: Date(), client: client, items: trashed),
                         to: agentOperationsFile())
-        try? FileManager.default.removeItem(at: fileURL)   // 计划已消费
+        try? FileManager.default.removeItem(at: fileURL)   // plan consumed
         return AgentResult(operationId: opID, trashed: trashed, failed: failed,
                            totalBytes: trashed.reduce(0) { $0 + $1.bytes })
     }
-    // 一项都没搬成：不记操作（什么都没发生），但计划照删——重试也只会全拒
+    // Nothing moved: don't record an operation (nothing happened), but still delete the plan; a retry would refuse everything too
     try? FileManager.default.removeItem(at: fileURL)
     return AgentResult(operationId: "", trashed: [], failed: failed, totalBytes: 0)
 }
 
-/// 撤销一次操作（nil = 最近一次未撤销的）。走 untrash 的同名不覆盖逻辑；
-/// 废纸篓里已不在的项报 gone_from_trash，不因一项失败中止其余恢复。
+/// Undo an operation (nil = the most recent not-yet-undone one). Uses untrash's no-overwrite-on-same-name logic;
+/// items no longer in Trash report gone_from_trash; one failure doesn't abort restoring the rest.
 public func agentUndo(operationId: String? = nil) throws -> [AgentUndoStatus] {
     let ops = readAgentOperations()
     let target = operationId == nil
@@ -727,7 +729,7 @@ public func agentUndo(operationId: String? = nil) throws -> [AgentUndoStatus] {
     return out
 }
 
-/// 最近 limit 次操作（按时间正序；调用方自己决定怎么摆）。
+/// Most recent `limit` operations (chronological; the caller decides presentation).
 public func agentHistory(limit: Int = 20) -> [AgentOperation] {
     let ops = readAgentOperations()
     return Array(ops.suffix(max(0, limit)))

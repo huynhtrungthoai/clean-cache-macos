@@ -1,21 +1,21 @@
 import Foundation
 import SQLite3
 
-/// C 侧的 SQLITE_TRANSIENT 宏在 Swift 模块里没有定义，铸一个等价的（-1）。
+/// C's SQLITE_TRANSIENT macro isn't defined in the Swift module; mint an equivalent (-1).
 let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
-// MARK: - 扫描快照与流速（PR-2）
+// MARK: - Scan snapshots & velocity (PR-2)
 //
-// 设计出处：plans/design-diagnostic-dumps-velocity-provenance-2026-10-27.md §4，
-// 评审修订 plans/design-review-diagnostic-dumps-2026-10-27.md §2.1：
-// · 无守护进程——快照写在类别发现遍历流程内，两次扫描之间的事在下次扫描结算；
-// · 告警 OR（绝对量或速率任一命中），徽标分两档：速率命中红「流速异常」、
-//   仅绝对量命中黄「显著增长」——不能改成 AND，否则一周没开 app 回来看到
-//   +105G 会因均摊速率低而漏报，那恰是事故形态；
-// · 基线 = 距今 ≥10 分钟的上一次扫描（连扫两次 30 秒间隔不重置基线），
-//   异常粘滞到增长回落（Δ≤0）为止，红徽标不因快速重扫消失。
+// Design: plans/design-diagnostic-dumps-velocity-provenance-2026-10-27.md §4,
+// review revision plans/design-review-diagnostic-dumps-2026-10-27.md §2.1:
+// · No daemon: snapshots are written inside the category discovery pass; whatever happens between scans is settled on the next scan;
+// · Alert is OR (absolute amount or rate, either hits); badge has two tiers: rate hit = red "abnormal velocity",
+//   absolute-only hit = yellow "significant growth". Must not become AND, or coming back after a week away to find
+//   +105G would be missed because the averaged rate is low, and that is exactly the incident pattern;
+// · Baseline = the previous scan ≥10 minutes ago (two scans 30 seconds apart don't reset the baseline);
+//   the anomaly sticks until growth falls back (Δ≤0), so a quick rescan doesn't clear the red badge.
 
-/// 一次扫描为一个条目记的一行。
+/// One row recorded per entry per scan.
 public struct ScanSnapshot: Equatable {
     public let entryKey: String
     public let scanID: String
@@ -35,8 +35,8 @@ public struct ScanSnapshot: Equatable {
     }
 }
 
-/// 流速告警阈值。默认值拍法：事故 ≈ 4,760 个/分钟（红档），周末两天攒 500MB
-/// ≈ 0.17MB/分钟（够不着红档，落黄档或不响）——两档之间隔四个量级，阈值很好放。
+/// Velocity alert thresholds. Defaults rationale: the incident ≈ 4,760 files/minute (red tier); 500MB accumulated over a
+/// weekend ≈ 0.17MB/minute (doesn't reach red; yellow or silent). Four orders of magnitude apart, so thresholds are easy to place.
 public struct VelocityThresholds: Equatable {
     public var files: Int
     public var bytes: Int64
@@ -55,9 +55,9 @@ public struct VelocityThresholds: Equatable {
 }
 
 public enum VelocityTier: Equatable {
-    /// 速率命中：突发型增长（红）
+    /// Rate hit: burst growth (red)
     case red
-    /// 仅绝对量命中：长间隔累积（黄）
+    /// Absolute-only hit: long-interval accumulation (yellow)
     case yellow
 }
 
@@ -75,7 +75,7 @@ public struct VelocityReport: Equatable {
         intervalSeconds > 0 ? Int64(Double(deltaBytes) * 60.0 / intervalSeconds) : 0
     }
 
-    /// 纯计算：两次快照的差 → 两档判定。Δ≤0（清理过或没变）一律不告警。
+    /// Pure computation: diff of two snapshots → two-tier verdict. Δ≤0 (cleaned or unchanged) never alerts.
     public static func compute(current: ScanSnapshot, baseline: ScanSnapshot,
                                thresholds: VelocityThresholds = .default) -> VelocityReport {
         let interval = current.wallTime.timeIntervalSince(baseline.wallTime)
@@ -95,14 +95,14 @@ public struct VelocityReport: Equatable {
     }
 }
 
-// MARK: - SQLite 快照库
+// MARK: - SQLite snapshot store
 
-/// scan_snapshots 表的极薄封装：系统 libsqlite3，无第三方依赖。
-/// 库落在应用数据目录（家目录或沙盒容器里的 ~/Library/Application Support/DiskWise/），
-/// 「写什么」这笔账已进 docs/PRIVACY.md。
+/// Very thin wrapper over the scan_snapshots table: system libsqlite3, no third-party dependency.
+/// The DB lives in the app data directory (~/Library/Application Support/DiskWise/ under home or the sandbox container);
+/// "what we write" is documented in docs/PRIVACY.md.
 ///
-/// 库打不开或语句失败一律静默降级：快照与流速是增益不是地基，
-/// 库坏掉不该让发现遍历跟着失败——界面只是没有流速可看。
+/// If the DB can't open or a statement fails, degrade silently: snapshots and velocity are an add-on, not the foundation;
+/// a broken DB must not fail the discovery pass; the UI just has no velocity to show.
 public final class SnapshotStore {
     var db: OpaquePointer?
     public let keepScans: Int
@@ -150,7 +150,7 @@ public final class SnapshotStore {
         return ok
     }
 
-    /// 记一轮扫描（同 scanID 重记 = 覆盖），并把历史裁到最近 `keepScans` 轮。
+    /// Record one scan round (re-recording the same scanID = overwrite) and trim history to the latest `keepScans` rounds.
     public func record(scanID: String, wallTime: Date, snapshots: [ScanSnapshot]) {
         guard db != nil else { return }
         exec("BEGIN")
@@ -174,7 +174,7 @@ public final class SnapshotStore {
             sqlite3_step(stmt)
         }
         sqlite3_finalize(stmt)
-        // 滚动保留：只留最近 N 轮（按 distinct wallTime 记轮数）
+        // Rolling retention: keep only the latest N rounds (rounds counted by distinct wallTime)
         exec("""
         DELETE FROM scan_snapshots WHERE wallTime NOT IN
         (SELECT DISTINCT wallTime FROM scan_snapshots ORDER BY wallTime DESC LIMIT \(keepScans));
@@ -182,8 +182,8 @@ public final class SnapshotStore {
         exec("COMMIT")
     }
 
-    /// 基线：同一 entryKey 下、距今 ≥10 分钟、且不属于本轮 scanID 的最新一条。
-    /// 连扫两次（间隔 30 秒）不换基线——否则 Δ≈0，刚才的徽标当场消失（评审 §2.1c）。
+    /// Baseline: the newest row for the same entryKey that is ≥10 minutes old and not from this round's scanID.
+    /// Two scans 30 seconds apart keep the baseline; otherwise Δ≈0 and the badge would vanish instantly (review §2.1c).
     public func baseline(entryKey: String, now: Date, currentScanID: String,
                          minAge: TimeInterval = 600) -> ScanSnapshot? {
         guard db != nil else { return nil }
@@ -201,7 +201,7 @@ public final class SnapshotStore {
         return rowToSnapshot(stmt, entryKey: entryKey)
     }
 
-    /// 是否存在任何早于本轮的快照（区分「首扫建基线」与「有历史但都在 10 分钟内」）。
+    /// Whether any snapshot predates this round (distinguishes "first scan builds baseline" from "history exists but all within 10 minutes").
     public func hasHistory(entryKey: String, before now: Date) -> Bool {
         guard db != nil else { return false }
         var stmt: OpaquePointer?
@@ -214,7 +214,7 @@ public final class SnapshotStore {
         return sqlite3_step(stmt) == SQLITE_ROW && sqlite3_column_int64(stmt, 0) > 0
     }
 
-    /// 供 MCP（PR-5）取每个条目最近两轮差。基线规则与界面同一条（10 分钟）。
+    /// For MCP (PR-5): each entry's diff over the last two rounds. Same baseline rule as the UI (10 minutes).
     public func latestTwo(entryKey: String, now: Date = Date(),
                           minAge: TimeInterval = 600) -> (current: ScanSnapshot, baseline: ScanSnapshot)? {
         guard db != nil else { return nil }

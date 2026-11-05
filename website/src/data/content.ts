@@ -1,15 +1,13 @@
-// 多语言内容层：四个语言的全部文案集中在此维护。
-// zh 为源语言（对照 site.ts 中的链接常量）；en/ja/ko 与 README 的四语保持同源口径。
-// 新增语言：复制一份 zh 对象翻译，再在 LOCALES / routes / HTML 入口三处注册。
+// Localized content layer: all copy for every locale lives here.
+// en is the source locale and is served at the site root; ja/ko mirror it.
+// To add a locale: copy the en object, translate it, then register it in LOCALES, routes and the HTML entries.
 import demoGifEn from "@/assets/demo-overview-en.gif";
-import demoGifZh from "@/assets/demo-overview-zh.gif";
 import { BREW_CMD } from "./site";
 
-export type Locale = "zh" | "en" | "ja" | "ko";
+export type Locale = "en" | "ja" | "ko";
 
 export const LOCALES: { code: Locale; label: string; short: string; path: string }[] = [
-  { code: "zh", label: "简体中文", short: "中", path: "" },
-  { code: "en", label: "English", short: "EN", path: "en" },
+  { code: "en", label: "English", short: "EN", path: "" },
   { code: "ja", label: "日本語", short: "日", path: "ja" },
   { code: "ko", label: "한국어", short: "한", path: "ko" },
 ];
@@ -67,171 +65,6 @@ export interface SiteContent {
     langLabel: string;
   };
 }
-
-const zh: SiteContent = {
-  htmlLang: "zh-CN",
-  demoGif: demoGifZh,
-  nav: [
-    { href: "#why", label: "为什么" },
-    { href: "#market", label: "竞品" },
-    { href: "#features", label: "功能" },
-    { href: "#install", label: "安装" },
-    { href: "#faq", label: "FAQ" },
-  ],
-  navStar: "Star",
-  hero: {
-    badge: "Free · Open Source · Apache-2.0",
-    title: "DiskWise",
-    subtitle: "免费开源的 Mac 磁盘清理工具",
-    tagline: "原生 SwiftUI 磁盘清理器，专为被 node_modules、Xcode DerivedData、Docker 镜像和微信缓存吃掉硬盘的 Mac 而做。",
-    promise: "任何文件都不会被真正删除 —— 全部进废纸篓，全程可撤销。",
-    brewTitle: "点击复制安装命令",
-    dmgBtn: "下载 DMG（~8MB）",
-    starBtn: "GitHub Star",
-    watchLink: "在 YouTube 上看 22 秒演示片",
-    stats: [
-      { num: "0", label: "遥测 / 后台守护进程" },
-      { num: "~8MB", label: "DMG 体积，单文件通吃 Apple Silicon + Intel" },
-      { num: "10", label: "种界面语言开箱即用" },
-      { num: "100%", label: "功能全解锁，无订阅无内购" },
-    ],
-    figcaption: "Overview：每一段弧都是本次实测到的字节，两下点击即进废纸篓",
-    fallbackTitle: "观看 Overview 环形扫描演示",
-    fallbackNote: "当前网络无法加载演示动图，点击在仓库内查看 overview.gif",
-  },
-  why: { eyebrow: "Why DiskWise", title: "四个别的清理工具做不到的事" },
-  differentiators: [
-    {
-      icon: "trash",
-      title: "只进废纸篓，绝不 rm -rf",
-      desc: "唯一删除路径是 FileManager.trashItem。清空废纸篓永远是 Finder 的决定，整个会话逐条可撤销。",
-    },
-    {
-      icon: "code",
-      title: "为开发者的机器而生",
-      desc: "node_modules、DerivedData、Docker 用量、构建产物——这些「系统数据」里最大的元凶，普通清理工具根本不敢碰。",
-    },
-    {
-      icon: "eye",
-      title: "每一条缓存都讲得清",
-      desc: "扫描结果带解释：这是什么、删了会怎样、多久长回来。微信、钉钉、企业微信单独覆盖——很多机器上这三个就占几十 GB。",
-    },
-    {
-      icon: "shield",
-      title: "零网络、零守护、零索取",
-      desc: "没有 updater、没有 analytics、没有广告、没有后台守护。一个 .app 就是全部，代码 Apache-2.0 公开可审。",
-    },
-  ],
-  market: {
-    eyebrow: "竞品调研 · 2026-10",
-    title: "市场上已有谁，空位在哪",
-    claimLabel: "定位主张：",
-    headers: ["工具", "形态", "热度", "价格", "强项", "弱点"],
-    rows: [
-      {
-        name: "CleanMyMac", kind: "商业 GUI（MacPaw）", stars: "—",
-        price: "订阅制 ~$40/年，另有更贵的一次性买断",
-        strengths: "品牌认知度最高，功能大而全，恶意软件防护，媒体营销成熟",
-        weaknesses: "贵且转订阅制；闭源不可审计；越来越多测评认为它「不如系统自带」",
-      },
-      {
-        name: "Mole CLI (tw93)", kind: "开源 CLI", stars: "60k+",
-        price: "CLI 免费开源；GUI 版一次性付费",
-        strengths: "开发者圈口碑爆棚，一条病毒推文带火出圈；一条命令清出几十 GB",
-        weaknesses: "纯命令行，对非终端用户有门槛；GUI 版闭源收费",
-      },
-      {
-        name: "DaisyDisk", kind: "商业 GUI", stars: "—", price: "一次性 ~$10",
-        strengths: "环形空间地图是行业标杆，交互优雅",
-        weaknesses: "只做「看」不做「清」，没有缓存语义与应用残留管理",
-      },
-      {
-        name: "OnyX", kind: "免费工具", stars: "—", price: "免费",
-        strengths: "老牌深度维护，安全口碑好",
-        weaknesses: "必须匹配 macOS 版本的专属发行，操作复杂，面向故障排查而非日常清理",
-      },
-      {
-        name: "mac-cleaner-cli 等开源 CLI", kind: "开源 CLI", stars: "数百~数千", price: "免费",
-        strengths: "透明、轻量",
-        weaknesses: "删除即永久删除，误删风险高；无图形反馈，普通用户无法建立信任",
-      },
-      {
-        name: "DiskWise（本项目）", kind: "开源 GUI（SwiftUI 原生）", stars: "新项目", price: "完全免费，全功能解锁",
-        strengths: "DaisyDisk 式环形图 + Mole 式深度清理 + 「全进废纸篓可撤销」的安全模型，三者合一且开源",
-        weaknesses: "—", ours: true,
-      },
-    ],
-  },
-  positioning: {
-    claim: "DaisyDisk 的眼 + Mole 的手 + 绝对不删你文件的底线",
-    logic: [
-      ["市场空位", "CLI 阵营（Mole 60k★）证明了需求真实存在，但把普通用户挡在终端外；GUI 阵营最出名的 CleanMyMac 又贵又闭源。「开源 + 原生 GUI + 安全删除」这个格子至今没人占。"],
-      ["一句话差异", "别的工具问你要不要「永久删除」，DiskWise 从架构上就没有永久删除这条代码路径。"],
-      ["可信度来源", "Apache-2.0 可审计 + Developer ID 签名并经 Apple 公证（v1.7 起双击即开）+ 每个 release 附 SHA-256 + App Store 上架。"],
-      ["为谁而做", "开发者自己装；也想帮爸妈、同事、设计师朋友清出几十 GB 的任何人。微信、钉钉等中文场景的缓存从第一天起就是一等公民。"],
-    ],
-  },
-  features: {
-    eyebrow: "What you get",
-    title: "一眼看明白，两下清干净",
-    intro: "「看清楚」和「敢动手」在同一页完成：找到占空间的元凶、看清里面是什么、确认无误后两下移进废纸篓——中间不用换页面。",
-    items: [
-      { title: "Overview 环形全景", desc: "整块磁盘画成一枚环：每一段都是本次实测到的字节，分段之和等于整盘。光带停在已测量边缘，扫到哪看到哪。" },
-      { title: "账本式明细", desc: "点开任意一行就地展开子目录明细，环退居小表盘作参照，不用在页面间来回跳。" },
-      { title: "两下点击进废纸篓", desc: "第一下武装、第二下移入废纸篓，Undo 原样放回。受保护路径（Home、~/Library 等）永远无法被整体移除。" },
-      { title: "大文件与陈年文件", desc: "全盘找出最占空间的 Top 文件、以及 N 天没动过的大文件，开发目录可一键跳过。" },
-      { title: "重复文件查重", desc: "大小 → 部分哈希 → 全量哈希三段式分组，每组最新一份自动上锁，你删不掉唯一那份；venv、DerivedData 里的孪生文件单独列示、不进比对。" },
-      { title: "卸载残留清扫", desc: "对照本机全部已装 App 的 bundle ID 找孤儿数据，原则是宁可漏报、绝不过删。" },
-      { title: "界面随你定制", desc: "六套主题皮肤换字体、圆角与动效，十种界面语言开箱即用，全部免费、无内购解锁。" },
-    ],
-  },
-  install: {
-    eyebrow: "Install",
-    title: "三种装法，全都不花钱",
-    sub: "macOS 13+ · Apple Silicon 与 Intel 共用一个 ~8MB 的通用 DMG",
-    channels: [
-      { name: "Homebrew", desc: "tap 一次装好，之后 brew upgrade --cask 更新。", action: BREW_CMD },
-      { name: "GitHub Release", desc: "Developer ID 签名 + Apple 公证，下载后双击即开；每个 release 附 SHA-256 校验值。", action: "下载最新 DMG" },
-      { name: "Mac App Store", desc: "经 App Store 审核上架，更新由商店自动推送，完全免费。", action: "在 App Store 获取" },
-    ],
-    note: "App Store 的每一版都要先过苹果审核，所以商店里的版本可能比 GitHub Release 慢一些。只想要最新那一版，用上面的 Homebrew 或直接下载 DMG。",
-  },
-  cta: {
-    eyebrow: "Star & Feedback",
-    title: "觉得有帮助？留一颗星",
-    body: "DiskWise 是一个独立维护的开源项目。如果它帮你清出了几十 GB，欢迎去 GitHub 点一颗星——星越多，下一个被「磁盘空间不足」卡住的人就越容易找到它。",
-    starBtn: "去 GitHub 留一颗星",
-    issueBtn: "提一个 Issue",
-    feedbackLead: "也希望听到你的意见——用得顺不顺手、缺什么功能、哪里可以更好，每一条我都会认真读，持续改进：",
-    copyEmail: "复制邮箱",
-    copied: "已复制",
-    emailNote: "中英文来信都可以，也欢迎直接在 Issue 里聊。",
-  },
-  faq: {
-    eyebrow: "FAQ",
-    title: "常见疑问",
-    items: [
-      { q: "和 CleanMyMac 比到底差在哪？", a: "价格（0 vs 订阅制）、透明度（Apache-2.0 全开源 vs 闭源）、删除模型（一切进废纸篓可撤销 vs 直接删除）。它多了恶意软件查杀等模块，DiskWise 刻意只做磁盘这一件事做到底。" },
-      { q: "会不会误删我的文件？", a: "架构上不存在永久删除路径：唯一删除动作是 FileManager.trashItem，清空废纸篓只能由你在 Finder 完成。Home、~/Library 等受保护路径无法被整体移除。" },
-      { q: "为什么 Docker 镜像不能直接清？", a: "Docker 虚拟盘里没有按镜像拆分的文件路径，任何声称能逐个删的工具都在装懂。DiskWise 只读展示用量并指向 docker 官方清理命令。" },
-      { q: "支持哪些机器？", a: "macOS 13+，Apple Silicon 与 Intel 共用一个 ~8MB 的 DMG；也可 brew cask 或 Mac App Store 安装。" },
-      { q: "免费是真免费吗？", a: "是。所有功能与六套皮肤在本 build 全部解锁，无 telemetry、无广告、无订阅。App Store 版同样免费。" },
-    ],
-  },
-  footer: {
-    desc: "免费开源的 macOS 磁盘清理器。原生 SwiftUI，一切进废纸篓、全程可撤销，零遥测、零订阅、零守护进程。",
-    meta: "Apache-2.0 · macOS 13+ · 10 languages",
-    getLabel: "获取",
-    links: [
-      { label: "GitHub Release（附 SHA-256）" },
-      { label: "Mac App Store" },
-      { label: "源码 / Issue / PR" },
-      { label: "简体中文 README" },
-    ],
-    copyright: "© 2026 DreamOfXM · DiskWise 为独立开源项目，与 MacPaw CleanMyMac、tw93 Mole 无隶属关系",
-    langLabel: "语言",
-  },
-};
 
 const en: SiteContent = {
   htmlLang: "en",
@@ -728,4 +561,4 @@ const ko: SiteContent = {
   },
 };
 
-export const CONTENT: Record<Locale, SiteContent> = { zh, en, ja, ko };
+export const CONTENT: Record<Locale, SiteContent> = { en, ja, ko };

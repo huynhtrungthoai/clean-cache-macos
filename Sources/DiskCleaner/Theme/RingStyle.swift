@@ -1,324 +1,324 @@
 import SwiftUI
 
-// ── 环的材质：一份数，画在第 0 步 a 立起来的几何上 ──
+// ── Ring material: one set of numbers, painted on the geometry built in step 0a ──
 //
-// 这一份是从 `SweepRing`（`Theme/Components.swift`）里**原样搬出来**的：搬的只有位置和
-// 写法，一个像素都没改。判据不是「看着差不多」，是六套皮肤的环带逐字节相同
-// （`app-baseline/ringstyle-md5.txt` 里那六个带 md5；第 0 步 a/b 用的整图 md5 记在同一份文件里）。
+// This was moved **verbatim** out of `SweepRing` (`Theme/Components.swift`): only location and
+// spelling moved, not a single pixel changed. The criterion is not "looks about the same" but the ring band of all six skins being byte-identical
+// (the six band md5s in `app-baseline/ringstyle-md5.txt`; the whole-image md5s used in steps 0a/b are in the same file).
 //
-// **别拿整图 md5 当闸门**——它量过一次假红：加水晶材质那一轮，三套皮肤的整图 md5 变了，
-// 逐像素定位发现变化全在环外（背景渐变与余晖那圈，51～109 个像素、每个差 1 灰阶），
-// 拿改材质**之前**的源码另建 scratch 路径重链接，拍出来是同一组新值；同一份二进制前后
-// 两拍，aurora 的整图 md5 还能自己变一次。整图 md5 对环境的抖动不稳，而它变红的时候
-// 真正要守的那条带子反而没人看。所以钉的是 `r 290–428` 那一圈（`tools/ring-gate.py`）。
+// **Don't use whole-image md5 as the gate** -- it once gave a false red: in the round that added the crystal material, three skins' whole-image md5 changed,
+// and per-pixel localization found every change outside the ring (background gradient and the afterglow ring, 51-109 pixels, each off by 1 gray level).
+// Relinking the pre-material-change source at a separate scratch path produced the same new values; two shots of the same binary
+// could even change aurora's whole-image md5 on their own. Whole-image md5 is unstable against environment jitter, and when it goes red
+// nobody looks at the band that actually matters. So the gate pins the `r 290-428` ring (`tools/ring-gate.py`).
 //
-// 为什么要单独一份：`skins.json` 已经在给整块盘换脸（调色板、字型、 elevation、动效性格），
-// 但环上的材质全是写在视图代码里的死数——想出一个「水晶环」「磨砂环」的卖点，就得改视图、
-// 改完再人工确认没把别的皮肤带坏。收成这样一份数之后，加一款材质 = 加一份数，
-// 视图那 300 行不再跟着动。
+// Why a separate set: `skins.json` already reskins the whole dial (palette, typeface, elevation, motion personality),
+// but the ring's material was hard-coded numbers in view code -- to sell a "crystal ring" or "frosted ring" you had to edit the view,
+// then manually confirm no other skin broke. With it collected into one set of numbers, adding a material = adding one set of numbers,
+// and those 300 lines of view code no longer move with it.
 //
-// **规矩（跟 `RingGeometry.swift` 里「几何不进配置」同一条线）：**
-// 这份数只管「画成什么样」，不管「哪一段归谁」。段→画面、落点→段 仍然只由 Core 的
-// `GaugeLayout` 说了算；材质可以改亮暗、改厚度观感、改颜色配方，但不能改半径归属——
-// 那一条的代价是第二下点击把别的目录搬进废纸篓。
+// **Rule (same line as "geometry stays out of config" in `RingGeometry.swift`):**
+// These numbers only govern "how it is drawn", not "which segment owns what". Segment -> pixels and hit point -> segment are still decided solely by Core's
+// `GaugeLayout`; a material may change brightness, perceived thickness and color recipe, but never radius ownership --
+// the cost of breaking that is a second click moving some other folder to the Trash.
 //
-// 圆心那三行数字**不在这里**：那是排印，跟着 `theme.metric` 与皮肤字号走，
-// 留在视图里更靠近它那些「为什么是这个字号」的说明。
+// The three lines of numbers in the center are **not here**: that is typesetting, following `theme.metric` and the skin's font sizes,
+// and stays in the view, closer to its "why this font size" notes.
 //
-// ── 模式决策记录：这一份停在阶梯 **L1（数据）**，不是 GoF 模式 ──────────────────────
-// 变化句：**材质** 会变；**几何与账** 不变。决定者 = 配置文件/卖点清单，构造期。
-// 为什么不用 Strategy 包一层对象：#1 第二份材质（水晶环）落地后，消费点仍只有 `RingFrame.style`
-// 一处读取，`RingLayers` 全程只读字段 → 一个 struct 就够，包一层等于给数据再套壳。
-// 需要的开放性的实数是「加一款材质改几个文件」——**第二份材质（`crystal`）与 JSON 接线都落地之后重数，
-// 别沿用没验过的说法**：
-//   · 只重排已有的档（亮度、洇多远、哪道色当灯）= 本文件 1 个（加一个 case + 一份数 +
-//     `RingLook.style` 里一行），视图 0 处；想让某套皮肤穿上它，改的是 `skins.json` 那一行数据。
-//   · 要**新增一种画法**（截面那道径向渐变在旧代码里根本没有）= 本文件 + `RingLayers`
-//     加一个门（`crossStops` / `crossSection`，以及 `visualBand` 里那一句）。
-//     `SweepRing`（状态与事件）、Core 的几何、六皮环带，三处**都是 0 改动**——
-//     环带逐字节相同那条由 `ring-gate.py` 证明。
-// 所以这一份停在 L1 是对的，但**账要记全**：省掉的是「每次改材质都要动核心逻辑」，
-// 没省掉「新画法要动绘制层」。什么时候升 L3：出现**第三种**要新增画法的材质时，
-// 那才是第二个、第三个实例来付这笔票钱；现在升，是给一个只住过一家的门厅买电梯。
-// 撤销条件不变：若某款材质开始需要自己的**依赖**（取皮肤调色板、算派生数、按状态换配方），
-// 那是比「新增画法」更早的 L3 信号——现在一个都没有。
-// （`RingLook` 那张名字表看着像依赖，其实不是：它只认自己那个字符串，没读 `Theme`、没算派生数。
-// 真正读皮肤的是 `RingLayers` 里那两处 `isDark` 分流，而那一处从搬过来之前就在绘制层。）
+// ── Pattern decision record: this stays at ladder **L1 (data)**, not a GoF pattern ──────────────────────
+// Axis of change: **material** varies; **geometry and accounting** do not. Decider = config file / feature list, at construction time.
+// Why not wrap it in a Strategy object: after #1 the second material (crystal ring) landed, there is still only one consumer, `RingFrame.style`,
+// and `RingLayers` only reads fields -> one struct is enough; wrapping it just puts a shell around data.
+// The real openness needed is "how many files does adding a material touch" -- **recount after the second material (`crystal`) and the JSON wiring landed,
+// don't reuse unverified claims**:
+//   - Only re-tuning existing knobs (brightness, how far it bleeds, which color is the lamp) = 1 file here (one case + one set of numbers +
+//     one line in `RingLook.style`), 0 places in views; to put a skin in it, edit that one data line in `skins.json`.
+//   - **Adding a new drawing technique** (the cross-section radial gradient didn't exist in the old code) = this file + one gate in
+//     `RingLayers` (`crossStops` / `crossSection`, plus that one statement in `visualBand`).
+//     `SweepRing` (state and events), Core's geometry, and the six skins' ring bands -- all three **had 0 changes** --
+//     byte-identical ring bands proven by `ring-gate.py`.
+// So stopping at L1 is right, but **keep the full ledger**: what we saved is "every material change touches core logic";
+// we did not save "a new technique touches the drawing layer". When to move to L3: when a **third** material needing a new technique appears --
+// that's the second and third instance paying for it; upgrading now is buying an elevator for a lobby only one family ever lived in.
+// Revocation condition unchanged: if a material starts needing its own **dependencies** (reading the skin palette, computing derived values, switching recipe by state),
+// that is an earlier L3 signal than "new technique" -- there are none yet.
+// (The `RingLook` name table looks like a dependency but isn't: it only matches its own string, doesn't read `Theme` or compute derived values.
+// What actually reads the skin is the two `isDark` branches in `RingLayers`, and those were in the drawing layer before the move.)
 
-/// 一小块不带渐变、也不来自皮肤调色板的纯色，连同它的常驻不透明度。
+/// A small flat color with no gradient and not from the skin palette, plus its resting opacity.
 ///
-/// 用四个数而不是 `Color`：`Color` 没法比较、没法写进 JSON，而「亮头那道近白」这类
-/// 颜色恰恰是材质配方的一部分（极夜那档 rgba(255,240,214,.34) 就是原型里抄来的），
-/// 得跟别的材质参数一起待在同一份数里。
+/// Four numbers instead of `Color`: `Color` isn't comparable or JSON-serializable, and colors like "the near-white of the hot head"
+/// are exactly part of the material recipe (the polar-night value rgba(255,240,214,.34) was copied from the prototype),
+/// so they must live in the same set of numbers as the other material parameters.
 struct RingInk: Equatable {
     var red: Double
     var green: Double
     var blue: Double
     var opacity: Double
 
-    /// `scale` 乘在常驻不透明度上。今天代码里写的 `peak.opacity(0.40)` 就是这个意思：
-    /// `Color.opacity` 是**乘**的，所以两处结果逐字节一致。
+    /// `scale` multiplies the resting opacity. The current code's `peak.opacity(0.40)` means exactly this:
+    /// `Color.opacity` **multiplies**, so both results are byte-identical.
     func color(_ scale: Double = 1) -> Color {
         Color(red: red, green: green, blue: blue).opacity(opacity * scale)
     }
 }
 
-/// 绕环余晖（`.bloom`）的一个停靠点。
+/// One stop of the around-ring afterglow (`.bloom`).
 ///
-/// 定位一律用「带的某条沿 ± 几个带宽」，不用「框的百分比」——上一版把峰值写死在
-/// `location: 0.855`，带一薄整团光就掉进洞里（见 `SweepRing` 里 rOut/rIn 那段说明）。
+/// Positions are always "some band edge +/- N band widths", never "percent of the frame" -- the previous version hard-coded the peak at
+/// `location: 0.855`, and when the band got thinner the whole glow fell into the hole (see the rOut/rIn note in `SweepRing`).
 ///
-/// **列表之外还有一档**：绘制层会在末尾补一道 `.clear at 1`。`RadialGradient` 在最后一个
-/// 停靠点之后是把最后一档颜色平推出去、不是淡出，少了那道就整圈往外发蓝
-/// （六皮逐字节对照抓到过，代价写在 `RingLayers.bloomGlow` 的注释上）。
-/// 所以这里只列「亮着的那几档」，别在配置里自己补尾。
+/// **There is one more stop beyond this list**: the drawing layer appends `.clear at 1`. After the last stop `RadialGradient`
+/// extends the last color outward rather than fading, so without it the whole ring glows blue outward
+/// (caught by the six-skin byte comparison; the cost is noted on `RingLayers.bloomGlow`).
+/// So list only the lit stops here; don't add the tail yourself in config.
 struct BloomStop: Equatable {
     enum Anchor: Equatable { case inner, outer }
     var anchor: Anchor
-    /// 相对锚点偏移多少个带宽；正数往外。
+    /// Offset from the anchor in band widths; positive is outward.
     var offset: CGFloat
-    /// 亮到哪一档。0 落成 `.clear`，不是「灯色 × 0」——这两者在渐变插值里不等价，
-    /// 六皮对照抓的就是这一档。
+    /// Brightness level. 0 becomes `.clear`, not "lamp color x 0" -- the two are not equivalent in gradient interpolation,
+    /// and this is exactly the stop the six-skin comparison caught.
     var opacity: Double
 }
 
-/// 常驻反光（`.glint`）亮部坡道上的一个停靠点：占一圈的比例 × 峰值不透明度倍率。
+/// One stop on the bright ramp of the resting glint (`.glint`): fraction of the circle x peak-opacity multiplier.
 struct GlintStop: Equatable {
     var location: Double
     var peakScale: Double
 }
 
-/// 扫描期两道光（宽光 `.beam`、读数头 `#moSweep`）坡道上的一个停靠点：
-/// 占一圈的比例 × 峰值不透明度倍率。
+/// One stop on the ramp of the two scan-time lights (wide `.beam`, read head `#moSweep`):
+/// fraction of the circle x peak-opacity multiplier.
 struct SweepStop: Equatable {
     var location: Double
     var scale: Double
 }
 
-/// 井底（`.bore`）那圈底板的一个停靠点：从中心往外的比例 × 投影色不透明度。
-/// `at` 和 `BloomStop` 一样是**形状**，不是色表——中心那一档偏上（样稿 `at 50% 32%`），
-/// 换算由 `RingLayers.borePlate` 做。
+/// One stop of the well-floor plate (`.bore`): fraction outward from center x shadow-color opacity.
+/// Like `BloomStop`, `at` is a **shape**, not a color table -- the center stop sits high (mockup `at 50% 32%`),
+/// and the conversion is done by `RingLayers.borePlate`.
 struct BoreStop: Equatable {
     var at: Double
     var opacity: Double
 }
 
-/// 盘沿（`.wall`）那圈反光的一个停靠点：占一圈的比例 × 相对基色的明度倍率 × 这一档画多重。
+/// One stop of the rim (`.wall`) reflection: fraction of the circle x brightness multiplier vs. base color x how strongly this stop paints.
 ///
-/// `ink` 是给**玻璃**加的：一整圈金属沿靠「暗瓣压成深灰」塑形，那套放在玻璃上就是
-/// 环外套一圈灰铁（实测就是他那句「最外层还是黑灰色」）。玻璃的沿只有亮瓣——
-/// 背光的几档把 `ink` 收到 0，那一段根本不上色，卡面直接露出来。
+/// `ink` was added for **glass**: a full metal rim is shaped by "dark lobes pressed to dark gray", which on glass becomes
+/// a gray iron ring around the outside (measured; exactly his "the outermost layer is still blackish gray"). A glass rim has only bright lobes --
+/// the backlit stops take `ink` to 0, so that span gets no color and the card shows through.
 struct WallStop: Equatable {
     var at: Double
     var bri: CGFloat
     var ink: Double = 1
 }
 
-/// 带子**横截面**上的一个停靠点——这是水晶/玻璃那一档材质的形状，不是颜色表。
+/// One stop across the band's **cross-section** -- this is the shape of the crystal/glass material, not a color table.
 ///
-/// `at` 用的是「沿带宽的位置」：0 = 内沿 `rIn`，1 = 外沿 `rOut`，跟 `BloomStop` 一样
-/// 不给「框的百分比」。理由是同一句：带宽是 `bandRatio` 算出来的，写死磅数就换不了环径。
-/// 绘制层负责把 `at` 换算成真实半径（`RingLayers.crossSection`），那条换算上钉着
-/// `.padding(outer + w/2)` 这个坑——**别在这里试图填「框的 0.5」**。
+/// `at` is "position across the band width": 0 = inner edge `rIn`, 1 = outer edge `rOut`; like `BloomStop`,
+/// never "percent of the frame". Same reason: band width is computed from `bandRatio`; hard-coded points can't change ring size.
+/// The drawing layer converts `at` to a real radius (`RingLayers.crossSection`); that conversion carries
+/// the `.padding(outer + w/2)` pitfall -- **don't try to fill in "0.5 of the frame" here**.
 ///
-/// 四个倍率都作用在**该段自己的颜色**上（走 HSB，跟 `RingMaterial.shade`/`lit` 同一条路）：
-/// 截面是「这根玻璃棒在哪几个半径上被压暗、在哪两道边上被点亮、在哪儿厚到不透光」，
-/// 它必须跟着皮肤给的色相走，否则六套皮就只有一套是玻璃、其余五套是塑料。
+/// All four multipliers apply to **the segment's own color** (via HSB, same path as `RingMaterial.shade`/`lit`):
+/// the cross-section says "at which radii this glass rod is darkened, on which two edges it is lit, where it is too thick to see through",
+/// and it must follow the skin's hue, otherwise only one of six skins is glass and the other five are plastic.
 struct CrossStop: Equatable {
-    /// 沿带宽的位置，0 = 内沿、1 = 外沿。
+    /// Position across the band, 0 = inner edge, 1 = outer edge.
     var at: Double
-    /// 饱和度倍率。边上的 0.6 上下是「亮到发白」，芯上的 1.2 是「压深且更纯」。
+    /// Saturation multiplier. ~0.6 on the edges is "bright to white"; 1.2 in the core is "darker and purer".
     var sat: Double
-    /// 明度倍率。相对段色原值，`>1` 点亮、`<1` 压暗。
+    /// Brightness multiplier relative to the segment color; `>1` brightens, `<1` darkens.
     var bri: Double
-    /// 色相偏移，单位是**一整圈**（±0.033 ≈ ±12°）。实测那两条边一冷一暖差 12°，
-    /// 内沿偏青给负、外沿偏紫给正。0 就是不动色相——浅皮先用 0，理由见 `crossLight`。
+    /// Hue shift, in **full turns** (+/-0.033 ~ +/-12 deg). Measured: the two edges differ by 12 deg, one cool one warm,
+    /// inner edge toward cyan is negative, outer edge toward purple is positive. 0 leaves hue alone -- light skins use 0 for now, see `crossLight`.
     var hue: Double = 0
-    /// **不透明度**倍率。默认 1 = 不改。
+    /// **Opacity** multiplier. Default 1 = unchanged.
     ///
-    /// 为什么材质要能管透明度：浅皮上「量到了但动不了」那几段是 9%／16%／2.5% 的墨洗
-    /// （`OverviewView` 的 `blocked` / `unmeasured` / `freeArc`），对这种弧 **HSB 倍率是空转的**——
-    /// 把 9% 的墨压暗一半，合成到纸上只掉几个灰阶，因为天花板是纸不是墨。
-    /// 实测就是这么来的：同一档截面给深皮中性段做出极差 51，给浅皮只做出 12。
-    /// 纸上真正在变的是**这根棒有多厚**：边缘光程长 → 墨浓，芯部光程短 → 墨薄。
-    /// 所以 `ink` 就是那个厚度：`> 1` 让弧更不透，`< 1` 让纸透过来。
-    /// 不透明的弧（动得了那几段）只在 `ink < 1` 时有变化，`> 1` 被夹住——
-    /// 于是同一条停靠点在两种弧上各做该做的那件事：灰弧靠浓淡，彩弧靠明暗。
+    /// Why material must control opacity: on light skins the "measured but not movable" segments are 9% / 16% / 2.5% ink washes
+    /// (`blocked` / `unmeasured` / `freeArc` in `OverviewView`); on such arcs **HSB multipliers do nothing** --
+    /// halving the brightness of 9% ink only drops a few gray levels once composited on paper, because the ceiling is paper, not ink.
+    /// Measured: the same cross-section yields a range of 51 on dark-skin neutral segments but only 12 on light skins.
+    /// What actually varies on paper is **how thick the rod is**: long light path at the edges -> denser ink, short at the core -> thinner ink.
+    /// So `ink` is that thickness: `> 1` makes the arc more opaque, `< 1` lets paper through.
+    /// Opaque arcs (the movable segments) only change when `ink < 1`; `> 1` is clamped --
+    /// so the same stop does the right thing on both arc kinds: gray arcs via density, colored arcs via brightness.
     var ink: Double = 1
 }
 
-/// 玻璃棒截面上的一档**混色**。`CrossStop` 是倍率，这一档是颜色。
+/// One **color-mix** stop across the glass rod's cross-section. `CrossStop` is multipliers; this one is a color.
 ///
-/// 换成混色不是口味问题，是倍率这条路在灰的那几段上**空转**：样稿每段各生成一条
-/// radialGradient，十个停靠点是绝对颜色
-/// （`diskwise-v2.6-crystal.html:1765-1775`：`cool = mix(mix(top,'#C6F2FF',.52),'#fff',.18)`、
-/// `warm = mix(top,'#FFD2A2',.34)`、`bot` 往 `#0A0D12` 那族压）。把它折成「段色的 HSB 倍率」
-/// 换算得出来、但画不出来——按样稿自己的表逐档除下来，`cool` 那一档在 reclaim 上是 ×1.12，
-/// 在 sys 上是 ×2.11，在 free 上是 **×3.99**，而 `RingMaterial.cross` 的明度夹在 1。
-/// 于是灰弧那道冷亮线永远到不了它该有的位置：实测样稿灰段 r150 是 103 个灰阶，真机只有 58，
-/// 芯/峰比 0.32（样稿 0.20）——「灰的那几段是平带子、蓝的那几段才是玻璃棒」就是这么来的。
+/// Switching to mixing isn't taste: the multiplier path **does nothing** on the gray segments. The mockup builds one
+/// radialGradient per segment, and the ten stops are absolute colors
+/// (`diskwise-v2.6-crystal.html:1765-1775`: `cool = mix(mix(top,'#C6F2FF',.52),'#fff',.18)`,
+/// `warm = mix(top,'#FFD2A2',.34)`, `bot` pushed toward the `#0A0D12` family). Folding that into "HSB multipliers of the segment color"
+/// is computable but not drawable -- dividing the mockup's own table stop by stop, the `cool` stop is x1.12 on reclaim,
+/// x2.11 on sys, and **x3.99** on free, while `RingMaterial.cross` clamps brightness at 1.
+/// So the cool highlight on gray arcs never reaches its place: measured mockup gray segment at r150 is 103 gray levels, the device only 58,
+/// core/peak ratio 0.32 (mockup 0.20) -- that's where "gray segments are flat bands, only blue ones are glass rods" came from.
 ///
-/// 混色不经夹取，锚又是不跟皮肤走的绝对色，所以同一档在亮段与灰段上**各画各的**：
-/// 亮段那档只是身子偏暖一点，灰段那档直接从近黑里拔出一条冷亮线。这才是样稿那张图上
-/// 「一整块盘都是同一根棒」的成因。
+/// Mixing isn't clamped, and the anchors are absolute colors independent of the skin, so the same stop **paints differently** on bright and gray segments:
+/// on bright ones it just warms the body a bit; on gray ones it pulls a cool highlight out of near-black. That is
+/// why the mockup reads as "the whole dial is one rod".
 struct TubeStop: Equatable {
-    /// 带内位置，0 = 内沿、1 = 外沿。和 `CrossStop.at` 共用同一套坐标。
+    /// Position in the band, 0 = inner edge, 1 = outer edge. Same coordinates as `CrossStop.at`.
     var at: Double
-    /// 从 `a` 混到 `b`；`t = 0` 全是 `a`，`t = 1` 全是 `b`。照抄样稿那十档的写法。
+    /// Mix from `a` to `b`; `t = 0` is all `a`, `t = 1` all `b`. Copied from how the mockup writes its ten stops.
     var a: TubeAnchor
     var b: TubeAnchor
     var t: Double
-    /// 这一档的不透明度倍率，乘在段色自己的 alpha（深皮预合成之后是 1）上。
+    /// Opacity multiplier for this stop, applied to the segment color's own alpha (1 after dark-skin precompositing).
     ///
-    /// 只有外沿那几档吃得到非 1 的值，它是「液态玻璃」和「刷了漆的圈」之间那道开关：
-    /// 棒形画到最后一档仍然是实色，环就有一道硬剪影；把最后 1–2 pt 透出去，
-    /// 卡面、轨道和盘沿从玻璃**里面**露出来，边才化掉。浅皮的 `CrossStop.ink` 早就是
-    /// 同一个意思，深皮这边之前没有这个入口（`tubeArcsOpaque` 把 alpha 钉死成 1）。
+    /// Only the outer-edge stops get values other than 1; it is the switch between "liquid glass" and "a painted ring":
+    /// if the rod is still solid at the last stop, the ring has a hard silhouette; letting the last 1-2 pt through
+    /// shows the card, track and rim from **inside** the glass, and the edge dissolves. Light skins' `CrossStop.ink` already
+    /// meant this; dark skins had no such hook before (`tubeArcsOpaque` pinned alpha to 1).
     var ink: Double = 1
 }
 
-/// `TubeStop` 能引用的锚。四个是从段色算出来的中间色，`white` 是纯白（只给冷沿收尾用）。
+/// Anchors a `TubeStop` can reference. Four are intermediate colors derived from the segment color; `white` is pure white (only for the cool-edge tail).
 enum TubeAnchor: Equatable {
-    /// 这一段的身子。动得了那两档先按 `tubeBodyScale` 从灯压回身子。
+    /// The segment's body. The two movable stops are first pressed back from lamp to body by `tubeBodyScale`.
     case body
-    /// 棒芯：段色同色相压暗（`tubeCoreBrightnessScale` / `tubeCoreSaturationScale`）。
+    /// Rod core: segment color, same hue, darkened (`tubeCoreBrightnessScale` / `tubeCoreSaturationScale`).
     case core
-    /// 内沿那道冷亮线。
+    /// The cool highlight on the inner edge.
     case cool
-    /// 外沿那道暖亮线。
+    /// The warm highlight on the outer edge.
     case warm
     case white
 }
 
-/// 环上所有材质的数。**默认值就是今天线上那一版**，一个像素没变。
+/// All the ring's material numbers. **Defaults are the current shipped version**, not a pixel changed.
 ///
-/// 分成六组，按画在环上的顺序排（内孔 → 余晖 → 轨道 → 段身 → 悬停 → 两道光 → 弧上的数）。
-/// 每组开头那句注释记的是这组数**为什么**是这个值——那些实测读数（样稿孔心 (32,27,23)、
-/// 环外 (21,19,20)、实拍 (44,39,23)）都在这儿，不在视图代码里。改一个数之前先读它那句。
+/// Split into six groups in painting order (bore -> afterglow -> track -> segment body -> hover -> two lights -> numbers on the arc).
+/// Each group's opening comment records **why** the numbers are what they are -- the measured readings (mockup bore center (32,27,23),
+/// outside ring (21,19,20), device shot (44,39,23)) live here, not in view code. Read that note before changing a number.
 struct RingStyle {
 
-    // ── 1. 灯：主色 → 会发光的颜色 ──
+    // ── 1. Lamp: accent color -> a color that glows ──
     //
-    // 极夜主色 #C9A227 的蓝道只有 39，直接当灯用，光透到灰弧上就是芥末而不是金。
-    // 所以走 HSB 只动饱和与明度、色相不碰：六套皮肤各发自己那道光，各自都带蓝道。
+    // Polar Night's accent #C9A227 has only 39 in blue; used directly as the lamp, light spilling onto gray arcs reads mustard, not gold.
+    // So go through HSB touching only saturation and brightness, never hue: each of the six skins emits its own light, each with a blue channel.
     var lampSaturationScale: Double = 0.77
     var lampBrightnessScale: Double = 1.22
     var lampBrightnessAdd: Double = 0.06
-    /// 灯芯最亮那一档 = 样稿的 `--lamp-hot` #FFF0D6：同色相、饱和再收一半、明度顶格。
+    /// Hottest lamp stop = mockup `--lamp-hot` #FFF0D6: same hue, saturation halved again, brightness maxed.
     var lampHotSaturationScale: Double = 0.45
 
-    // ── 2. 段身：彩色只给动得了的弧 ──
+    // ── 2. Segment body: color only on movable arcs ──
     //
-    // 动得了的那段涂「灯芯」渐变——上亮下沉，等于一盏灯立在环上。
+    // Movable segments get the "lamp core" gradient -- bright on top, sinking below, like a lamp standing on the ring.
     var hotHeadOpacity: Double = 0.92
-    /// 灯芯渐变的下半截：同一条色相往沉里走。不能直接混黑——混黑会把饱和度一起洗掉，
-    /// 主色在深色皮肤上就成了一块泥（原型 #F2B45C→#8A5F22 就是这个走法）。
+    /// Lower half of the lamp-core gradient: same hue sinking deeper. Can't just mix in black -- that washes out saturation too,
+    /// and the accent turns to mud on dark skins (the prototype's #F2B45C->#8A5F22 goes this way).
     var shadeSaturationScale: Double = 1.22
     var shadeBrightnessScale: Double = 0.57
     var shadeOpacity: Double = 0.55
-    /// 提亮档。深浅两种底不能共用一个算法：浅底往白里并没问题；深底并白会把饱和度洗掉
-    /// ——石墨黑上 58% 的白把黄弧提成了米白，反倒成了全画面最亮的东西。
-    /// 所以深底改成只抬明度、微微收饱和，色相原样不动。
+    /// Highlight stop. Dark and light backgrounds can't share an algorithm: mixing toward white is fine on light; on dark it washes out saturation
+    /// -- 58% white on Graphite turned the yellow arc beige, making it the brightest thing on screen.
+    /// So on dark only raise brightness and slightly reduce saturation; hue untouched.
     var litDarkSaturationScale: Double = 0.72
     var litDarkBrightnessScale: Double = 1.55
     var litDarkBrightnessAdd: Double = 0.28
     var litLightBlendFraction: Double = 0.58
 
-    // ── 3. 内侧那道暖沿 + 段自己那团光 ──
+    // ── 3. The warm inner edge + each segment's own glow ──
     //
-    /// 沿宽取带宽的 42%、贴住内沿（原型 R0→R0+26 / 带 56）。上一版只有 22%
-    /// 且悬在带中间，读起来像三片脱离环体的标签，而不是「这一段亮」。
-    /// **这一档只管 `shipped`**：v2.6 那支样稿自己在第 2 轮就把 0.42 否了（铺到 r175 =
-    /// 拿平板盖住棒子的内半支），水晶那档改的是它给的 0.20/贴内沿，理由记在 `.crystal` 里。
+    /// Edge width is 42% of the band, hugging the inner edge (prototype R0->R0+26 / band 56). The previous version was only 22%
+    /// and floated mid-band, reading as three labels detached from the ring rather than "this segment is lit".
+    /// **This value only governs `shipped`**: the v2.6 mockup itself rejected 0.42 in round 2 (reaching r175 =
+    /// a flat slab covering the rod's inner half); crystal uses its 0.20 hugging the inner edge, reason noted in `.crystal`.
     var reclaimEdgeWidthRatio: CGFloat = 0.42
-    /// `outer` 是「弧的外沿相对环外沿缩进多少」，所以贴住带的内沿要缩 band − 沿宽。
-    /// 上一版填了 1.06×band，沿整个掉进洞里，读起来是一枚脱离环体的黄色药片。
+    /// `outer` is "how far the arc's outer edge is inset from the ring's outer edge", so hugging the inner edge means inset band - edge width.
+    /// The previous version used 1.06 x band, the edge fell into the hole and read as a yellow pill detached from the ring.
     var reclaimEdgeOuterRatio: CGFloat = 0.58
-    /// 沿比段身再亮一档，永远跟段同色相。不用主色画沿：晨雾的主色就是环上第一段的颜色
-    /// （0x2A62D6 vs 0x0072B2），沿和段撞成一块，读出来是「多了一条没人认领的弧」。
+    /// The edge is one step brighter than the body, always the segment's hue. Not the accent: Morning Fog's accent is the ring's first segment color
+    /// (0x2A62D6 vs 0x0072B2); edge and segment merge and read as "an extra arc nobody owns".
     var reclaimEdgeOpacity: Double = 0.85
-    /// **改成照样稿那层的形状，而不是再调糊开半径（2026-10-22）**。
+    /// **Changed to copy the mockup layer's shape rather than retune blur radius again (2026-10-22)**.
     ///
-    /// 他圈出来问「移动的这个光晕是啥」的那一团，是这一层糊到了环外面：原先画的是
-    /// **整条带宽**的弧再 blur 0.40×band=24 pt，源本身的法向就占满 149→210，
-    /// 糊开之后六段的光洇成**一整圈共用的雾**，实测铺到 r≈258 才回到地板 13，
-    /// 而环右沿到账本左沿只有 24 pt——那团雾正好涂在账本行的左沿上。雾自己不动，
-    /// 但 `.glint` 那道 9 秒一圈的反光骑在雾上走，看着就是一团会挪的暖灰。
+    /// The blob he circled asking "what is this moving halo" was this layer blurred outside the ring: it used to draw
+    /// a **full band width** arc then blur 0.40 x band = 24 pt; the source alone spanned 149->210 radially,
+    /// and after blur the six segments' glow merged into **one shared ring of fog**, measured reaching r~258 before returning to the floor of 13,
+    /// while there are only 24 pt between the ring's right edge and the ledger's left edge -- the fog sat right on the ledger rows' left edge. The fog itself is static,
+    /// but the `.glint` reflection circling every 9 s rides over it, so it looks like a moving warm-gray blob.
     ///
-    /// 样稿对应的那层不是这个形状：`diskwise-v2.6-crystal.html:1828` 起，每段的 halo 是
-    /// `r=179.55`、`stroke-width=BAND*0.60`、`blur(10px)`、`screen`、`rgba(LAMP,.17)`。
-    /// 法向范围 161.3→197.8，**加上 10 px 的糊开也够不着外沿 209.55**——这一段的光从早
-    /// 就关在带子里面，外面那圈黑不是靠调小模糊调出来的。
-    /// 所以这里三笔一起照抄：宽 0.60×band、外沿缩进 0.193×band（=(209.55−197.82)/60.9）、
-    /// blur 10/60.9=0.164×band。模糊系数从 0.15 挪到 0.164 不是变糊了，是源变小了。
+    /// The mockup's matching layer is a different shape: from `diskwise-v2.6-crystal.html:1828`, each segment's halo is
+    /// `r=179.55`, `stroke-width=BAND*0.60`, `blur(10px)`, `screen`, `rgba(LAMP,.17)`.
+    /// Radial range 161.3->197.8; **even with 10 px blur it can't reach the outer edge 209.55** -- this light was
+    /// always kept inside the band; the black outside wasn't achieved by shrinking blur.
+    /// So all three are copied together: width 0.60 x band, outer inset 0.193 x band (=(209.55-197.82)/60.9),
+    /// blur 10/60.9 = 0.164 x band. Blur going from 0.15 to 0.164 isn't blurrier; the source got smaller.
     var reclaimGlowWidthRatio: CGFloat = 0.60
     var reclaimGlowOuterRatio: CGFloat = 0.193
     var reclaimGlowBlurRatio: CGFloat = 0.164
-    /// 浅皮收着走但**不能收到看不见**：纸上这团雾往外洇得太淡就读成「没打光」，
-    /// 太浓又成了水彩印糊。深皮给 0.7 的那一版把整张卡染成褐色渐变，
-    /// 而样稿里金色弧旁边是**黑的**（实测 (12,13,17)＝画布）。
+    /// Light skins tone it down but **not to invisible**: if the fog bleeds too faintly on paper it reads as "unlit",
+    /// too strong and it's a watercolor smear. The 0.7 dark-skin version stained the whole card a brown gradient,
+    /// whereas in the mockup the area next to the gold arc is **black** (measured (12,13,17) = canvas).
     var reclaimGlowDark: Double = 0.45
     var reclaimGlowLight: Double = 0.34
-    /// 算弧的垂直包围盒时沿弧走多少步（一整圈 720 步 → 每 0.5°）。
-    /// SVG 的 `linearGradient` 默认按每条弧自己的包围盒铺，SwiftUI 按整框铺，
-    /// 不逐条算的话 6 点钟那段就是最暗那一档（实测那条 6.3 GB 的弧只有 (87,69,15)，
-    /// 比旁边灰弧 (71,68,62) 还不起眼，「彩色只给动得了的弧」这条规矩当场失效）。
+    /// Steps along the arc when computing its vertical bounding box (720 steps per circle -> every 0.5 deg).
+    /// SVG `linearGradient` lays out per arc's own bounding box by default; SwiftUI lays out over the whole frame,
+    /// so without per-arc boxes the 6 o'clock segment gets the darkest stop (measured: that 6.3 GB arc was only (87,69,15),
+    /// less visible than the neighboring gray arc (71,68,62); "color only on movable arcs" fails on the spot).
     var arcGradientSampleStepsPerTurn: Int = 720
 
-    // ── 4. 轨道：一整块盘的形状由它闭合 ──
+    // ── 4. Track: the dial's shape is closed by it ──
     //
-    /// 0.035 是**灰阶的地板**：旁边三档灰都按它往上排，这条一抬，「几乎不画」的空闲段
-    /// 就跟「量到了但动不了」那档糊在一起。
+    /// 0.035 is the **gray floor**: the three gray levels above are stacked from it; raise it and the "barely drawn" free segment
+    /// blurs into the "measured but not movable" one.
     var trackOpacityDark: Double = 0.035
     var trackOpacityLight: Double = 0.030
-    /// 轨道内沿那 1.65 pt 冷线：让**没被弧盖住的那截盘**也带着玻璃棒的切面。
+    /// The 1.65 pt cool line on the track's inner edge: gives **the part of the dial not covered by arcs** the glass rod's cut face too.
     ///
-    /// 为什么单独立一条（2026-10-23，逐半径逐角度打点，`/tmp/xtrav.py` + `/tmp/xband.py`）：
-    /// 样稿那条内沿冷线是**连续的一整圈**——24 个方位在 r150 全亮着，最暗那格也有 98、
-    /// 最亮 139（蓝灰，如 320° 那格 (96,115,128)）。真机这条切面是**跟着段走的**：
-    /// 段盖住的方位有（r151 那一列 60–156），段与段之间那道缝里没有——最狠的一格在 0°，
-    /// 从井口出来先是 (3,4,5) 的洞、再一道 (35,42,55) 的 42 暗边，然后就是段身。
-    /// 缝里没有切面，读起来就是环在那儿断了一截，正是前面几批一直在打的「几条浮着的弧」。
-    /// 样稿那块盘是一整根棒：切面不会因为这一格没画弧就没。
-    /// （两张图的段本来不是同一条账，所以这里比的是「这一格有没有被段盖住」这件事，
-    /// 不拿同角度的读数当同一段——上一轮那个「内沿差 98」就是这么造出来的，
-    /// 拆在第 7b 节末尾。真机那条线自己还比样稿外 1–2 px，那是轨道半径的事，这条不修。）
+    /// Why a separate one (2026-10-23, sampled per radius per angle, `/tmp/xtrav.py` + `/tmp/xband.py`):
+    /// the mockup's inner cool line is **one continuous circle** -- all 24 bearings lit at r150, darkest cell 98,
+    /// brightest 139 (blue-gray, e.g. the 320 deg cell (96,115,128)). On the device this cut face **follows the segments**:
+    /// bearings covered by a segment have it (r151 column 60-156), the gaps between segments don't -- worst cell at 0 deg:
+    /// out of the well first a (3,4,5) hole, then a 42 dark edge of (35,42,55), then the body.
+    /// No cut face in the gaps reads as the ring breaking there -- exactly the "few floating arcs" earlier batches kept hitting.
+    /// The mockup's dial is one rod: the cut face doesn't vanish just because no arc is drawn in that cell.
+    /// (The two images' segments aren't the same ledger, so this compares "is this cell covered by a segment",
+    /// not same-angle readings as the same segment -- last round's "inner edge off by 98" was manufactured that way,
+    /// dissected at the end of section 7b. The device line itself sits 1-2 px outside the mockup's; that's track radius, not fixed here.)
     ///
-    /// 几何照样稿 `tube()` 那句 `[(RI+0.7)/RO, cool], [(RI+2.6)/RO, …]`（:1772）：
-    /// 中心线在带子内沿往里 1.65 pt、宽 2 pt，正好铺 RI+0.65→RI+2.65。
-    /// 它挂在 `track` 那层（`RingLayers.swift:468`，进出树在 `Components.swift:1371`），
-    /// 而轨道画在所有弧**之前**——所以有弧的方位被段身盖住，这一条只从缝里和空闲段露出来。
-    /// 它不点亮任何一段的账，只补棒子自己那个切面。
-    /// 0.80 那档按「先当样稿那支 near-white 的 cool 给足，再让井口那圈墨吃掉」给：
-    /// 样稿冷线按公式算 197、实测 100–127，中间那 70 多档是 `.bore` 的 40 px 外墨吃的，
-    /// 这层画在 bore 之下，同一笔扣减会自己作用在它身上。
+    /// Geometry copies the mockup `tube()` line `[(RI+0.7)/RO, cool], [(RI+2.6)/RO, ...]` (:1772):
+    /// centerline 1.65 pt inside the band's inner edge, 2 pt wide, covering RI+0.65->RI+2.65.
+    /// It hangs on the `track` layer (`RingLayers.swift:468`, tree entry at `Components.swift:1371`),
+    /// and the track is drawn **before** all arcs -- so bearings with arcs are covered by the body; this shows only through gaps and free segments.
+    /// It lights no segment's ledger, only restores the rod's own cut face.
+    /// 0.80 is set as "give the full near-white cool of the mockup first, then let the well-mouth ink eat it":
+    /// the mockup cool line computes to 197, measured 100-127; the ~70 levels between are eaten by `.bore`'s 40 px outer ink,
+    /// and since this layer is under bore, the same deduction applies to it automatically.
     ///
-    /// 浅皮收到 0（`0.34 → 0.12 → 0`）。`bite = 0.027` 把这条 4 px 的线摆在内沿内侧
-    /// 1.65 pt 处，有弧的方位本该被段身盖住——但浅皮的段沿是半透的，它从段底下透出来，
-    /// 成了环内沿一整圈灰线：y=872 横切左带，x=640 是 194，两侧 222 / 209。
-    /// 摘掉它同一处回到 209，跟带身齐平。切面这个概念在纸上交给井口那道白沿
-    /// （`boreHairlineLight`），不再用墨线画。
+    /// Light skins go to 0 (`0.34 -> 0.12 -> 0`). `bite = 0.027` places this 4 px line 1.65 pt inside
+    /// the inner edge; bearings with arcs should cover it -- but light-skin segment edges are translucent, so it shows through,
+    /// becoming a gray line all around the ring's inner edge: at y=872 across the left band, x=640 reads 194 vs 222 / 209 on either side.
+    /// Removing it brings that spot back to 209, level with the band. On paper the cut face is handled by the white well-mouth edge
+    /// (`boreHairlineLight`), no longer an ink line.
     ///
-    /// 默认 0：不动线上那一版（`shipped`）。
+    /// Default 0: leave the shipped version (`shipped`) unchanged.
     var trackBevelDark: Double = 0
     var trackBevelLight: Double = 0
     var trackBevelBiteRatio: CGFloat = 0.027
     var trackBevelWidthRatio: CGFloat = 0.033
-    /// 斜纹底下那层淡底：纯虚线在浅皮上是几条蓝纹夹着空洞，读起来像这一格漏画了
-    /// ——可这些字节明明**还占着盘**，空洞恰好说反了。淡底保住面积，斜纹只说「换了地方」。
+    /// Faint underlay beneath the hatching: pure dashes on light skins are a few blue stripes around holes, reading as a missed cell
+    /// -- yet these bytes **still occupy the disk**; holes say the opposite. The underlay keeps the area; the hatching only says "moved elsewhere".
     var dashedUnderlayOpacity: Double = 0.26
-    /// 「这些字节还占着盘、只是换了地方」那条弧的虚线花样（画 6 空 5）。
-    /// 走描边虚线，所以这两档的单位是线宽之外的东西——改它会直接改那条弧的读法，
-    /// 出图前记得跟账目行那句「本次移入废纸篓」对一遍。
+    /// Dash pattern (6 on, 5 off) for the arc of "these bytes still occupy the disk, just moved elsewhere".
+    /// It uses a dashed stroke, so these units are independent of line width -- changing it changes how that arc reads;
+    /// before shipping images, check it against the ledger row "moved to Trash this time".
     var dashPattern: [CGFloat] = [6, 5]
 
-    // ── 5. 悬停与上膛 ──
+    // ── 5. Hover and arming ──
     //
-    /// `svg.pick .seg{opacity:.26}`：悬停时其余段退到这一档。段退了、它那团光不退，
-    /// 等于「退到后面去」只画了一半，所以光也乘同一个数。
+    /// `svg.pick .seg{opacity:.26}`: on hover the other segments drop to this level. If a segment dims but its glow doesn't,
+    /// "stepping back" is only half drawn, so the glow is multiplied by the same number.
     var dimmedOpacity: Double = 0.26
-    /// `.seg.on path{transform:scale(1.038)}`：被指的这段往外弹 3.8%。
-    /// **命中层不吃这个缩放**（它按静止那圈半径算），否则内沿上会来回抖。
+    /// `.seg.on path{transform:scale(1.038)}`: the pointed segment pops out 3.8%.
+    /// **The hit layer ignores this scale** (it uses the resting radius), otherwise the inner edge would jitter.
     var hoverPopScale: CGFloat = 1.038
     var armStrokeWidth: CGFloat = 2
     var armGlowOpacityPeak: Double = 0.85
@@ -326,19 +326,19 @@ struct RingStyle {
     var armGlowRadiusPeak: CGFloat = 9
     var armGlowRadiusRest: CGFloat = 3
 
-    // ── 6. 内孔那团会呼吸的光（`.halo`）──
+    // ── 6. The breathing glow in the bore (`.halo`) ──
     //
-    /// 亮的半径 = 内沿 + 带宽×这一档。换算到环外径 412：亮的半径 164，
-    /// 也就是**往外咬进环带 14 px**——光和带子是接上的，不是洞里的另一坨。
-    /// 上一版把底光整个撤到环外沿一条细线上，于是圆心空成一块黑。
+    /// Lit radius = inner edge + band x this value. At ring outer diameter 412: lit radius 164,
+    /// i.e. **biting 14 px into the band** -- the light connects with the band rather than being a separate blob in the hole.
+    /// The previous version pulled the base light out to a thin line at the ring's outer edge, leaving the center an empty black.
     var haloBiteRatio: CGFloat = 0.25
-    /// 0.15 不是审美拍板，是量出来的：样稿 `A-sweep_0idle.png` 孔心读数 (32,27,23)、
-    /// 画布 (12,13,17)，这团光在圆心只抬 **+20 灰阶**；上一版 0.30 抬到 +45
-    /// （实拍孔心 65,56,29），整块卡被染成一片褐，金色当场不再是全画面唯一的饱和色。
+    /// 0.15 isn't an aesthetic call, it's measured: mockup `A-sweep_0idle.png` bore center reads (32,27,23),
+    /// canvas (12,13,17), so this glow raises the center only **+20 gray levels**; the previous 0.30 raised it +45
+    /// (device bore center 65,56,29), staining the whole card brown so gold was no longer the only saturated color on screen.
     var haloInkOpacity: Double = 0.15
     var haloBlurRatio: CGFloat = 0.42
-    /// 呼吸区间。真机由 `CALoopView` 在这两端之间来回（图层动画，主线程不参与）；
-    /// 截图与连拍钉在区间里的某一档。`haloInkOpacity` 是这团光最亮时的基准。
+    /// Breathing range. On device `CALoopView` oscillates between the two ends (layer animation, main thread not involved);
+    /// screenshots and bursts pin to some value within the range. `haloInkOpacity` is the baseline at the glow's brightest.
     /// 静皮收到一半：它要「静」，但样稿那圈光本来就是一起一伏的，
     /// 整层关掉等于把招牌画面少画一半——上一版就是这么把「有光晕」弄没的。
     var breathActive: ClosedRange<Double> = 0.34...0.9

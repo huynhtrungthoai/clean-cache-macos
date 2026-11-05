@@ -207,16 +207,16 @@ struct CrashDumpsView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "ladybug", title: L("崩溃转储"),
-                           subtitle: L("崩溃时留下的现场记录，攒多了就是事故"),
+                PageHeader(symbol: "ladybug", title: L("Crash dumps"),
+                           subtitle: L("Records left behind by crashes — pile up long enough and they become an incident"),
                            variant: .display)
                 ControlStrip {
                     if hub.scanning {
-                        LoadingRow(text: L("正在系统目录里找崩溃转储…"))
+                        LoadingRow(text: L("Looking for crash dumps in application data…"))
                     } else if hub.baselinePending {
-                        Text(L("基线已建立，下次扫描起可对比"))
+                        Text(L("Baseline saved; comparisons start on the next scan"))
                     } else {
-                        Text(LF("%1$@，共 %2$@", cnt(hub.hits.count, "个应用"), human(hub.totalBytes)))
+                        Text(LF("%1$@, %2$@ in total", cnt(hub.hits.count, "apps"), human(hub.totalBytes)))
                     }
                 } trailing: {
                     ScanControl(scanning: hub.scanning,
@@ -236,27 +236,27 @@ struct CrashDumpsView: View {
 
             if hub.scanning && hub.hits.isEmpty {
                 EmptyState(symbol: "ladybug",
-                           title: L("正在系统目录里找崩溃转储"),
-                           hint: L("只翻应用数据那几层，量到多大会顺手数清"))
+                           title: L("Looking for crash dumps in application data"),
+                           hint: L("Just a few levels of app data get walked; sizes and counts come back together"))
                     .frame(maxHeight: .infinity)
             } else if !hub.scanning && hub.hits.isEmpty {
                 EmptyState(symbol: "ladybug",
-                           title: L("没有发现崩溃转储"),
-                           hint: L("这台机器上没有 Crashpad 结构"))
+                           title: L("No crash dumps found"),
+                           hint: L("No Crashpad structure on this machine"))
                     .frame(maxHeight: .infinity)
             } else {
                 List(hub.hits) { hit in
                     ItemRow(selected: hitBinding(hit),
                             icon: .path(URL(fileURLWithPath: hit.path)),
-                            name: hit.host.map { "\($0) \(L("崩溃转储"))" } ?? L("崩溃转储"),
+                            name: hit.host.map { "\($0) \(L("crash dumps"))" } ?? L("Crash dumps"),
                             sub: hitSub(hit),
                             sizeText: shown[hit.id] ?? human(hit.bytes),
                             fraction: Double(hit.bytes) / Double(maxBytes),
                             badge: velocityBadge(hit),
                             badge2: attributionBadge(hit)) {
-                        ExplainLine(key: L("这是什么"), value: L("崩溃时留下的现场记录"))
-                        ExplainLine(key: L("删了会怎样"), value: L("删了不影响使用；再崩溃还会再生成"))
-                        ExplainLine(key: L("怎么恢复"), value: L("现场记录删了就没了，也不需要恢复"))
+                        ExplainLine(key: L("What it is"), value: L("Records left behind by crashes"))
+                        ExplainLine(key: L("What breaks"), value: L("Deleting changes nothing; new crashes write new ones"))
+                        ExplainLine(key: L("How to recover"), value: L("Gone once deleted — and never worth restoring"))
                         attributionLines(hit)
                         trimButton(hit)
                         PathLine(path: hit.path)
@@ -272,7 +272,7 @@ struct CrashDumpsView: View {
                      bytesText: human(hub.selectedBytes, inRulerOf: hub.totalBytes),
                      errorText: err,
                      selection: hub.hitSelectAll,
-                     busyHint: hub.scanning ? L("这一轮还在扫；扫完或按停才动手，避免边扫边删") : nil) {
+                     busyHint: hub.scanning ? L("Still scanning — cleanup starts once it finishes or you stop") : nil) {
                 confirm = true
             }
         }
@@ -280,8 +280,8 @@ struct CrashDumpsView: View {
         .onAppear { hub.discover() }
         .sheet(isPresented: trimSheetOpen) { TrimSheet(hub: hub) }
         .confirmTrash(isPresented: $confirm,
-                      text: LF("将 %1$@（%2$@）移入废纸篓。",
-                               cnt(hub.selectedHits.count, "个应用"),
+                      text: LF("Move %1$@ (%2$@) to the Trash.",
+                               cnt(hub.selectedHits.count, "apps"),
                                human(hub.selectedBytes, inRulerOf: hub.totalBytes))) {
             doClean()
         }
@@ -307,9 +307,9 @@ struct CrashDumpsView: View {
 
     private func hitSub(_ hit: CategoryHit) -> String {
         var parts = [displayPath(URL(fileURLWithPath: hit.path))]
-        parts.append(cnt(hit.files, "个文件"))
+        parts.append(cnt(hit.files, "files"))
         if let v = hub.velocity[hit.id], v.tier != nil {
-            parts.append(LF("较上次 %1$@ · %2$@", "+" + cnt(v.deltaFiles, "个文件"),
+            parts.append(LF("%1$@ since last · %2$@", "+" + cnt(v.deltaFiles, "files"),
                             velocityInterval(v.intervalSeconds)))
         }
         return parts.joined(separator: " · ")
@@ -319,8 +319,8 @@ struct CrashDumpsView: View {
     private func velocityBadge(_ hit: CategoryHit) -> ItemBadge? {
         guard let v = hub.velocity[hit.id], let tier = v.tier else { return nil }
         switch tier {
-        case .red: return ItemBadge(text: L("流速异常"), tone: .danger)
-        case .yellow: return ItemBadge(text: L("显著增长"), tone: .warn)
+        case .red: return ItemBadge(text: L("Growing fast"), tone: .danger)
+        case .yellow: return ItemBadge(text: L("Notable growth"), tone: .warn)
         }
     }
 
@@ -328,42 +328,42 @@ struct CrashDumpsView: View {
     /// 混合灰、跨归属黄；探针没开或没探上就不给——不撒谎。
     private func attributionBadge(_ hit: CategoryHit) -> ItemBadge? {
         guard let a = hub.attribution[hit.id], a.probed else { return nil }
-        if a.mixed { return ItemBadge(text: L("混合来源"), tone: .neutral) }
-        if a.crossAttribution { return ItemBadge(text: L("跨归属"), tone: .warn) }
+        if a.mixed { return ItemBadge(text: L("Mixed sources"), tone: .neutral) }
+        if a.crossAttribution { return ItemBadge(text: L("Split attribution"), tone: .warn) }
         return nil
     }
 
     /// 归属明细三行：目录 × 内容 × 发起源。探针关或没探上时只有「内容未探测」一句。
     @ViewBuilder private func attributionLines(_ hit: CategoryHit) -> some View {
         if let a = hub.attribution[hit.id], a.probed {
-            ExplainLine(key: L("目录归属"), value: a.directoryOwner ?? "—")
+            ExplainLine(key: L("Directory owner"), value: a.directoryOwner ?? "—")
             if a.mixed {
-                ExplainLine(key: L("内容归属"), value: LF("混合来源（抽查 %@ 样本）", String(a.samples)))
+                ExplainLine(key: L("Content owner"), value: LF("Mixed sources (%@ samples probed)", String(a.samples)))
             } else if let owner = a.contentOwner {
-                let line = owner + (a.crossAttribution ? " · " + L("目录归属与内容归属不同") : "")
-                ExplainLine(key: L("内容归属"), value: line)
+                let line = owner + (a.crossAttribution ? " · " + L(" · directory and content owners differ") : "")
+                ExplainLine(key: L("Content owner"), value: line)
             } else {
-                ExplainLine(key: L("内容归属"), value: L("内容未探测"))
+                ExplainLine(key: L("Content owner"), value: L("Content not probed"))
             }
             if !a.redactedHints.isEmpty {
-                ExplainLine(key: L("发起源"), value: a.redactedHints.joined(separator: " · "))
+                ExplainLine(key: L("Origin"), value: a.redactedHints.joined(separator: " · "))
             }
         } else {
-            ExplainLine(key: L("内容归属"), value: L("内容未探测"))
+            ExplainLine(key: L("Content owner"), value: L("Content not probed"))
         }
     }
 
     private func velocityInterval(_ seconds: Double) -> String {
         let minutes = max(1, Int(seconds / 60))
-        if minutes >= 1440 { return cnt(minutes / 1440, "天") }
-        return cnt(minutes, "分钟")
+        if minutes >= 1440 { return cnt(minutes / 1440, "days") }
+        return cnt(minutes, "minutes")
     }
 
     /// 处置入口：保留策略启用时才有「预览修剪」。没启用就只有底部常规清理。
     @ViewBuilder private func trimButton(_ hit: CategoryHit) -> some View {
         if crashRetention() != nil {
             HStack {
-                ThemeButton(kind: .secondary, symbol: "scissors", title: L("预览修剪…")) {
+                ThemeButton(kind: .secondary, symbol: "scissors", title: L("Preview trim…")) {
                     hub.prepareTrim(for: hit)
                 }
                 Spacer()
@@ -402,7 +402,7 @@ struct CrashDumpsView: View {
             }
             hub.removeHits(cleaned)
             if errs.isEmpty {
-                store.notice = trashedNotice(cleaned.count, "个应用", failed: 0)
+                store.notice = trashedNotice(cleaned.count, "apps", failed: 0)
             } else {
                 err = errList(errs)
             }
@@ -422,14 +422,14 @@ struct DiagReportsView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "stethoscope", title: L("系统诊断报告"),
-                           subtitle: L("系统排查故障用的日志，攒着是为了定位问题"),
+                PageHeader(symbol: "stethoscope", title: L("System diagnostics reports"),
+                           subtitle: L("Logs the system writes to troubleshoot, kept to locate problems"),
                            variant: .display)
                 ControlStrip {
                     if hub.scanning {
-                        LoadingRow(text: L("正在读诊断报告目录…"))
+                        LoadingRow(text: L("Reading the diagnostics reports folder…"))
                     } else {
-                        Text(LF("%1$@，共 %2$@", cnt(hub.reports.count, "个文件"), human(hub.reportBytes)))
+                        Text(LF("%1$@, %2$@ in total", cnt(hub.reports.count, "files"), human(hub.reportBytes)))
                     }
                 } trailing: {
                     ScanControl(scanning: hub.scanning,
@@ -443,13 +443,13 @@ struct DiagReportsView: View {
 
             if hub.scanning && hub.reports.isEmpty {
                 EmptyState(symbol: "stethoscope",
-                           title: L("正在读诊断报告目录"),
-                           hint: L("只看 .ips、.hang、.panic 三种后缀"))
+                           title: L("Reading the diagnostics reports folder"),
+                           hint: L("Only .ips, .hang and .panic files are read"))
                     .frame(maxHeight: .infinity)
             } else if !hub.scanning && hub.reports.isEmpty {
                 EmptyState(symbol: "stethoscope",
-                           title: L("没有诊断报告"),
-                           hint: L("最近没有攒下报告"))
+                           title: L("No diagnostics reports"),
+                           hint: L("Nothing has piled up recently"))
                     .frame(maxHeight: .infinity)
             } else {
                 List(hub.reports) { file in
@@ -459,8 +459,8 @@ struct DiagReportsView: View {
                             sub: fileSub(file),
                             sizeText: shown[file.id] ?? human(file.size),
                             fraction: Double(file.size) / Double(maxBytes)) {
-                        ExplainLine(key: L("这是什么"), value: L("系统排查故障用的日志文件"))
-                        ExplainLine(key: L("删了会怎样"), value: L("删了不影响系统；排查问题时就没有依据了"))
+                        ExplainLine(key: L("What it is"), value: L("Log files the system writes to troubleshoot"))
+                        ExplainLine(key: L("What breaks"), value: L("The system is unaffected; you just lose the evidence for troubleshooting"))
                         PathLine(path: file.url.path)
                     }
                 }
@@ -474,15 +474,15 @@ struct DiagReportsView: View {
                      bytesText: human(hub.selectedReportBytes, inRulerOf: hub.reportBytes),
                      errorText: err,
                      selection: hub.reportSelectAll,
-                     busyHint: hub.scanning ? L("这一轮还在扫；扫完或按停才动手，避免边扫边删") : nil) {
+                     busyHint: hub.scanning ? L("Still scanning — cleanup starts once it finishes or you stop") : nil) {
                 confirm = true
             }
         }
         .frame(maxWidth: .infinity)
         .onAppear { hub.discover() }
         .confirmTrash(isPresented: $confirm,
-                      text: LF("将 %1$@（%2$@）移入废纸篓。",
-                               cnt(hub.selectedReports.count, "个文件"),
+                      text: LF("Move %1$@ (%2$@) to the Trash.",
+                               cnt(hub.selectedReports.count, "files"),
                                human(hub.selectedReportBytes, inRulerOf: hub.reportBytes))) {
             doClean()
         }
@@ -521,7 +521,7 @@ struct DiagReportsView: View {
         }
         hub.removeReports(Set(targets.map(\.id)))
         if errs.isEmpty {
-            store.notice = trashedNotice(targets.count, "个文件", failed: 0)
+            store.notice = trashedNotice(targets.count, "files", failed: 0)
         } else {
             err = errList(errs)
         }
@@ -540,14 +540,14 @@ struct ObservationView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "eye", title: L("观察"),
-                           subtitle: L("只能看、不能删的位置都在这里"),
+                PageHeader(symbol: "eye", title: L("Observation"),
+                           subtitle: L("Everything you can see but not delete lives here"),
                            variant: .display)
                 ControlStrip {
                     if hub.scanning {
-                        LoadingRow(text: L("正在系统目录里找崩溃转储…"))
+                        LoadingRow(text: L("Looking for crash dumps in application data…"))
                     } else {
-                        Text(LF("共 %@", cnt(hub.observation.count, "项")))
+                        Text(LF("%@ total", cnt(hub.observation.count, "items")))
                     }
                 } trailing: {
                     ScanControl(scanning: hub.scanning,
@@ -569,14 +569,14 @@ struct ObservationView: View {
                         badge: ItemBadge(text: reasonLabel(item.reason), tone: .neutral),
                         selectable: false,
                         lit: false) {
-                    ExplainLine(key: L("为什么不能删"), value: reasonExplain(item.reason))
+                    ExplainLine(key: L("Why can't this be deleted?"), value: reasonExplain(item.reason))
                     PathLine(path: item.path)
                 }
                 .contextMenu {
                     Button {
                         asking = item
                     } label: {
-                        Label(L("为什么不能删"), systemImage: "questionmark.circle")
+                        Label(L("Why can't this be deleted?"), systemImage: "questionmark.circle")
                     }
                 }
             }
@@ -586,10 +586,10 @@ struct ObservationView: View {
         }
         .frame(maxHeight: .infinity)
         .onAppear { hub.discover() }
-        .alert(L("为什么不能删"),
+        .alert(L("Why can't this be deleted?"),
                isPresented: Binding(get: { asking != nil },
                                     set: { if !$0 { asking = nil } })) {
-            Button(L("知道了"), role: .cancel) {}
+            Button(L("Got it"), role: .cancel) {}
         } message: {
             Text(reasonExplain(asking?.reason ?? .unknownClass))
         }
@@ -602,7 +602,7 @@ struct ObservationView: View {
 
     private func sub(of item: ObservationItem) -> String {
         var parts = [displayPath(URL(fileURLWithPath: item.path))]
-        if let files = item.files { parts.append(cnt(files, "个文件")) }
+        if let files = item.files { parts.append(cnt(files, "files")) }
         return parts.joined(separator: " · ")
     }
 }
@@ -610,10 +610,10 @@ struct ObservationView: View {
 /// 原因码 → 短标签（行内那枚徽章）
 func reasonLabel(_ reason: ObservationReason) -> String {
     switch reason {
-    case .outsideAllowed: return L("在允许清理的范围之外")
-    case .blacklistedSystemDir: return L("系统黑名单目录")
-    case .unknownClass: return L("结构不完整，认不准")
-    case .appDataUnattributed: return L("没能归属到应用的数据")
+    case .outsideAllowed: return L("Outside the allowed cleaning scope")
+    case .blacklistedSystemDir: return L("Blacklisted system folder")
+    case .unknownClass: return L("Incomplete structure, not sure enough")
+    case .appDataUnattributed: return L("Data not attributed to any app")
     }
 }
 
@@ -621,13 +621,13 @@ func reasonLabel(_ reason: ObservationReason) -> String {
 func reasonExplain(_ reason: ObservationReason) -> String {
     switch reason {
     case .outsideAllowed:
-        return L("家目录与「应用程序」之外的位置，本工具不搬动；要处理请在访达里自己动手。")
+        return L("Outside your home folder and Applications this tool moves nothing; if you must, do it yourself in the Finder.")
     case .blacklistedSystemDir:
-        return L("系统目录在保护名单里，只有系统自己能动。")
+        return L("System folders are on the protected list; only the system itself may touch them.")
     case .unknownClass:
-        return L("名字像崩溃转储，但结构不完整；认不准就不动它。")
+        return L("Named like a crash dump, but the structure is incomplete; unsure means untouched.")
     case .appDataUnattributed:
-        return L("还没认出这份数据属于哪个应用，先只看着。")
+        return L("No app has been identified for this data yet; watching only for now.")
     }
 }
 
@@ -644,15 +644,15 @@ private struct RetentionBanner: View {
             HStack(spacing: 10) {
                 Image(systemName: "sparkles")
                     .foregroundStyle(theme.palette.tint)
-                Text(LF("新类别「崩溃转储」会持续再生。建议保留策略：最近 %@。",
+                Text(LF("The new “crash dumps” category regrows. Suggested policy: keep the latest %@.",
                         cnt(2_000, "个")))
                     .font(theme.bodyFont(.callout))
                 Spacer()
-                ThemeButton(kind: .primary, title: L("采用")) {
+                ThemeButton(kind: .primary, title: L("Adopt")) {
                     setCrashRetention(Retention(kind: .count(2_000)))
                     suggested = true
                 }
-                ThemeButton(kind: .ghost, title: L("不再提示")) { suggested = true }
+                ThemeButton(kind: .ghost, title: L("Don't suggest again")) { suggested = true }
             }
             .padding(12)
             .background(theme.palette.tintSoft, in: RoundedRectangle(cornerRadius: 10))
@@ -671,22 +671,22 @@ private struct TrimSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             switch hub.trim {
             case .preview(_, let plan):
-                Text(L("按策略修剪")).font(theme.display(.headline))
-                kvLine(L("保留策略"), LF("最近 %@", cnt(plan.keep, "个")))
-                kvLine(L("将修剪"), LF("%1$@ · %2$@", cnt(plan.remove.count, "个文件"), human(plan.removeBytes)))
+                Text(L("Trim by policy")).font(theme.display(.headline))
+                kvLine(L("Retention policy"), LF("Latest %@", cnt(plan.keep, "个")))
+                kvLine(L("Will trim"), LF("%1$@ · %2$@", cnt(plan.remove.count, "files"), human(plan.removeBytes)))
                 if let oldest = plan.oldestKeptMtime {
-                    kvLine(L("最旧保留到"), oldest.formatted(date: .abbreviated, time: .shortened))
+                    kvLine(L("Oldest kept"), oldest.formatted(date: .abbreviated, time: .shortened))
                 }
-                Text(L("全部进废纸篓，可整批撤销；settings.dat 与目录骨架保留。预览数字来自纯计算，确认后不重算。"))
+                Text(L("Everything goes to the Trash and can be undone as a batch; settings.dat and the folder skeleton stay. Preview numbers come from a pure calculation and are final."))
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkSecondary)
                 HStack {
                     Spacer()
-                    ThemeButton(kind: .ghost, title: L("取消")) { hub.trim = nil }
-                    ThemeButton(kind: .primary, title: L("修剪")) { hub.runTrim() }
+                    ThemeButton(kind: .ghost, title: L("Cancel")) { hub.trim = nil }
+                    ThemeButton(kind: .primary, title: L("Trim")) { hub.runTrim() }
                 }
             case .running(let done, let total):
-                Text(L("正在移入废纸篓…")).font(theme.display(.headline))
+                Text(L("Moving to Trash…")).font(theme.display(.headline))
                 ProgressView(value: Double(done), total: Double(max(total, 1)))
                 Text(LF("%1$@ / %2$@", String(done), String(total)))
                     .font(theme.bodyFont(.caption))
@@ -696,31 +696,29 @@ private struct TrimSheet: View {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(theme.palette.safeFG)
-                    Text(LF("已修剪 · 释放约 %@", human(bytes))).font(theme.display(.headline))
+                    Text(LF("Trimmed · about %@ freed", human(bytes))).font(theme.display(.headline))
                 }
-                Text(L("settings.dat 已保留；记录已进修剪账本，可整批撤销。"))
+                Text(L("settings.dat kept; the batch is in the trim ledger and can be undone as a whole."))
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkSecondary)
                 if skipped > 0 {
-                    Text(LF("跳过 %d 个（执行时与预览不一致，防偷换）", skipped))
+                    Text(LF("Skipped %d (changed since preview — no silent swaps)", skipped))
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.warnFG)
                 }
-                Text(L("空间要等清空废纸篓后才释放。"))
+                Text(L("Space is freed only after the Trash is emptied."))
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkSecondary)
                 HStack {
-                    if Channel.isAppStore {
-                        ThemeButton(kind: .secondary, symbol: "folder", title: L("在访达中打开废纸篓")) {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: homePath() + "/.Trash"))
-                        }
-                    } else {
-                        ThemeButton(kind: .secondary, symbol: "trash", title: L("在访达中清空")) {
-                            Task.detached { _ = try? await emptyTrashViaFinder() }
-                        }
+                    // P0-6: this used to empty the WHOLE Trash via AppleScript with no confirm
+                    // (unrelated items included, errors swallowed, undo history left dangling),
+                    // right next to "undo batch". Only open the Trash; emptying stays a deliberate
+                    // act in Finder (or on the Trash page, which confirms and clears history).
+                    ThemeButton(kind: .secondary, symbol: "folder", title: L("Open Trash in Finder")) {
+                        openTrashInFinder()
                     }
                     Spacer()
-                    ThemeButton(kind: .secondary, symbol: "arrow.uturn.backward", title: L("撤销整批")) {
+                    ThemeButton(kind: .secondary, symbol: "arrow.uturn.backward", title: L("Undo batch")) {
                         hub.undoTrim(batchID: batchID)
                     }
                 }

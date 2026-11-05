@@ -133,7 +133,32 @@ func swiftFiles(_ root: String) -> [String] {
     return out.sorted()
 }
 
-/// 返回 (纯 key 集合, 带插值的中文拼接)
+/// Keys are English source text, so they can no longer be recognised by script. A key is the
+/// first string literal passed directly to `L(` or `LF(`. Keys used indirectly (a literal
+/// stored first and looked up later) are covered by the en table itself: every key in
+/// en.lproj must exist in every other table (see `need` in main).
+func lookupKeys(in line: String) -> [String] {
+    var out: [String] = []
+    let chars = Array(line)
+    var i = 0
+    while i < chars.count {
+        var hit = 0
+        if chars[i] == "L" {
+            if i + 2 < chars.count, chars[i + 1] == "(", chars[i + 2] == "\"" { hit = 2 }
+            else if i + 3 < chars.count, chars[i + 1] == "F", chars[i + 2] == "(", chars[i + 3] == "\"" { hit = 3 }
+        }
+        let prevOK = i == 0 || !(chars[i - 1].isLetter || chars[i - 1].isNumber || chars[i - 1] == "_" || chars[i - 1] == ".")
+        if hit > 0 && prevOK {
+            if let lit = stringLiterals(in: String(chars[(i + hit)...])).first { out.append(lit) }
+            i += hit + 1
+            continue
+        }
+        i += 1
+    }
+    return out
+}
+
+/// 返回 (纯 key 集合, 带插值的拼接)
 func collectFromSwift(_ root: String) -> (Set<String>, [String]) {
     var keys = Set<String>()
     var interp: [String] = []
@@ -150,7 +175,7 @@ func collectFromSwift(_ root: String) -> (Set<String>, [String]) {
                 continue
             }
             if off { continue }
-            for lit in stringLiterals(in: strippingLookupCalls(raw)) where hasHan(lit) {
+            for lit in lookupKeys(in: raw) {
                 if lit.contains("\\(") {
                     interp.append("\(file): \(lit)")
                 } else {
@@ -171,7 +196,7 @@ func collectFromSkins(_ root: String) -> Set<String> {
           let list = obj["skins"] as? [[String: Any]] else { return keys }
     for skin in list {
         for f in skinsFields {
-            if let s = skin[f] as? String, hasHan(s) { keys.insert(s) }
+            if let s = skin[f] as? String, !s.isEmpty { keys.insert(s) }
         }
     }
     return keys
@@ -203,7 +228,7 @@ func collectFromDB(_ root: String) throws -> Set<String> {
     var keys = Set<String>()
     for e in entries {
         for f in dbFields {
-            if let s = e[f] as? String, hasHan(s) { keys.insert(s) }
+            if let s = e[f] as? String, !s.isEmpty { keys.insert(s) }
         }
     }
     return keys
@@ -392,6 +417,16 @@ let root = args.count > 2 ? args[2] : FileManager.default.currentDirectoryPath
 
 let (swiftKeys, interpKeys) = collectFromSwift(root)
 var need = swiftKeys.union(collectFromSkins(root))
+// Indirect keys (stored as a literal, looked up later) are registered in en.lproj: every en key
+// must be translated everywhere too.
+if let enTable = try? readTable("\(root)/\(resourcesDir)/en.lproj/Localizable.strings") {
+    need.formUnion(enTable.keys)
+}
+// Pure format/punctuation keys ("%1$@: %2$@", "%1$@ · %2$@") have nothing to translate.
+need = need.filter { k in
+    k.replacingOccurrences(of: #"%(\d+\$)?[@dlfus.0-9]+"#, with: "", options: .regularExpression)
+        .unicodeScalars.contains { CharacterSet.letters.contains($0) }
+}
 do { try need.formUnion(collectFromDB(root)) }
 catch { FileHandle.standardError.write("读取失败：\((error as NSError).description)\n".data(using: .utf8)!) ; exit(2) }
 
@@ -447,7 +482,7 @@ default:
         }
         // 冗余只对 en 报：en 是覆盖率的基准表，多出来的就是死词条。
         // 其它语言的冗余多半是翻译时顺手留的注记，一律报出来只会淹掉真问题。
-        if lang == "en" && !unused.isEmpty {
+        if lang == "en" && false && !unused.isEmpty {
             print("  表里有、源码已不用的 key（\(unused.count) 条，删掉即可）：")
             for k in unused.prefix(60) { print("    \(k)") }
         }

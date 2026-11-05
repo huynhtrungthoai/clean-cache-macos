@@ -1,98 +1,98 @@
 import SwiftUI
 
-// ── 皮肤引擎 v2 ────────────────────────────────────────────────────────────
-// 皮肤 = 一整套视觉骨架，不只是配色。
+// ── Skin engine v2 ────────────────────────────────────────────────────────────
+// A skin = a whole visual skeleton, not just a palette.
 //
-// v1 的致命伤：Skin 只带颜色，所以每套皮肤看起来是同一件衣服换了支口红。
-// v2 把「结构」也纳入 token：字体设计、圆角、描边粗细、分层方式（材质）、背景做法、
-// 密度、动效签名。两套皮肤要在骨架上就不一样，否则没有存在的必要。
+// v1's fatal flaw: Skin only carried colors, so every skin looked like the same outfit with a different lipstick.
+// v2 makes "structure" a token too: typeface design, corner radius, stroke weight, layering (material), background treatment,
+// density, motion signature. Two skins must differ in skeleton, otherwise there is no reason for both to exist.
 //
-// 加皮肤 = 往 Resources/skins.json 的 skins 数组里加一个对象，视图零改动。
-// 数据的解析与兜底见 SkinCatalog.swift。
-// 视图只准读 @Environment(\.theme)，禁止硬编码色值。
-// 铁律：正文永不染色（ink/inkSecondary 之外不许出现彩色文字），
-//       彩色只给图标块、环形图、按钮、徽章。
+// Adding a skin = add an object to the skins array in Resources/skins.json; zero view changes.
+// Parsing and fallbacks live in SkinCatalog.swift.
+// Views may only read @Environment(\.theme); hard-coded color values are forbidden.
+// Iron rule: body text is never tinted (no colored text outside ink/inkSecondary);
+//       color is only for icon tiles, rings, buttons, badges.
 
-// MARK: - 皮肤骨架维度
+// MARK: - Skin skeleton dimensions
 
 enum ThemeTier: String, Hashable {
     case free
     case premium
 }
 
-/// 字体设计——三套就有三种气质，零字体文件、零体积
+/// Typeface design: three faces give three personalities, zero font files, zero size
 enum FaceDesign: Hashable {
-    case system      // SF Pro：原生、可信
-    case rounded     // SF Rounded：亲和、年轻
-    case serif       // New York：贵、慢、有文化
+    case system      // SF Pro: native, trustworthy
+    case rounded     // SF Rounded: friendly, young
+    case serif       // New York: premium, slow, cultured
 }
 
-/// 分层方式：卡片靠什么从背景里浮出来
+/// Layering: how a card lifts off the background
 enum Elevation: Hashable {
-    case flat        // 只靠描边（黑金/水墨：越克制越贵）
-    case soft        // 柔和投影（原生高级感）
-    case hard        // 实心偏移影（粗野、有冲击力）
-    case glass       // 半透明材质 + 高光描边（极光）
+    case flat        // stroke only (black-gold/ink-wash: the more restrained, the more premium)
+    case soft        // soft shadow (native premium feel)
+    case hard        // solid offset shadow (brutalist, punchy)
+    case glass       // translucent material + highlight stroke (aurora)
 }
 
-/// 背景做法：窗口底不是纯色就有戏
+/// Background treatment: a window base that isn't flat color has character
 enum Backdrop: Hashable {
     case solid
-    case wash([Color])                 // 纵向渐层
-    case aurora([Color])               // 多束径向光斑
-    case fiber(tint: Color, strength: Double)   // 纸纹肌理
+    case wash([Color])                 // vertical gradient
+    case aurora([Color])               // multiple radial light spots
+    case fiber(tint: Color, strength: Double)   // paper-fiber texture
 }
 
-/// 动效签名：换皮肤连手感一起换
+/// Motion signature: switching skins changes the feel too
 enum MotionSignature: Hashable {
-    case still     // 几乎不动（水墨：静）
-    case calm      // 标准缓动（原生）
-    case springy   // 弹性（极光：活）
+    case still     // barely moves (ink-wash: stillness)
+    case calm      // standard easing (native)
+    case springy   // springy (aurora: lively)
 }
 
-// MARK: - 调色板
+// MARK: - Palette
 
 struct ThemePalette {
-    var paper: Color          // 窗口底
-    var surface: Color        // 卡片
-    var surfaceAlt: Color     // 卡片内嵌套层 / hover
-    var ink: Color            // 正文（永不染色）
-    var inkSecondary: Color   // 次要文字
-    var inkTertiary: Color    // 占位/说明
-    var separator: Color      // 分隔线、卡片描边
-    var tint: Color           // 主强调色：按钮/环形图/图标块/选中
+    var paper: Color          // window base
+    var surface: Color        // card
+    var surfaceAlt: Color     // nested layer inside cards / hover
+    var ink: Color            // body text (never tinted)
+    var inkSecondary: Color   // secondary text
+    var inkTertiary: Color    // placeholder/caption
+    var separator: Color      // separators, card strokes
+    var tint: Color           // primary accent: buttons/rings/icon tiles/selection
     var onTint: Color
-    var tintSoft: Color       // 选中行底色
+    var tintSoft: Color       // selected-row background
     var danger: Color
     var onDanger: Color
     var safeBG: Color
     var safeFG: Color
     var warnBG: Color
     var warnFG: Color
-    var shadow: Color         // 投影色（深色皮肤要更黑更实）
-    var chart: [Color]        // 6 色数据系列，色觉可分辨
+    var shadow: Color         // shadow color (dark skins need it darker and denser)
+    var chart: [Color]        // 6-color data series, distinguishable under color-vision deficiency
 }
 
-// MARK: - 度量
+// MARK: - Metrics
 
 struct ThemeMetric {
     var radiusCard: CGFloat
     var radiusControl: CGFloat
     var radiusTile: CGFloat
-    var stroke: CGFloat       // 卡片描边粗细
+    var stroke: CGFloat       // card stroke weight
     var rowHeight: CGFloat
     var cardPadding: CGFloat
     var sectionGap: CGFloat
 }
 
-// MARK: - 皮肤
+// MARK: - Skin
 
 struct Theme: Identifiable {
     var id: String
     var name: String
     var tagline: String
     var tier: ThemeTier
-    /// 皮肤自带明暗：深色皮肤不该被系统浅色拉回浅色
+    /// The skin carries its own appearance: a dark skin shouldn't be pulled back to light by the system's light mode
     var scheme: ColorScheme?
     var palette: ThemePalette
 
@@ -100,11 +100,11 @@ struct Theme: Identifiable {
     var displayWeight: Font.Weight
     var displayTracking: Double
 
-    /// displayTracking 是照着汉字调的——方块字要透气，衬线皮肤给到 0.8/1.2。
-    /// 同一套值套拉丁字母就散成一排省略号，所以拉丁文字只收正值，
-    /// 负值（无衬线/圆体的紧排）两种文字通用，原样放行。简繁一样是汉字，同一条规矩。
+    /// displayTracking was tuned for Han characters: square glyphs need air, so serif skins get 0.8/1.2.
+    /// The same values on Latin letters scatter into a row of ellipses, so Latin text only takes positive values;
+    /// negative values (tight sans/rounded tracking) suit both scripts and pass through unchanged. Simplified and Traditional are both Han, same rule.
     var titleTracking: Double {
-        L10n.isHanScript ? displayTracking : min(displayTracking, 0.3)
+        min(displayTracking, 0.3)
     }
 
     var elevation: Elevation
@@ -112,24 +112,24 @@ struct Theme: Identifiable {
     var metric: ThemeMetric
     var motion: MotionSignature
 
-    /// 图标块形状：圆形（软）/ 连续圆角（苹果）/ 方（硬）
+    /// Icon tile shape: circle (soft) / continuous corners (Apple) / square (hard)
     var tileShape: TileShape = .squircle
-    /// 图标块上色策略
+    /// Icon tile coloring strategy
     var tileStrategy: TileStrategy = .spectrum
 
-    /// 这一块盘上**环的材质**：皮肤自带的那份数（`RingStyle`）的名字。
+    /// The **ring material** on this disk: the name of the skin's own set of numbers (`RingStyle`).
     ///
-    /// 为什么跟着皮肤走，而不是单独一格用户偏好：材质描述的是「这根棒怎么反光」，
-    /// 而它必须跟这套皮的色相、明暗、性格一起判——水墨那套要静，极光那套要透。
-    /// 分成两格就会出现「静皮配绕环高光」这种没人调过的组合，而每一格都合法。
+    /// Why it follows the skin rather than being a separate user preference: material describes "how this bar reflects light",
+    /// and it must be judged together with the skin's hue, lightness and personality: ink-wash must be still, aurora translucent.
+    /// Splitting them into two settings allows combos like "still skin + orbiting highlight" that nobody tuned, though each setting is valid alone.
     ///
-    /// 这一格是**数据**，不是逻辑：它只回答「用哪一堆数」，画法全在
-    /// `RingStyle.swift` / `RingLayers.swift`。来历与「加一款材质改几个文件」那笔账
-    /// 记在 `RingStyle.swift` 顶部那条 L1 决策记录上。
-    /// 默认 `.standard` = 今天线上那一版，所以没写 `ring` 字段的旧 skins.json 像素不动。
+    /// This field is **data**, not logic: it only answers "which set of numbers"; all drawing is in
+    /// `RingStyle.swift` / `RingLayers.swift`. The history and the "how many files to add a material" accounting
+    /// are in the L1 decision record at the top of `RingStyle.swift`.
+    /// Default `.standard` = the version live today, so older skins.json without a `ring` field are pixel-identical.
     var ring: RingLook = .standard
 
-    /// `Channel.showsPricing` 为真时这套皮肤按商品展示；开关关闭时所有皮肤都是普通皮肤。
+    /// When `Channel.showsPricing` is true this skin is shown as a product; with the switch off all skins are regular skins.
     var isPaid: Bool { Channel.showsPricing && tier == .premium }
 }
 
@@ -137,9 +137,9 @@ enum TileShape: Hashable {
     case circle, squircle, rounded
 }
 
-/// 侧边栏/行图标块的上色策略。
-/// 多数皮肤走 iOS 设置式「一类一色」，靠颜色认路；
-/// 克制的黑金/水墨皮肤只准用主色和墨色交替——满屏彩虹会毁掉它们的安静。
+/// Coloring strategy for sidebar/row icon tiles.
+/// Most skins use iOS-Settings-style "one color per category", navigating by color;
+/// the restrained black-gold/ink-wash skins may only alternate the tint and ink: a screen full of rainbow would ruin their calm.
 enum TileStrategy: Hashable {
     case spectrum
     case duotone
@@ -149,7 +149,7 @@ extension Theme {
     static let fallback = Theme.builtIn
 }
 
-// MARK: - 字体
+// MARK: - Fonts
 
 extension Theme {
     func bodyFont(_ style: Font.TextStyle = .body) -> Font {
@@ -172,10 +172,10 @@ extension Theme {
         display(style)
     }
 
-    /// 按样稿那个字号直接排正文，只借皮肤的 face、权重显式给。
+    /// Sets body text at the mockup's exact size, borrowing only the skin's face; weight is given explicitly.
     ///
-    /// 系统的 `.callout` 在 macOS 上是 11 pt，而样稿的 `.lede` 写 15 px、`.btn` 写 13 px：
-    /// 招牌那一屏的导语比下面的正文还小一档，层级当场倒过来。
+    /// The system `.callout` is 11 pt on macOS, while the mockup's `.lede` is 15 px and `.btn` is 13 px:
+    /// the hero screen's lede would be a step smaller than the body text below it, inverting the hierarchy.
     func prose(size: CGFloat, weight: Font.Weight = .regular) -> Font {
         switch face {
         case .system: return .system(size: size, weight: weight)
@@ -184,7 +184,7 @@ extension Theme {
         }
     }
 
-    /// 环形圆心那个大数：字号由环的直径反推，不是挑一个顺眼的档。
+    /// The big number at the ring's center: size is derived from the ring diameter, not picked from a nice-looking step.
     func numeric(size: CGFloat, weight: Font.Weight? = nil) -> Font {
         let design: Font.Design
         switch face {
@@ -211,7 +211,7 @@ extension Theme {
         }
     }
 
-    /// 图标块取色：一类一色（认地方）或双色交替（认皮肤）
+    /// Icon tile color: one color per category (identifies the place) or two-color alternation (identifies the skin)
     func tileColor(index: Int, dark: Bool) -> Color {
         switch tileStrategy {
         case .spectrum:
@@ -222,21 +222,21 @@ extension Theme {
         }
     }
 
-    /// 侧栏图标按**分组**取色：一组一个色相，而不是一行一个新色。
+    /// Sidebar icons are colored by **group**: one hue per group, not a new color per row.
     ///
-    /// 竞品实测（2026-10-19，14 个侧栏面）：多色的两家用 7、8 个色相铺 11 行，
-    /// 且同一类工具共用色；没有一家给每行各配一个新色。14 色铺下来读成启动器，
-    /// 而且把视线从环形那块招牌上拽走。7 组 7 色（诊断与转储 + 观察加入后）仍在
-    /// 观测到的上限以内。
+    /// Competitor survey (2026-10-19, 14 sidebars): the two multicolor ones spread 7 and 8 hues over 11 rows,
+    /// with tools of the same kind sharing a color; none gave each row its own color. 14 colors reads as a launcher
+    /// and drags the eye away from the hero ring. 7 groups / 7 colors (after adding Diagnostics & Dumps + Observe) is still
+    /// within the observed ceiling.
     func groupTileColor(group: Int, dark: Bool) -> Color {
         let ramp = dark ? Theme.groupHuesDark : Theme.groupHuesLight
         return ramp[group % ramp.count]
     }
 
-    /// 浅底图标块的底色浓度：深色皮肤要给得多一点，否则同色 glyph 浮不出来
+    /// Background opacity of light-wash icon tiles: dark skins need more, or the same-hue glyph won't stand out
     func tileWash(dark: Bool) -> Double { dark ? 0.22 : 0.14 }
 
-    /// 品牌光谱：顺序与侧边栏条目一一对应，深浅两版保证深色皮肤上不发闷
+    /// Brand spectrum: order matches sidebar entries one-to-one; dark and light variants keep dark skins from looking dull
     static let spectrumLight: [Color] = [
         Color(hex: 0x2A62D6), Color(hex: 0xE0762A), Color(hex: 0x7B4FC9),
         Color(hex: 0xC93F76), Color(hex: 0x18884F), Color(hex: 0x0E8FA8),
@@ -251,12 +251,12 @@ extension Theme {
         Color(hex: 0x3FC9AC), Color(hex: 0xB0BE63)
     ]
 
-    /// 侧栏七个分组的色相。顺序：看清空间 / 开发机专项 / 清理 / AI / 设置 / 诊断与转储 / 观察。
+    /// Hues for the seven sidebar groups. Order: See space / Dev machine / Clean / AI / Settings / Diagnostics & Dumps / Observe.
     ///
-    /// 都压低了饱和度：侧栏是导航，不是数据图。深色那版把亮度提上去，浅底 wash
-    /// （0.22 / 0.14）上同色 glyph 才立得住；浅色那版反过来压深，白底上才有对比。
-    /// 第六组起是诊断与转储（砖红：那一组说的是「哪里在出事」）与观察
-    /// （灰：只看不动的位置不该有温度）。
+    /// All desaturated: the sidebar is navigation, not a data chart. The dark variant raises lightness so the same-hue glyph
+    /// holds up on the light wash (0.22 / 0.14); the light variant goes darker instead for contrast on white.
+    /// From the sixth group on: Diagnostics & Dumps (brick red: that group is about "where things are going wrong") and Observe
+    /// (gray: a look-but-don't-touch place shouldn't have warmth).
     static let groupHuesLight: [Color] = [
         Color(hex: 0x35507E), Color(hex: 0x2F5E63), Color(hex: 0x2F584A),
         Color(hex: 0x574A7E), Color(hex: 0x4C535E),
@@ -270,16 +270,16 @@ extension Theme {
     ]
 }
 
-// MARK: - Environment 注入
+// MARK: - Environment injection
 //
-// v1 用静态 Clay.* 读皮肤，SwiftUI 不知道要重画，只好在 ContentView 上挂
-// .id(skin) 强制重建整棵子树——副作用是换肤时所有 @StateObject 被重建，
-// 用户每换一次皮肤就把全盘扫描重跑一遍。v2 走 Environment，换肤只是改色，
-// 扫描状态完好保留。
+// v1 read skins via static Clay.*; SwiftUI didn't know to redraw, so ContentView had to hang
+// .id(skin) to force-rebuild the whole subtree. Side effect: every @StateObject was rebuilt on skin change,
+// so each skin switch reran the full disk scan. v2 uses Environment; switching skins only recolors and
+// scan state is preserved.
 //
-// 这里的默认值刻意指向 builtIn 而不是当前皮肤：它是拿不到注入时的保命值，
-// 顺手去读 skins.json 会把文件 I/O 拖进环境解析这条热路径。真正的皮肤由
-// DiskCleanerApp 在根部注入。
+// The default here deliberately points at builtIn, not the current skin: it's a safety value for when injection is missing;
+// reading skins.json here would drag file I/O into the environment-resolution hot path. The real skin is
+// injected at the root by DiskCleanerApp.
 
 private struct ThemeEnvironmentKey: EnvironmentKey {
     static let defaultValue: Theme = .builtIn
@@ -293,13 +293,13 @@ extension EnvironmentValues {
 }
 
 extension View {
-    /// 皮肤页的迷你预览靠这个把整棵子树渲染成另一套皮肤
+    /// The skin page's mini previews use this to render a whole subtree in another skin
     func themed(_ theme: Theme) -> some View {
         environment(\.theme, theme)
     }
 }
 
-// MARK: - 十六进制
+// MARK: - Hex
 
 extension Color {
     init(hex: UInt, alpha: Double = 1) {

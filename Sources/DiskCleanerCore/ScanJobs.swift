@@ -219,6 +219,24 @@ private func fullHash(_ url: URL) -> String? {
     return digest.finalize().map { String(format: "%02x", $0) }.joined()
 }
 
+/// P0-8: duplicate groups come from a scan that may be minutes or hours old. Right before an
+/// extra copy is trashed, verify that the copy being KEPT still exists as a regular file and
+/// still has the same content as the extra — otherwise the "extra" may now be the only copy
+/// (kept file moved / deleted / edited since the scan). Full hash up to 64 MB, the scan's
+/// head+tail partial hash above that (keeps the UI responsive on huge files).
+public func duplicateStillMatches(kept: URL, extra: URL) -> Bool {
+    func regularSize(_ u: URL) -> Int64? {
+        var st = stat()
+        guard lstat(u.path, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return nil }
+        return Int64(st.st_size)
+    }
+    guard kept.standardizedFileURL.path != extra.standardizedFileURL.path,
+          let ks = regularSize(kept), let es = regularSize(extra), ks == es else { return false }
+    let hash: (URL) -> String? = ks <= 64 << 20 ? fullHash : partialHash
+    guard let hk = hash(kept), let he = hash(extra) else { return false }
+    return hk == he
+}
+
 /// 留哪一份看这个日期：修改时间，读不到退回创建时间，再读不到算最旧。
 /// 单独露出来是因为行上标的日期必须跟排序用的是同一个数——否则界面说「留最新」，
 /// 行的日期却对不上，那一屏就成了自证矛盾的现场。
@@ -309,9 +327,9 @@ private let orphanDenylist: Set<String> = [
 ]
 
 private let orphanGuess: [(kw: String, label: String)] = [
-    ("xinwechat", "微信"), ("weixin", "微信"), ("wechat", "微信"),
-    ("wework", "企业微信"), ("wxwork", "企业微信"),
-    ("dingtalk", "钉钉"), ("qq", "QQ"), ("tencent", "腾讯系应用"),
+    ("xinwechat", "WeChat"), ("weixin", "WeChat"), ("wechat", "WeChat"),
+    ("wework", "WeCom"), ("wxwork", "WeCom"),
+    ("dingtalk", "DingTalk"), ("qq", "QQ"), ("tencent", "Tencent app"),
 ]
 
 public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanItem], appCount: Int) {

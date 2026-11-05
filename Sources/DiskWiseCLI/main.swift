@@ -1,17 +1,21 @@
 import DiskCleanerCore
 import Foundation
 
-// diskwise：把「知识库认识且安全的位置」开放给终端与 AI agent。
+// diskwise: exposes "locations the knowledge base knows and deems safe" to the terminal and AI agents.
 //
-// 纪律与 App 同源：唯一删除路径是 Core 的 trashItem（只进废纸篓）、risky 永远
-// 不放开、trash 只认 plan_id 不收裸路径——强制先 plan 再 trash，和 App 界面上
-// 「点两下」确认是同一个理念。stdout 只放结果（agent 要解析它），日志与进度
-// 一律走 stderr。
+// Same discipline as the app: the only deletion path is Core's trashItem (Trash only), risky is never
+// unlocked, and trash accepts only a plan_id, never a bare path. Forcing plan-then-trash is the same idea
+// as the app UI's "click twice" confirmation. stdout carries only results (agents parse it); logs and progress
+// always go to stderr.
+
+// Release builds ignore DISKWISE_* developer hooks (an MCP client's `env` block must not be
+// able to move the home directory / deletion boundary or swap the string table).
+scrubDevEnvironment()
 
 let args = Array(CommandLine.arguments.dropFirst())
 
-/// 退出码契约：0 成功；1 参数错误；2 有项被拒（部分成功也是 2，JSON 里写清
-/// 哪些成功）；3 计划过期或不存在。脚本按它分流，别改语义。
+/// Exit-code contract: 0 success; 1 bad arguments; 2 some items refused (partial success is also 2; the JSON
+/// says which succeeded); 3 plan expired or not found. Scripts branch on these; don't change the semantics.
 enum Exit: Int32 {
     case ok = 0
     case usage = 1
@@ -20,8 +24,8 @@ enum Exit: Int32 {
 }
 
 func versionString() -> String {
-    // 打包版从 .app 的 Info.plist 读（brew 的 binary symlink 会被解析回 .app）；
-    // swift run / 裸二进制回落 dev
+    // Packaged build reads the .app's Info.plist (brew's binary symlink resolves back into the .app);
+    // swift run / bare binary falls back to dev
     (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
 }
 
@@ -60,8 +64,8 @@ func printHelp() {
     """)
 }
 
-/// AgentAPIError -> (stderr 文案, 退出码)。文案给操作下一步的指引：
-/// plan_expired 是常态（用户十几分钟后才同意），必须告诉 agent 重新 plan。
+/// AgentAPIError -> (stderr message, exit code). Messages tell the caller what to do next:
+/// plan_expired is normal (the user approves a dozen minutes later), so the agent must be told to re-plan.
 func mapAgentError(_ e: AgentAPIError) -> (String, Exit) {
     switch e {
     case .planExpired:
@@ -159,7 +163,7 @@ case "plan":
     } else {
         printPlanBlock(plan)
     }
-    // 有被拒项时退出码 2：调用方（脚本/agent）据此知道「这次不是全带走」
+    // Exit code 2 when anything was refused: the caller (script/agent) learns "not everything went this time"
     if plan.refused.isEmpty { exit(Exit.ok.rawValue) }
     exit(Exit.refused.rawValue)
 
@@ -177,7 +181,7 @@ case "trash":
         case "--json":
             json = true; i += 1
         default:
-            // 刻意不接受裸路径：先 plan 再 trash 是两步确认，绕过它等于绕过安全模型
+            // Bare paths deliberately rejected: plan-then-trash is a two-step confirmation; bypassing it bypasses the safety model
             failUsage("trash: only accepts --plan <plan_id> (raw paths are refused on purpose — run `diskwise plan` first)")
         }
     }
@@ -223,7 +227,7 @@ case "undo":
     } else {
         printUndoBlock(statuses)
     }
-    // gone_from_trash 不算失败（东西已不在废纸篓是用户自己的动作），只有 failed 才 2
+    // gone_from_trash is not a failure (the item leaving the Trash was the user's own action); only failed yields 2
     if statuses.contains(where: { $0.status == "failed" }) { exit(Exit.refused.rawValue) }
     exit(Exit.ok.rawValue)
 

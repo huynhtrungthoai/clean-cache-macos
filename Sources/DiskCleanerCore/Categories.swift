@@ -163,7 +163,7 @@ public extension CategoryRule {
     /// 崩溃转储（Crashpad 族）
     static let crashDumps = CategoryRule(
         id: "crash-dumps",
-        titleKey: "崩溃转储",
+        titleKey: "Crash dumps",
         matcher: CrashpadMatcher(),
         regenerable: true,
         safeDeleteSpec: SafeDeleteSpec(
@@ -173,7 +173,7 @@ public extension CategoryRule {
     /// 系统诊断报告（.ips / .hang / .panic）
     static let diagnosticReports = CategoryRule(
         id: "diagnostic-reports",
-        titleKey: "系统诊断报告",
+        titleKey: "System diagnostics reports",
         matcher: DiagnosticReportsMatcher(),
         regenerable: true,
         safeDeleteSpec: nil)

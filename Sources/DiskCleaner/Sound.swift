@@ -178,7 +178,7 @@ struct SoundToggle: View {
                 // 样稿 `.tb-right` 那三颗都是「图标 + 词」的胶囊，只有这颗在真机上退成了
                 // 一个裸图标：静音状态下它画的是 `speaker.slash`，那支符号自己说的是
                 // 「没声」，而人要点的是「有没有声」——差一个词就得先猜一次。
-                Text(L("声音"))
+                Text(L("Sound"))
                     .font(theme.bodyFont(.caption2))
                 if prefs.soundEnabled {
                     Circle()
@@ -191,9 +191,9 @@ struct SoundToggle: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(L("声音：扫描 / 上膛 / 收拢 / 天亮，各有一声"))
-        .accessibilityLabel(L("声音"))
-        .accessibilityValue(prefs.soundEnabled ? L("开") : L("关"))
+        .help(L("Sound: scan / arm / gather / dawn each have their own cue"))
+        .accessibilityLabel(L("Sound"))
+        .accessibilityValue(prefs.soundEnabled ? L("On") : L("Off"))
     }
 }
 

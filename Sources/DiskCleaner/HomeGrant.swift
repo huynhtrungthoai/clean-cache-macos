@@ -2,15 +2,15 @@ import SwiftUI
 import AppKit
 import DiskCleanerCore
 
-// ── 沙盒授权 ───────────────────────────────────────────────────────────────
+// ── Sandbox authorization ───────────────────────────────────────────────────────────────
 //
-// 沙盒版拿不到「直接读 ~/Library」这种能力：Foundation 的 homeDirectoryForCurrentUser
-// 会被改写成 App 自己的容器目录，拿它当扫描根不会报错，只会安静地扫一个空壳，
-// 然后告诉用户「你机器上几乎没东西」。所以授权必须先于任何扫描发生，
-// 没授权时界面停在这一页，一屏数字都不给。
+// The sandboxed build can't "read ~/Library directly": Foundation's homeDirectoryForCurrentUser
+// is rewritten to the app's own container; using it as a scan root doesn't error, it just quietly scans an empty shell
+// and tells the user "there's almost nothing on your machine". So authorization must happen before any scan;
+// without it the UI stays on this page and shows no numbers at all.
 //
-// 走的是 Apple 认可的那条路：NSOpenPanel 让用户亲手选家目录 → security-scoped
-// bookmark 存下来 → 之后每次启动 restore() 续上，不再打扰。
+// We take the Apple-sanctioned route: NSOpenPanel lets the user pick the home folder themselves -> security-scoped
+// bookmark is saved -> restore() resumes it on every later launch, without bothering the user again.
 
 @MainActor
 final class HomeGrant: ObservableObject {
@@ -29,8 +29,8 @@ final class HomeGrant: ObservableObject {
         panel.canCreateDirectories = false
         panel.showsHiddenFiles = false
         panel.treatsFilePackagesAsDirectories = false
-        panel.prompt = L("授权访问")
-        panel.message = L("已经帮你定位到家目录了，直接点「授权访问」就行。CleanPilot 只读你选中的这一个目录。")
+        panel.prompt = L("Grant Access")
+        panel.message = L("Your home folder is already selected — just press Grant Access. CleanPilot reads this one folder and nothing else.")
         panel.directoryURL = realHomeDir()
 
         guard panel.runModal() == .OK, let picked = panel.url else { return }
@@ -38,11 +38,11 @@ final class HomeGrant: ObservableObject {
             failure = nil
             refresh()
         } else {
-            failure = L("授权没生效，再试一次。")
+            failure = L("That didn't take — try again.")
         }
     }
 
-    /// 选错了目录（比如选了移动硬盘）时的出口。
+    /// Escape hatch for when the wrong folder was picked (e.g. an external drive).
     func revoke() {
         HomeAccess.revoke()
         refresh()
@@ -65,18 +65,18 @@ struct HomeGrantView: View {
             }
             .accessibilityHidden(true)
 
-            Text(L("还没拿到访问授权"))
+            Text(L("No folder access yet"))
                 .font(theme.display(.headline))
                 .foregroundStyle(theme.palette.ink)
 
-            Text(L("沙盒版不能自己翻你的硬盘。选一次家目录，CleanPilot 才知道空间去了哪；之后不会再问。"))
+            Text(L("The App Store build can't browse your disk on its own. Point it at your home folder once and it never asks again."))
                 .font(theme.bodyFont(.callout))
                 .foregroundStyle(theme.palette.inkSecondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
 
             ThemeButton(kind: .primary, symbol: "folder.badge.gearshape",
-                        title: L("授权家目录")) { grant.request() }
+                        title: L("Grant home folder")) { grant.request() }
 
             if let failure = grant.failure {
                 Text(failure)
@@ -84,7 +84,7 @@ struct HomeGrantView: View {
                     .foregroundStyle(theme.palette.inkSecondary)
             }
 
-            Text(L("它只读你选中的这一个目录：不联网、不上传，删除一律进废纸篓。"))
+            Text(L("It reads only the folder you pick: no network, no uploads, and every delete goes to the Trash."))
                 .font(theme.bodyFont(.caption))
                 .foregroundStyle(theme.palette.inkTertiary)
                 .multilineTextAlignment(.center)

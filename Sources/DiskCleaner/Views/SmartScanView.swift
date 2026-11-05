@@ -26,7 +26,7 @@ struct SmartScanView: View {
                         reviewing = false
                         usage = volumeUsage()
                     } label: {
-                        Label(L("返回智能扫描"), systemImage: "chevron.left")
+                        Label(L("Back to Smart Scan"), systemImage: "chevron.left")
                     }
                     .buttonStyle(.plain)
                     .font(theme.prose(size: 13, weight: .medium))
@@ -47,21 +47,21 @@ struct SmartScanView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 26) {
                         HStack {
-                            Text(L("智能扫描"))
+                            Text(L("Smart Scan"))
                                 .font(theme.prose(size: 17, weight: .semibold))
                             Spacer()
-                            Label(L("只在本机处理"), systemImage: "lock.shield")
+                            Label(L("Everything stays on your Mac"), systemImage: "lock.shield")
                                 .font(theme.prose(size: 11))
                                 .foregroundStyle(theme.palette.inkSecondary)
                         }
 
                         HStack(spacing: 28) {
                             VStack(alignment: .leading, spacing: 16) {
-                                Text(L("为你的 Mac 腾出空间"))
+                                Text(L("More room.\nLess clutter."))
                                     .font(theme.prose(size: 34, weight: .bold))
                                     .tracking(-1)
                                     .fixedSize(horizontal: false, vertical: true)
-                                Text(L("一次扫描，找到可以清理的缓存。每一步都由你决定。"))
+                                Text(L("Find caches you can clear in one scan. You decide what goes."))
                                     .font(theme.prose(size: 14))
                                     .foregroundStyle(theme.palette.inkSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -69,7 +69,7 @@ struct SmartScanView: View {
                                 if let usage {
                                     HStack(spacing: 6) {
                                         Image(systemName: "internaldrive")
-                                        Text(LF("可用 %@ / %@", human(usage.free + usage.purgeable), human(usage.total)))
+                                        Text(LF("%@ free of %@", human(usage.free + usage.purgeable), human(usage.total)))
                                     }
                                     .font(theme.prose(size: 12, weight: .medium))
                                     .foregroundStyle(theme.palette.inkSecondary)
@@ -83,15 +83,15 @@ struct SmartScanView: View {
                         .padding(.vertical, 8)
 
                         HStack(spacing: 12) {
-                            summaryCard(symbol: "sparkles", title: L("应用缓存"),
-                                        detail: L("日常应用留下的临时文件"),
+                            summaryCard(symbol: "sparkles", title: L("App Caches"),
+                                        detail: L("Temporary files from everyday apps"),
                                         count: count(groups: ["general", "cn_app"]))
-                            summaryCard(symbol: "shippingbox", title: L("开发缓存"),
-                                        detail: L("开发工具与下载缓存"),
+                            summaryCard(symbol: "shippingbox", title: L("Dev Caches"),
+                                        detail: L("Build tools and download caches"),
                                         count: count(groups: ["dev"]))
                             Button { store.arrive(NavStop(panel: .overview)) } label: {
-                                summaryCard(symbol: "internaldrive", title: L("空间总览"),
-                                            detail: L("查看整个磁盘的空间分布"), count: nil,
+                                summaryCard(symbol: "internaldrive", title: L("Overview"),
+                                            detail: L("See what takes up your disk"), count: nil,
                                             navigates: true)
                             }.buttonStyle(.plain)
                         }
@@ -124,7 +124,7 @@ struct SmartScanView: View {
                     .font(.system(size: 58, weight: .light))
                     .foregroundStyle(theme.palette.tint)
                     .accessibilityHidden(true)
-                Text(model.scanning ? "\(Int(progress * 100))%" : (ready ? L("扫描完成") : "Mac"))
+                Text(model.scanning ? "\(Int(progress * 100))%" : (ready ? L("Scan Complete") : "Mac"))
                     .font(theme.prose(size: 15, weight: .semibold))
                     .foregroundStyle(theme.palette.ink)
             }
@@ -135,8 +135,8 @@ struct SmartScanView: View {
         }
         .frame(width: 242, height: 242)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(model.scanning ? LF("已检查 %1$d / %2$d 处缓存", measured, model.items.count)
-                                : (ready ? L("扫描完成") : L("准备好扫描")))
+        .accessibilityLabel(model.scanning ? LF("Checked %1$d of %2$d cache locations", measured, model.items.count)
+                                : (ready ? L("Scan Complete") : L("Ready to scan")))
     }
 
     private func count(groups: Set<String>) -> Int? {
@@ -175,7 +175,7 @@ struct SmartScanView: View {
         if model.scanning {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text(L("正在查找可清理的缓存…"))
+                    Text(L("Looking for caches to clear…"))
                     Spacer()
                     Text("\(measured) / \(model.items.count)").monospacedDigit()
                 }
@@ -194,9 +194,9 @@ struct SmartScanView: View {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 28))
                     .foregroundStyle(theme.palette.tint)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(LF("发现 %@ 可清理的缓存", human(model.selectableBytes)))
+                    Text(LF("Found %@ of recommended caches to clear", human(model.selectableBytes)))
                         .font(theme.prose(size: 17, weight: .semibold))
-                    Text(L("仅统计清理后无影响的项目；需要重新下载或可能丢失数据的项目单独列出。"))
+                    Text(L("Only no-impact items are counted here. Items requiring re-download or risking data loss are listed separately."))
                         .font(theme.prose(size: 11)).foregroundStyle(theme.palette.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -205,7 +205,7 @@ struct SmartScanView: View {
             .padding(16)
             .background(RoundedRectangle(cornerRadius: theme.metric.radiusCard).fill(theme.palette.surfaceAlt))
         } else {
-            Label(model.started ? L("扫描已暂停，可以重新开始。") : L("只扫描，不会自动删除任何文件。"),
+            Label(model.started ? L("Scan stopped. Start again whenever you like.") : L("Scanning only. No files are removed automatically."),
                   systemImage: model.started ? "pause.circle" : "checkmark.shield")
                 .font(theme.prose(size: 12)).foregroundStyle(theme.palette.inkSecondary)
                 .frame(maxWidth: .infinity, alignment: .center)
@@ -217,7 +217,7 @@ struct SmartScanView: View {
         VStack(spacing: 10) {
             HStack(spacing: 18) {
                 if ready {
-                    Button(L("重新扫描")) { model.load(force: true) }
+                    Button(L("Rescan")) { model.load(force: true) }
                         .buttonStyle(.plain).foregroundStyle(theme.palette.inkSecondary)
                 }
                 Button {
@@ -227,7 +227,7 @@ struct SmartScanView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: model.scanning ? "stop.fill" : (ready ? "list.bullet" : "magnifyingglass"))
-                        Text(model.scanning ? L("停止扫描") : (ready ? L("查看并选择清理") : L("开始扫描")))
+                        Text(model.scanning ? L("Stop Scan") : (ready ? L("Review & Choose") : L("Scan")))
                     }
                     .font(theme.prose(size: 14, weight: .semibold))
                     .foregroundStyle(theme.palette.onTint)
@@ -238,7 +238,7 @@ struct SmartScanView: View {
                 .buttonStyle(.plain)
                 .keyboardShortcut(.return, modifiers: [])
             }
-            Text(L("先预览，再清理。移入废纸篓后可以撤销。"))
+            Text(L("Review first, then clean. Anything moved to the Trash can be restored."))
                 .font(theme.prose(size: 11)).foregroundStyle(theme.palette.inkSecondary)
         }
         .padding(.top, 16).padding(.bottom, 20)

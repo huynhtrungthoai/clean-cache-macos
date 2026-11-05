@@ -1,6 +1,6 @@
 import Foundation
 
-// ── 安全知识库（safety_db.json，与 Python 版同源，可互相同步）──
+// ── Safety knowledge base (safety_db.json; same source as the Python version, kept in sync) ──
 
 public struct SafetyEntry: Decodable {
     public var name: String
@@ -9,37 +9,37 @@ public struct SafetyEntry: Decodable {
     public var rec: String
     public var path: String
     public var level: String          // safe | warn
-    /// 这一条**删了要付什么代价**。只在 `warn` 上写，`safe` 一律没有：
+    /// **What it costs to delete** this entry. Only written on `warn`; `safe` never has it:
     ///
-    /// - `redo`：原始数据不丢，重新下载或重装就能回来（模型权重、依赖仓库、模拟器运行镜像）
-    /// - `data`：删了就没了，重下也回不来（模拟器里的 App 数据、聊天里的图片、会话记录）
+    /// - `redo`: source data isn't lost; re-download or reinstall brings it back (model weights, dependency repos, simulator runtime images)
+    /// - `data`: gone once deleted; re-downloading won't bring it back (app data in simulators, chat images, session logs)
     ///
-    /// 分这一刀，是因为 `warn` 底下混着这两种性质完全不同的东西：一个只要花时间重下，
-    /// 一个真要丢东西。混进同一档，用户既不敢删那些其实能删的，
-    /// 也没意识到另一些更该先看一眼——两头都错。
+    /// This split exists because `warn` mixes two completely different things: one just costs time to re-download,
+    /// the other really loses something. Lumped into one tier, users don't dare delete what they safely could,
+    /// and don't notice what deserves a closer look first; wrong both ways.
     ///
-    /// **漏写按 `data` 兜底**：宁可把「重下」说重，不能把「丢数据」说轻。缺了它的条目
-    /// 由自检顶出来，不会就这么混过去。
+    /// **Missing values default to `data`**: better to overstate "re-download" than understate "data loss". Entries lacking it
+    /// are flagged by the self-test rather than slipping through.
     public var cost: String?
     public var grp: String?
     public var docs: String?
-    /// 归属 App 的包名。只给「路径里查不出包名、但确实属于某个 App」的条目用
-    /// （`~/Library/Developer/Xcode/**` 这类），行首那一格靠它挂 App 图标。
-    /// 商店版签名带 team 前缀的 App（钉钉那种）不填——对不上就不对，宁可不挂。
+    /// Bundle ID of the owning app. Only for entries where "the path doesn't reveal a bundle ID but it does belong to an app"
+    /// (like `~/Library/Developer/Xcode/**`); the row's leading cell uses it to show the app icon.
+    /// Store-signed apps with a team prefix (like DingTalk) are left blank: if it doesn't match, don't guess; better no icon.
     public var app: String?
-    /// 跨分组的横向标签（如 ai_models）：grp 是缓存页的展示分组，tags 是
-    /// 「同一类东西跨 grp 归拢」的查询口径，CLI/MCP 的 --category 按它筛。
-    /// 旧条目没有它，解码按缺省处理，不影响已有知识库。
+    /// Cross-group tags (e.g. ai_models): grp is the caches page display group, tags is
+    /// the query basis for "grouping the same kind of thing across grp"; CLI/MCP --category filters on it.
+    /// Old entries lack it; decoding uses the default, no impact on the existing knowledge base.
     public var tags: [String]?
-    /// 官方品牌标的文件名（不带扩展名）。
+    /// File name (without extension) of the official brand mark.
     ///
-    /// 给那些**没有 .app 可查**的工具：`~/.ollama/models`、`~/.cache/uv` 这类只有命令行，
-    /// LaunchServices 里查不到包名，真图标那一档永远取不到东西。填了 `app` 的条目也可以填这里：
-    /// 真图标优先，但「Xcode 已卸载、模拟器还留着」这种机器上就轮到标上岗，比一张通用文件夹认得出。
+    /// For tools with **no .app to look up**: `~/.ollama/models`, `~/.cache/uv` and the like are CLI-only;
+    /// LaunchServices has no bundle ID for them, so the real-icon tier never finds anything. Entries with `app` may also set this:
+    /// the real icon wins, but on a machine where "Xcode is uninstalled but simulators remain" the mark steps in, more recognizable than a generic folder.
     public var icon: String?
 
-    /// 成员式构造：SignatureScan 合成词条用（自定义了 init(from:) 之后
-    /// 编译器不再送成员式 init，这里显式补上，语义与解码路径完全同源）。
+    /// Memberwise init: used by SignatureScan to synthesize entries (once a custom init(from:) is defined
+    /// the compiler no longer synthesizes the memberwise init; added explicitly here, semantics identical to the decode path).
     public init(name: String, what: String, whatif: String, rec: String, path: String,
                 level: String, cost: String?, grp: String?, docs: String?, app: String?,
                 tags: [String]?, icon: String?) {
@@ -82,39 +82,72 @@ public struct SafetyDB: Decodable {
     public var entries: [SafetyEntry]
 }
 
-// ── 家目录：定义在 HomeAccess.swift（沙盒下要走真实家目录 + 授权书签）──
+// ── Home directory: defined in HomeAccess.swift (in the sandbox it uses the real home + an authorization bookmark) ──
 
 public func homePath() -> String { homeDir().path }
 
-/// 家目录是否被换到演示用的假树上（见 build_app/make_demo_home.sh）
+/// Whether the home dir has been swapped for a fake demo tree (see build_app/make_demo_home.sh)
 public var homeIsDemo: Bool { !envString("DISKWISE_HOME_SHIM").isEmpty }
 
-/// 读环境变量走 libc，不用 `ProcessInfo.processInfo.environment`。
+/// Read env vars via libc, not `ProcessInfo.processInfo.environment`.
 ///
-/// 后者每读一次键，就把整份进程环境复制成一个字典（几十上百条，含分配）。这几个开关
-/// 不是「偶尔看一下」：它们坐在**每个候选路径**都要经过的判断里
-/// （`isDeletable` → `homePath` → `homeDir`），一趟重归缓存账能读上千次。
-/// 换掉之后 `setenv` 依然立刻生效——自检就是先 `setenv` 再断言的（SelfTest:62、
-/// SelfTest:1214 特意注释了顺序），所以这里**缓存值**会读错，只换 API 不会。
+/// The latter copies the whole process environment into a dictionary on every key read (dozens to hundreds of entries, with allocations). These switches
+/// aren't "glanced at occasionally": they sit in a check that **every candidate path** goes through
+/// (`isDeletable` → `homePath` → `homeDir`); one cache re-tally can read them thousands of times.
+/// After the swap, `setenv` still takes effect immediately; the self-test does `setenv` then asserts (SelfTest:62,
+/// SelfTest:1214 comment the order explicitly), so **caching the value** would read wrong; swapping only the API won't.
 func envString(_ key: String) -> String {
-    key.withCString { c in getenv(c).map { String(cString: $0) } ?? "" }
+    // Release builds ignore every developer hook: `DISKWISE_HOME_SHIM` alone would move the
+    // deletion boundary (isDeletable/protectedPaths are home-relative).
+    guard devHooksEnabled || !key.hasPrefix("DISKWISE_") else { return "" }
+    return key.withCString { c in getenv(c).map { String(cString: $0) } ?? "" }
 }
 
-/// 商店产品页取图模式。演示横幅是给挑图的人防身用的（真拿假账当实测数字汇报），
-/// 而真实用户永远不会去设 `DISKWISE_HOME_SHIM`，也就永远看不到它——所以出商店图时
-/// 把它收起来，让画面回到用户实际会看到的样子。README 截图和日常使用不受影响。
+// ── Developer hooks (`DISKWISE_*` env: screenshots, perf probes, demo home shim) ──
+//
+// Compiled in for debug builds (`swift run`, SelfTest) and for `DEV_HOOKS=1 build.sh`
+// (README screenshots). A normal release build ignores them all: several of these hooks
+// trash real files without a confirm, and the home shim redefines what is deletable.
+#if DEBUG || DISKWISE_DEV_HOOKS
+private let devHooksCompiledIn = true
+#else
+private let devHooksCompiledIn = false
+#endif
+
+/// Set only by the SelfTest binary (build.sh runs it from the *release* build, and its
+/// fixtures rely on `DISKWISE_HOME_SHIM`). Only in-process code can flip it — an environment
+/// variable cannot — so the env-based attack this gate exists for stays closed.
+private var devHooksForcedByTestHarness = false
+
+public func enableDevHooksForSelfTest() { devHooksForcedByTestHarness = true }
+
+public var devHooksEnabled: Bool { devHooksCompiledIn || devHooksForcedByTestHarness }
+
+/// Remove every `DISKWISE_*` variable from the process environment when developer hooks are
+/// compiled out. Call it first thing in each entry point (app `init`, CLI top level) so the
+/// many direct `ProcessInfo.environment["DISKWISE_…"]` reads in the UI layer see nothing.
+public func scrubDevEnvironment() {
+    guard !devHooksEnabled else { return }
+    for key in ProcessInfo.processInfo.environment.keys where key.hasPrefix("DISKWISE_") {
+        unsetenv(key)
+    }
+}
+
+/// App Store product-page screenshot mode. The demo banner protects whoever picks screenshots (from reporting fake data as real measurements),
+/// and real users never set `DISKWISE_HOME_SHIM`, so they never see it; hence for store screenshots
+/// it's hidden so the screen looks like what users actually see. README screenshots and daily use are unaffected.
 public var storeShotMode: Bool { envString("DISKWISE_STORE_SHOTS") == "1" }
 
-/// 界面上要不要自报「这一屏是演示数据」。
+/// Whether the UI should announce "this screen is demo data".
 public var demoDisclosed: Bool { homeIsDemo && !storeShotMode }
 
-/// 装 App 的目录。演示模式下跟着搬进假树：真 /Applications 有几十万个文件，
-/// 扫得慢，还会把作者装了哪些 App 晒进 README。
+/// Directory where apps are installed. In demo mode it moves into the fake tree too: the real /Applications has hundreds of thousands of files,
+/// scans slowly, and would expose the author's installed apps in the README.
 public func applicationsDir() -> String {
     homeIsDemo ? homePath() + "/Applications" : "/Applications"
 }
 
-// ── 路径可移植展开：~ / $HOME / /Users/<别人>/ 一律落到当前用户家目录 ──
+// ── Portable path expansion: ~ / $HOME / /Users/<someone else>/ all map to the current user's home ──
 
 public func expandHome(_ raw: String) -> String {
     let home = homePath()
@@ -135,18 +168,18 @@ public func expandHome(_ raw: String) -> String {
     return s
 }
 
-/// 一条路径的面包屑：**该路径自己的每一级**，每一格都是一个能点回去的真实祖先。
+/// Breadcrumbs for a path: **every level of the path itself**, each cell a real ancestor you can click back to.
 ///
-/// **不含盘顶 `/`**：界面上最左那一格固定是「空间总览」——那是这一页的来处，而整盘的账
-/// 本来就是空间总览那一页在做，再单列一格 `/` 等于把同一件事说第二遍；更要紧的是它把
-/// 「上一级」引到一页没什么可干的空账上（那页全是「本工具不碰」，一个字节也清不动）。
+/// **Excludes the volume root `/`**: the leftmost cell is always "Space Overview", which is where this page came from, and whole-disk accounting
+/// is that page's job already; a separate `/` cell would say the same thing twice. More importantly, it would send
+/// "up one level" to a page with nothing to do (all "not touched by this tool", not a byte cleanable).
 ///
-/// 也不从「包含它的那条扫描根」起头：`/Library`、`/Applications` 本身就是扫描根，
-/// 以根为起点的话那些地方只剩孤零零一格，上面全不见——而人恰恰是在「进太深了、
-/// 想退出去」的时候才看这一条。
+/// Nor does it start from "the scan root containing it": `/Library` and `/Applications` are themselves scan roots;
+/// starting at the root would leave just one lonely cell with nothing above, and people look at this exactly when they've "gone too deep and
+/// want to back out".
 ///
-/// 家目录那两段（`Users` ＋ 自己）并成一格 `~`：全 App 都把它写成 `~`，
-/// 拆成两格只是把同一个意思写两遍。
+/// The two home segments (`Users` + yourself) merge into one `~` cell: the whole app writes it as `~`;
+/// splitting it into two cells just says the same thing twice.
 public func crumbChain(for path: String, home: String = homePath()) -> [String] {
     let std = URL(fileURLWithPath: path).standardizedFileURL.path
     let homeStd = URL(fileURLWithPath: home).standardizedFileURL.path
@@ -155,7 +188,7 @@ public func crumbChain(for path: String, home: String = homePath()) -> [String] 
     var cur = ""
     for part in std.split(separator: "/").map(String.init) {
         if cur == "/Users", part == me {
-            // 刚补上的 `/Users` 撤掉：它跟 `~` 指的是同一处。
+            // Drop the `/Users` just added: it refers to the same place as `~`.
             out.removeLast()
             cur = homeStd
         } else {
@@ -166,34 +199,34 @@ public func crumbChain(for path: String, home: String = homePath()) -> [String] 
     return out
 }
 
-/// 下钻页「上一级」的落点：上一层目录。`nil` = 已经到顶，再往上是面包屑最左那格「空间总览」。
+/// Where "up one level" lands on the drill-down page: the parent directory. `nil` = already at top; above is the leftmost breadcrumb, "Space Overview".
 ///
-/// 盘顶 `/` **不算一站**：从 `/Applications`、`/Library` 这类顶层目录往上退，落点直接是
-/// 空间总览，而不是 `/`。理由与 `crumbChain` 同一条——整盘的账是空间总览那一页在做，
-/// 而 `/` 那份报告一个字节也清不动。
+/// The volume root `/` **is not a stop**: backing out of top-level dirs like `/Applications` or `/Library` lands directly on
+/// Space Overview, not `/`. Same reason as `crumbChain`: whole-disk accounting is Space Overview's job,
+/// and the `/` report can't clean a single byte.
 public func drillParent(of path: String) -> String? {
     guard !path.isEmpty else { return nil }
     let up = (path as NSString).deletingLastPathComponent
-    // `up.isEmpty` 是给相对路径留的：只有一段的那种退出来是空的，同样当到顶，
-    // 不能让调用方拿一个空串去当下一站。
+    // `up.isEmpty` covers relative paths: a single-segment one backs out to empty, also treated as top;
+    // callers must not get an empty string as the next stop.
     if up.isEmpty || up == path || up == "/" { return nil }
     return up
 }
 
-// ── 缓存条目（UI 模型）──
+// ── Cache entry (UI model) ──
 
 public struct CacheItem: Identifiable {
     public let id = UUID()
     public var entry: SafetyEntry
     public var resolvedPaths: [URL] = []
-    public var size: Int64? = nil      // nil = 统计中
-    /// 每条解析路径各自的体积。`size` 是它们的和，够缓存页那一行用，但不够总览用：
-    /// 总览要把这一条拆到环形不同的弧上去归账，只能拿到「一共 3.7 GB」就归不了。
+    public var size: Int64? = nil      // nil = measuring
+    /// Size of each resolved path. `size` is their sum, enough for the caches page row but not for the overview:
+    /// the overview attributes this entry to different arcs of the ring, which "3.7 GB total" alone can't do.
     public var pathSizes: [String: Int64] = [:]
-    /// 这一条目下的文件个数与最近一次改动，给展开行用。
+    /// File count and latest modification under this entry, for the expanded row.
     ///
-    /// 只有字节数的那一版，13 GB 的一堆缓存和 13 GB 的单个镜像在界面上长得一样，
-    /// 而前者可以一条条判、后者不能。个数和日期是「这一处到底装着什么」的另外两条信息。
+    /// With bytes only, 13 GB of scattered cache and a single 13 GB image look identical in the UI,
+    /// yet the former can be judged item by item and the latter can't. Count and date are two more facts about "what's actually in here".
     public var files: Int = 0
     public var newest: Date? = nil
     public var selected = false
@@ -205,15 +238,15 @@ public struct CacheItem: Identifiable {
         self.selected = selected
     }
 
-    /// 分组标识，不是文案——排序认它，界面显示前才查词表
+    /// Group identifier, not copy: sorting uses it; the table is consulted only before display
     public var groupKey: String { entry.grp ?? "general" }
     public var isSafe: Bool { entry.level != "warn" }
 }
 
-// ── 容量格式化：十进制（1 GB = 10⁹ B），与访达「显示简介」、「关于本机」、diskutil 同口径 ──
+// ── Size formatting: decimal (1 GB = 10⁹ B), same basis as Finder "Get Info", "About This Mac", diskutil ──
 //
-// 曾经按 1024 进制算数却写着 GB：同一块 494.4 GB 的盘报成 460.4 GB，比系统界面少 7%。
-// 用户拿我们的数跟「关于本机」对，对不上就是工具的错——数字可以小，单位不能错。
+// We once computed in base 1024 yet labeled it GB: the same 494.4 GB disk was reported as 460.4 GB, 7% below the system UI.
+// Users compare our number with "About This Mac"; a mismatch is the tool's fault. Numbers may be small; units must not be wrong.
 
 public func human(_ bytes: Int64) -> String {
     if bytes < 1000 { return "\(bytes) B" }
@@ -227,7 +260,7 @@ public func human(_ bytes: Int64) -> String {
     return String(format: "%.1f %@", v, units[u])
 }
 
-/// 十进制单位常量：界面上所有「多少 GB」的阈值都用它，别再手写 1024 的三次方。
+/// Decimal unit constants: every "how many GB" threshold in the UI uses these; don't hand-write 1024 cubed again.
 public let kB: Int64 = 1_000
 public let MB: Int64 = 1_000 * kB
 public let GB: Int64 = 1_000 * MB
@@ -236,25 +269,25 @@ public let TB: Int64 = 1_000 * GB
 private let hUnits = ["KB", "MB", "GB", "TB", "PB"]
 private let hScales: [Int64] = [kB, MB, GB, TB, 1_000 * TB]
 
-/// 这个数该用哪个单位印：跟 `human()` 走的是同一条台阶，两处必须一起动。
+/// Which unit this number should be printed in: same steps as `human()`; the two must change together.
 private func hUnitIndex(_ v: Int64) -> Int {
     var u = 0
     while u < hUnits.count - 1 && v >= 1000 * hScales[u] { u += 1 }
     return u
 }
 
-/// `parts` 是不是真能被收成「加得起来的一列」：有东西、没有负数、而且逐字节加起来
-/// 正好等于 `total`。最后这条是命门——不等就说明调用方给的不是同一个集合，
-/// 那时候补差数就是编数。
+/// Whether `parts` can really be collected into "a column that adds up": non-empty, no negatives, and summing byte-for-byte
+/// exactly to `total`. The last one is crucial: if it doesn't, the caller didn't pass the same set,
+/// and patching the difference would be making numbers up.
 private func partsAddUp(_ parts: [Int64], _ total: Int64) -> Bool {
     total > 0 && parts.contains(where: { $0 > 0 })
         && parts.allSatisfy { $0 >= 0 } && parts.reduce(Int64(0), +) == total
 }
 
-/// 最大余数法：每行先向下取到 0.1 个单位，再把缺的那几格按余数从大到小补回去。
-/// 每行仍与真值差不到 0.1 个单位，这一列却加得起来。调用方先过 `partsAddUp`。
+/// Largest remainder method: floor each row to 0.1 unit, then hand the missing ticks back by descending remainder.
+/// Each row stays within 0.1 unit of the true value, yet the column adds up. Callers run `partsAddUp` first.
 private func apportionTenths(_ parts: [Int64], _ total: Int64, unit u: Int) -> [String] {
-    let div = Double(hScales[u]) / 10.0          // 一格 = 0.1 个单位
+    let div = Double(hScales[u]) / 10.0          // one tick = 0.1 unit
     let exact = parts.map { Double($0) / div }
     var cells = exact.map { Int($0.rounded(.down)) }
     let short = Int((Double(total) / div).rounded()) - cells.reduce(0, +)
@@ -269,16 +302,16 @@ private func apportionTenths(_ parts: [Int64], _ total: Int64, unit u: Int) -> [
     return cells.map { String(format: "%.1f%@", Double($0) / 10.0, suffix) }
 }
 
-/// 一组「加起来必须等于总数」的字节，收成同一单位、一位小数，而且**印出来的这几行
-/// 相加正好等于印出来的那个总数**。
+/// A set of bytes that "must add up to the total", printed in one unit with one decimal, and **the printed rows
+/// sum exactly to the printed total**.
 ///
-/// 为什么不能各自 `human()`：每行独立四舍五入会各自往上飘。实拍过一屏
-/// 「12.0 + 6.3 + 4.2 = 22.5」而圆心写着 22.4——同一屏两本账，用户第一个抓的就是这个。
+/// Why not `human()` each: rounding each row independently drifts upward. We captured a screen showing
+/// "12.0 + 6.3 + 4.2 = 22.5" while the center said 22.4; two ledgers on one screen is the first thing users catch.
 ///
-/// 三种情况整体退回逐行 `human()`——宁可各说各的，也不许凑出一个数：
-/// 1. 各行之和不等于 `total`：调用方给的不是同一个集合，补差数就是编数；
-/// 2. 有任何一行落在别的单位（总数是 GB、这行显示成 MB）：那一列本来就不能相加；
-/// 3. 一行都没有。
+/// Three cases fall back to per-row `human()` entirely; better each say its own than fabricate a number:
+/// 1. Rows don't sum to `total`: the caller didn't pass the same set; patching the difference is making numbers up;
+/// 2. Any row falls in another unit (total in GB, this row in MB): that column can't be added anyway;
+/// 3. There are no rows.
 public func addableHuman(_ parts: [Int64], total: Int64) -> [String] {
     let plain = parts.map(human)
     guard partsAddUp(parts, total) else { return plain }
@@ -288,23 +321,23 @@ public func addableHuman(_ parts: [Int64], total: Int64) -> [String] {
     return apportionTenths(parts, total, unit: u)
 }
 
-/// 跟 `addableHuman` 同一件事，但**整列强行统一到总数那个单位**：那一列允许某一行
-/// 落在 MB（因为它本来就不相加），这一列不行——屏幕上明写着「各段之和」，
-/// 那就得真加得起来，而里面混着一行 501.6 MB 时 `addableHuman` 会整列退回逐行四舍五入，
-/// 2026-09-25 真机实拍到的正是这个：那一列印出来加成 494.5，右边写着 494.4。
+/// Same as `addableHuman`, but **forces the whole column into the total's unit**: that one allows a row
+/// to fall in MB (since it doesn't add), this one doesn't; the screen explicitly says "sum of segments",
+/// so it must really add up, and with a 501.6 MB row mixed in `addableHuman` falls back to per-row rounding for the whole column.
+/// That's exactly what a real device showed on 2026-09-25: the column printed summed to 494.5 while the right said 494.4.
 ///
-/// 被分摊到 0 格的那一行（有地方、却不到一个最小刻度）印 `< 0.1`：它确实占着盘，
-/// 印成 `0.0` 等于让这一行从这一列里消失，用户按行数就加不回来了。
-/// 只在「各行根本不是同一笔账」时整体退回逐行 `human()`（见 `partsAddUp`）。
+/// A row apportioned 0 ticks (takes space but less than one minimum tick) prints `< 0.1`: it really does occupy disk;
+/// printing `0.0` would make the row vanish from the column and users couldn't add it back by rows.
+/// Only falls back to per-row `human()` when "the rows aren't the same ledger at all" (see `partsAddUp`).
 public func addableHumanColumn(_ parts: [Int64], total: Int64) -> [String] {
     addableHumanColumn(parts, total: total, inRulerOf: total)
 }
 
-/// 同上，但那一列的**单位由屏幕上另一个数定**。
+/// Same as above, but the column's **unit is set by another number on screen**.
 ///
-/// 废纸篓的操作记录就是一个例子：列里最大一条只有 20 MB，右上角那张「本次移入」却按
-/// 整个废纸篓的体量印成 GB。各选各的单位，同一屏就是两把尺；给这一列传进去的
-/// `ruler` 就是那张卡用的那个数，于是列加起来的和**正好等于卡上那串字**。
+/// The Trash operation log is an example: the largest row is only 20 MB, while the "moved this time" card at top right prints
+/// in GB based on the whole Trash. Each picking its own unit means two rulers on one screen; the `ruler` passed
+/// to this column is that card's number, so the column sum **exactly matches the card's text**.
 public func addableHumanColumn(_ parts: [Int64], total: Int64, inRulerOf ruler: Int64) -> [String] {
     let plain = parts.map(human)
     guard partsAddUp(parts, total) else { return plain }
@@ -319,7 +352,7 @@ public func addableHumanColumn(_ parts: [Int64], total: Int64, inRulerOf ruler: 
 private let hUnitScale: [String: Double] = ["B": 1, "KB": 1e3, "MB": 1e6,
                                             "GB": 1e9, "TB": 1e12, "PB": 1e15]
 
-/// 一串 `human()` 印出来的字背后的字节数；认不出来（不是「数字 空格 单位」）返回 nil。
+/// Bytes behind a string printed by `human()`; returns nil if unrecognized (not "number space unit").
 private func shownBytes(_ s: String) -> Int64? {
     let p = s.split(separator: " ")
     guard p.count == 2, let v = Double(p[0]), let sc = hUnitScale[String(p[1])]
@@ -327,12 +360,12 @@ private func shownBytes(_ s: String) -> Int64? {
     return Int64((v * sc).rounded())
 }
 
-/// 把屏幕上**已经印出来的那几串数**加起来，印成它们的和；认不出任何一串时返回 nil。
+/// Add up the **already-printed strings** on screen and print their sum; returns nil if none are recognized.
 ///
-/// 为什么不拿字节相加再四舍五入：2026-09-25 圆心实拍那一屏印的是「可用 14.2」
-/// 「可回收 18.6」「全部清空后可用 32.7」——真值各自偏低（14.1x ＋ 18.5x = 32.7x），
-/// 字节加法一步没错，错在那三个**印出来的数**加不起来。人核对的是屏幕上那三串字，
-/// 差的那 0.1 要记在「每一项都各自四舍五入过」上，不能记在两个口径上。
+/// Why not add bytes and then round: the 2026-09-25 center capture showed "available 14.2",
+/// "reclaimable 18.6", "available after clearing all 32.7"; each true value was rounded down (14.1x + 18.5x = 32.7x),
+/// the byte addition was correct; the problem is the three **printed numbers** didn't add up. People check the three strings on screen;
+/// the missing 0.1 belongs to "each item was rounded separately", not to two different bases.
 public func sumShown(_ shown: [String]) -> String? {
     var t = Int64(0)
     for s in shown {
@@ -342,26 +375,26 @@ public func sumShown(_ shown: [String]) -> String? {
     return human(t)
 }
 
-/// 同上，减法版：「整块盘 494.4 − 可用 14.2」印出来的「已用」必须是 480.2，
-/// 而不是各拿字节四舍五入之后凑出来的那个数（两者可以差 0.1）。
+/// Same as above, subtraction version: "whole disk 494.4 − available 14.2" must print "used" as 480.2,
+/// not a number from rounding each byte count separately (the two can differ by 0.1).
 public func diffShown(_ whole: String, _ part: String) -> String? {
     guard let a = shownBytes(whole), let b = shownBytes(part), a >= b else { return nil }
     return human(a - b)
 }
 
-/// 会被印成 `0.0` 的那个阈值：不到半个最小刻度。
+/// The threshold that would print as `0.0`: under half a minimum tick.
 private func roundsToZero(_ v: Int64, unit u: Int) -> Bool {
     Double(v) < Double(hScales[u]) * 0.05
 }
 
-/// 一行有地方、却不到这一列的最小刻度时印成什么。
+/// What to print when a row takes space but less than the column's minimum tick.
 ///
-/// 不能印 `0.0`：那一行当场从这一列里消失了，用户按行数加不回来，而且「0.0 GB」
-/// 读起来像「这里没量到」。`< 0.1` 说的是同一件事，但它承认自己占着地方。
+/// Can't print `0.0`: the row vanishes from the column on the spot, users can't add it back by rows, and "0.0 GB"
+/// reads like "nothing measured here". `< 0.1` says the same thing but admits it occupies space.
 private func belowTickle(_ u: Int) -> String { "< 0.1 " + hUnits[u] }
 
-/// 一个数按第 `u` 档单位印：正好为 0 印 `0.0`（那是真没有），
-/// 有地方却不到最小刻度印 `< 0.1`，其余一位小数。
+/// Print a number in unit tier `u`: exactly 0 prints `0.0` (truly nothing),
+/// nonzero but below the minimum tick prints `< 0.1`, otherwise one decimal.
 private func printAt(_ v: Int64, unit u: Int) -> String {
     let suffix = " " + hUnits[u]
     if v == 0 { return String(format: "0.0%@", suffix) }
@@ -369,32 +402,32 @@ private func printAt(_ v: Int64, unit u: Int) -> String {
     return String(format: "%.1f%@", Double(v) / Double(hScales[u]), suffix)
 }
 
-/// 一组数**印成同一个单位**、各留一位小数，但**不做分摊**。
+/// Print a set of numbers **in one unit**, one decimal each, but **without apportioning**.
 ///
-/// 用它的地方是那些「这一组不是加得起来的账」的场合：Docker 的镜像明细已经算在
-/// 上面那段「· 合计」里，废纸篓两块卡的「本次移入」也躺在「现在」那个数里面。
-/// 它们不能相加，但并排印的时候必须同一把尺——25.7 GB 挨着 501.6 MB，两行就没法比大小。
+/// Used where "this set isn't a ledger that adds up": Docker image details are already counted in
+/// the "· total" segment above, and the two Trash cards' "moved this time" sits inside the "now" number.
+/// They can't be added, but printed side by side they need one ruler; 25.7 GB next to 501.6 MB can't be compared.
 public func unifiedHuman(_ values: [Int64]) -> [String] {
     let u = hUnitIndex(values.max() ?? 0)
     return values.map { printAt($0, unit: u) }
 }
 
-/// 单个数按「总数为 `total` 的那一列」同一把尺印出来。
+/// Print a single number on the same ruler as "the column whose total is `total`".
 ///
-/// 底部清理条那句「已选 X」跟上面那一列是同一个量的两种口径：一列全是 GB 而底下冒出
-/// 一个 400.0 MB，读的人得先心算一次才能知道自己选的是这页的大头还是零头。
-/// 单位的台阶取 `total` 那个（跟 `addableHumanColumn` 同一句 `hUnitIndex`），
-/// 所以传进来的 `total` 就是上面那一列的合计。
+/// The bottom clean bar's "selected X" is the same quantity as the column above in another form: a column of all GB with
+/// a 400.0 MB below forces mental math to know whether you picked the bulk or the crumbs.
+/// The unit step is taken from `total` (same `hUnitIndex` call as `addableHumanColumn`),
+/// so the `total` passed in is the column's total above.
 public func human(_ bytes: Int64, inRulerOf total: Int64) -> String {
     printAt(max(0, bytes), unit: hUnitIndex(max(1, total)))
 }
 
-// ── 受保护路径：整体不允许移入废纸篓（里面的子项可以）──
+// ── Protected paths: may not be moved to Trash as a whole (children may) ──
 
-/// 允许动手的共享临时区（连同它们在 `/private` 下的真身，见 `isDeletable`）。
+/// Shared temp areas we may act on (plus their real `/private` locations, see `isDeletable`).
 ///
-/// 列在这里是为了让「这两个目录本身不许搬」有个单一出处：`protectedPaths` 收它们，
-/// 而 `isDeletable` 只认**底下**的项。
+/// Listed here to give "these two directories themselves may not be moved" a single source: `protectedPaths` includes them,
+/// while `isDeletable` only accepts items **beneath** them.
 let sharedTempRoots = ["/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp"]
 
 public func protectedPaths() -> Set<String> {
@@ -406,7 +439,7 @@ public func protectedPaths() -> Set<String> {
     set.insert("/")
     set.formUnion(["/Applications", "/System", "/Library", "/usr",
                    "/bin", "/sbin", "/etc", "/var", "/opt"])
-    // 临时区里**里面的东西**能动，但这两个目录本身搬走等于把整个系统的临时空间端掉
+    // **Contents** of temp areas may be touched, but moving these two directories themselves would wipe the system's temp space
     set.formUnion(sharedTempRoots)
     return set
 }
@@ -552,24 +585,24 @@ public func deletionGate(_ url: URL) -> DeletionGateRefusal? {
     return .outsideAllowed
 }
 
-/// 我们能动手的范围：家目录、/Applications（演示模式下它在假树里），以及两个共享临时区。
+/// Our actionable scope: home, /Applications (inside the fake tree in demo mode), and two shared temp areas.
 ///
-/// 整盘扫描会把系统区的大文件也摆上列表——那是账，不是活儿：那些位置要么只有管理员写得动，
-/// 要么是 Homebrew / Xcode 自己的地盘，它们的清理命令比这个按钮靠谱。所以这类行只展示、
-/// 勾选框锁死；删除路径仍然只有 `trashItem` 这一条。
+/// A whole-disk scan also lists big files in system areas; that's accounting, not work: those locations are either admin-writable only,
+/// or Homebrew / Xcode territory whose own cleanup commands beat this button. So such rows are display-only,
+/// checkboxes locked; the only deletion path is still `trashItem`.
 ///
-/// `/tmp` 与 `/var/tmp` 是**家目录之外唯一两处放行的地方**：它们名字里就写着「临时」——
-/// 正是用来放随时可以丢掉的东西的。而整盘扫描会走进 `/private`，把这两处底下的东西
-/// （构建残留、演示树、解压到一半的包，动辄几十 G）原样列出来；不给删的话，
-/// 用户只能看着本工具报一个自己动不了的数。
+/// `/tmp` and `/var/tmp` are **the only two allowed places outside home**: "temp" is in their name;
+/// they're meant for disposable stuff. A whole-disk scan walks into `/private` and lists what's under them
+/// (build leftovers, demo trees, half-extracted archives, often tens of GB) as-is; without allowing deletion
+/// users could only watch the tool report a number they can't act on.
 ///
-/// 两个细节：
-/// - 只认**底下**的项。`/tmp` 本身不许删（那等于端掉整个系统的临时空间），
-///   所以这里比的是 `root + "/"` 前缀，`p == root` 落不进来；`protectedPaths` 再兜一道。
-/// - `/tmp` 与 `/var/tmp` 都是指向 `/private` 的符号链接，而 `standardizedFileURL`
-///   **不解析软链**——同一个位置会以 `/tmp/x` 和 `/private/tmp/x` 两种写法同时出现
-///   （从 `/` 钻进去走前者，整盘扫 `/private` 走后者）。少认一种，同一份东西换个入口
-///   就会一会儿能删、一会儿不能删。
+/// Two details:
+/// - Only items **beneath** count. `/tmp` itself may not be deleted (that would wipe the system's temp space),
+///   so this compares the `root + "/"` prefix and `p == root` doesn't match; `protectedPaths` is a second guard.
+/// - `/tmp` and `/var/tmp` are symlinks into `/private`, and `standardizedFileURL`
+///   **doesn't resolve symlinks**: the same place shows up as both `/tmp/x` and `/private/tmp/x`
+///   (drilling from `/` gives the former, a whole-disk scan of `/private` the latter). Accept only one and the same thing
+///   would be deletable from one entry point but not another.
 public func isDeletable(_ url: URL) -> Bool {
     let p = url.standardizedFileURL.path
     let home = homePath()
@@ -579,12 +612,12 @@ public func isDeletable(_ url: URL) -> Bool {
     return sharedTempRoots.contains { p.hasPrefix($0 + "/") }
 }
 
-/// 这一处**整块**能不能搬进废纸篓：`isDeletable` 说「这个位置归本工具管」，
-/// `isProtected` 说「这一处整块不许动」，两道都得过。
+/// Whether this location can be moved to Trash **as a whole**: `isDeletable` says "this location is ours to manage",
+/// `isProtected` says "this location may not be touched as a whole"; both must pass.
 ///
-/// 判据必须跟 `trashItem` 走同一条，否则界面上会开出空头支票：`~/Library` 在家目录里，
-/// 只查 `isDeletable` 那一行就标成「能删」，而真点下去 `trashItem` 是拒绝的。
-/// 环形上那道「点我，能收走」的亮沿读的正是这条，标错一次那一格就是骗人点击。
+/// The criteria must match `trashItem`, or the UI writes empty promises: `~/Library` is inside home,
+/// checking only `isDeletable` marks it "deletable", but actually clicking makes `trashItem` refuse.
+/// The ring's "click me, reclaimable" highlight reads exactly this; mark it wrong once and that cell baits a click.
 public func isReclaimableWhole(_ url: URL) -> Bool {
     isDeletable(url) && !isProtected(url) && !isInSensitiveTree(url.path)
 }
@@ -600,13 +633,13 @@ public func isBulkSelectable(_ url: URL) -> Bool {
     return parent != foldPath(homePath() + "/Library")
 }
 
-// ── 环形那本「可回收」账的目标集 ──
+// ── Target set for the ring's "reclaimable" ledger ──
 //
-// 环形只认整段可搬，实测一台机器上就报成「96 GB 里 6.3 GB 动得了」，而同一 App 的
-// 缓存页能清 22 GB。招牌画面那个数是产品的承诺，少报三倍跟报错了没区别。
-// 所以可回收量必须落到**具体一处一处**的目标上，而不是「这一整段」。
+// When the ring only accepted whole movable segments, one machine reported "6.3 GB of 96 GB actionable", while the same app's
+// caches page could clear 22 GB. The hero number is the product's promise; under-reporting 3x is as bad as being wrong.
+// So reclaimable must land on **concrete individual** targets, not "this whole segment".
 
-/// 一个点名能搬走的东西：路径 + 它此刻占着多少。
+/// A named thing that can be moved: path + how much it occupies right now.
 public struct ReclaimTarget: Equatable, Hashable {
     public let path: String
     public let size: Int64
@@ -619,17 +652,17 @@ public struct ReclaimTarget: Equatable, Hashable {
     public var url: URL { URL(fileURLWithPath: path) }
 }
 
-/// 「其余」这个桶的归账键：不属于任何一条具名弧的可回收处都归到它下面。
+/// Attribution key for the "other" bucket: reclaimable locations not belonging to any named arc go under it.
 ///
-/// 它住 Core 而不是界面里，是因为它和 `reclaimBucket` 是一对约定——自检要能钉住
-/// 「回 nil 的那些最终去了哪儿」，而 SelfTest 只依赖 Core、摸不到 App target。
-/// 用一个不可能当路径的串：真目录永远不会撞上它。
+/// It lives in Core rather than the UI because it and `reclaimBucket` are a paired contract; the self-test must pin
+/// "where the nil-returning ones end up", and SelfTest depends only on Core, not the App target.
+/// Uses a string that can't be a path: no real directory will ever collide with it.
 public let reclaimRestKey = "__rest__"
 
-/// 收成互不嵌套的一组：父项已经计入，就不该再把子项加第二遍。
+/// Collapse to a non-nested set: once a parent is counted, its children must not be added again.
 ///
-/// 知识库的条目本来就互相套着（`~/Library/Caches` 与它下面的 `~/Library/Caches/Homebrew`
-/// 是同一段字节）。缓存页靠「未勾选就不加总」躲开这件事，环形要加总，只能先去嵌套。
+/// Knowledge-base entries are nested by nature (`~/Library/Caches` and `~/Library/Caches/Homebrew` beneath it
+/// are the same bytes). The caches page avoids this via "unchecked isn't summed"; the ring must sum, so it de-nests first.
 public func dropNested(_ paths: [String]) -> [String] {
     let sorted = Set(paths).sorted()
     return sorted.filter { p in
@@ -639,37 +672,37 @@ public func dropNested(_ paths: [String]) -> [String] {
     }
 }
 
-/// 一批路径**实际**占了多少字节：互相套着的只留最外面那个。
+/// How many bytes a batch of paths **actually** occupies: nested ones keep only the outermost.
 ///
-/// 每个 `bytes` 都是那条路径整棵子树的量，父的数本来就含着子，把子再加一遍就是数两遍。
-/// 所以先去嵌套、再只加留下来的那几个。缓存页的全选合计走这里，
-/// 别按条目自己的 `size` 相加——`~/Library/Caches` 和它下面的 `Caches/Home` 是同一段字节。
+/// Each `bytes` is the whole subtree of that path; the parent already includes the child, adding the child again counts it twice.
+/// So de-nest first, then sum only what remains. The caches page's select-all total goes through here;
+/// don't sum entries' own `size`: `~/Library/Caches` and `Caches/Home` beneath it are the same bytes.
 public func contentsUnionSize(_ sizes: [(path: String, bytes: Int64)]) -> Int64 {
     let byPath = Dictionary(sizes.map { ($0.path, $0.bytes) }, uniquingKeysWith: { a, _ in a })
     return dropNested(Array(byPath.keys)).reduce(Int64(0)) { $0 + (byPath[$1] ?? 0) }
 }
 
-// ── 一层里的一个子项：子目录或文件（文件夹下钻页用）──
+// ── A child within one level: subdirectory or file (for the folder drill-down page) ──
 
-/// 下钻页某一行的身份。跟缓存页那些「解释条目」不同，这里没有知识库、没有四元组解释——
-/// 它只是「这个目录底下有这么个东西，占这么多」。判「动不动得了」靠 `isDeletable`，
-/// 不靠知识库白名单：这一页列的是**任意**一层，绝大多数位置本来就不在知识库里。
+/// Identity of a row on the drill-down page. Unlike caches-page "explained entries", there's no knowledge base or four-part explanation here:
+/// it's just "this directory has such a thing, taking this much". Whether it's actionable comes from `isDeletable`,
+/// not a knowledge-base whitelist: this page lists **any** level, and most locations aren't in the knowledge base at all.
 public struct ChildEntry: Identifiable, Hashable {
     public let path: String
     public let name: String
     public let size: Int64
-    /// 目录能继续钻，文件不能——这一格决定行尾给不给「进入」。
+    /// Directories can be drilled into, files can't; this decides whether the row ends with "Open".
     public let isDir: Bool
-    /// 这一棵子里的文件个数（文件行恒为 1）。光有字节数的话，10 GB 的一堆碎缓存和
-    /// 10 GB 的单个镜像在界面上长得一样，而前者能一条条判、后者不能。
+    /// File count in this subtree (file rows always 1). With bytes only, 10 GB of scattered cache and
+    /// a single 10 GB image look the same in the UI, yet the former can be judged item by item and the latter can't.
     public let files: Int
-    /// 最近一次改动。`nil` = 没读到（权限、或路上全失败）。
+    /// Latest modification. `nil` = not read (permissions, or everything failed along the way).
     public let newest: Date?
-    /// 这棵子树里有没有读不动的目录（errno 是 EPERM/EACCES）。
+    /// Whether this subtree has unreadable directories (errno EPERM/EACCES).
     ///
-    /// 为真时 `size` 只是**读得动的那部分**，不是它真实占盘。界面上得把两种情形分开：
-    /// `size == 0` 是整棵读不动，那个 0 一个字都不能信，不能写成 `0 B`；
-    /// `size > 0` 是只缺了一块，数字照给，但得说明它是个下限。
+    /// When true, `size` is only **the readable part**, not the real disk usage. The UI must distinguish two cases:
+    /// `size == 0` means the whole tree was unreadable; that 0 can't be trusted at all and must not be written as `0 B`;
+    /// `size > 0` means only a piece is missing; show the number, but say it's a lower bound.
     public let unreadable: Bool
 
     public var id: String { path }
@@ -687,15 +720,15 @@ public struct ChildEntry: Identifiable, Hashable {
     }
 }
 
-/// 一个目录**这一层**的完整拆分。
+/// The complete breakdown of **this level** of a directory.
 ///
-/// `entries` 是逐行列出来的那几行（目录与文件混排、按占盘降序），`total` 是这一层
-/// **全部**子项的合计。两者之差就是尾巴那句「另有 N 项，合计 X」——所以列表里那几行
-/// 加上尾巴那句，正好等于 `total`，这一屏的账加得起来。
+/// `entries` are the rows listed one by one (dirs and files mixed, sorted by size descending); `total` is the sum of
+/// **all** children at this level. The difference is the trailing "N more items, totaling X"; so the listed rows
+/// plus that trailing line equal `total` exactly, and this screen's ledger adds up.
 ///
-/// 全应用只此一份「下一级」的实现：总览页摊开一行、文件夹详情页列一层，都走同一个
-/// `dirLevel`（后者多要文件那一档）。两套之间只要差一格，同一台机器上点开同一层
-/// 就会看见两份不一样的名单。
+/// There's only one "next level" implementation in the whole app: expanding a row on the overview and listing a level on folder details both use the same
+/// `dirLevel` (the latter also wants files). If the two differed by even one cell, opening the same level on the same machine
+/// would show two different lists.
 public struct DirLevel {
     public var entries: [ChildEntry]
     public var total: Int64
@@ -715,10 +748,10 @@ public struct DirLevel {
     }
 }
 
-/// 一批桶路径里谁离得最近算谁的：给 `path` 找**最长**的那个祖先前缀。
+/// Among bucket paths, the closest one wins: find the **longest** ancestor prefix for `path`.
 ///
-/// 用最长而不是第一个，是因为环形同时有 `~/Library` 和 `~/Library/Developer` 这样的父子桶，
-/// 归到父桶会让子桶那一段被计两次。
+/// Longest rather than first, because the ring has parent/child buckets like `~/Library` and `~/Library/Developer`;
+/// attributing to the parent would count the child segment twice.
 public func reclaimBucket(of path: String, in buckets: [String]) -> String? {
     var best: String? = nil
     for b in buckets where path == b || path.hasPrefix(b + "/") {

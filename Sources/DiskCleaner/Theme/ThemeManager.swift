@@ -1,21 +1,21 @@
 import SwiftUI
 
-// ── 皮肤持有者：选择 / 持久化 / 解锁 / 试穿 ────────────────────────────────
+// ── Skin holder: selection / persistence / unlocking / try-on ────────────────────────────────
 //
-// 「这套皮肤能不能用」只有 `usable(_:unlocked:)` 一个判定入口（编译期开关 + 解锁记录），
-// `canUse(_:)` 只是拿当前解锁集喂它。要改判定只动这两处，视图一行不动：
-//   canUse(_:)  —— 能不能用
-//   unlock(_:)  —— 怎么记为可用
+// "Can this skin be used" has a single decision point, `usable(_:unlocked:)` (compile-time switch + unlock records);
+// `canUse(_:)` just feeds it the current unlocked set. To change the rule touch only these two; views stay untouched:
+//   canUse(_:)  -- whether it can be used
+//   unlock(_:)  -- how it gets recorded as usable
 
 final class ThemeManager: ObservableObject {
     static let shared = ThemeManager()
 
     @Published private(set) var current: Theme
-    /// 已解锁的进阶皮肤 id（`Channel.showsPricing` 为真时才参与判定）
+    /// IDs of unlocked premium skins (only considered when `Channel.showsPricing` is true)
     @Published var unlockedPremiumIDs: Set<String> = []
-    /// 试穿中的皮肤 id：能看能摸，不写入偏好，切走即还原
+    /// Skin ID being tried on: viewable and interactive, not written to preferences, reverts on switching away
     @Published private(set) var tryingID: String?
-    /// 明暗模式：nil = 跟随系统，否则强制
+    /// Appearance mode: nil = follow system, otherwise forced
     @Published var forcedScheme: ColorScheme? {
         didSet {
             switch forcedScheme {
@@ -30,7 +30,7 @@ final class ThemeManager: ObservableObject {
 
     private enum Keys {
         static let selected = "diskcleaner.theme.id"
-        /// v0.2 及以前用的键，升级时要搬家
+        /// Key used in v0.2 and earlier; migrated on upgrade
         static let legacySelected = "diskcleaner.skin.id"
         static let unlocked = "diskcleaner.theme.premium.unlocked"
         static let forcedScheme = "diskcleaner.theme.forcedScheme"
@@ -44,9 +44,9 @@ final class ThemeManager: ObservableObject {
         let unlocked = Set(defaults.stringArray(forKey: Keys.unlocked) ?? [])
         unlockedPremiumIDs = unlocked
         current = Self.usable(candidate, unlocked: unlocked) ? candidate : SkinCatalog.defaultSkin
-        // 逐屏实拍要用深色/玻璃皮验外框，而偏好里存的是浅皮：给个环境变量入口。
-        // 截图模式随后还会自己 `useForSnapshot(同一个 id)`，两边算出来是一张脸；
-        // 这一支管的是「不带 DISKWISE_SHOTS、直接双击开起来看外框」那条路。
+        // Per-screen captures need dark/glass skins to check the window chrome, but preferences hold a light skin: provide an env var entry point.
+        // Snapshot mode later calls `useForSnapshot(same id)` itself, so both sides resolve to the same look;
+        // this branch covers the path "no DISKWISE_SHOTS, just double-click to open and inspect the chrome".
         if let forced = SnapshotMode.requestedSkinID, let skin = SkinCatalog.byID(forced) {
             current = skin
         }
@@ -56,17 +56,17 @@ final class ThemeManager: ObservableObject {
         if migrated != saved || stored == nil { defaults.set(migrated, forKey: Keys.selected) }
     }
 
-    /// 实际生效的皮肤：试穿优先于已选
+    /// The effective skin: try-on takes precedence over the selection
     var effective: Theme {
         (tryingID.flatMap { SkinCatalog.byID($0) }) ?? current
     }
 
-    /// 实际生效的明暗：App 级开关优先于皮肤自带
+    /// The effective appearance: the app-level switch takes precedence over the skin's own
     var effectiveScheme: ColorScheme? {
         forcedScheme ?? effective.scheme
     }
 
-    /// 能不能用：开关关闭时全部放行；开关打开时按 tier + 解锁记录。
+    /// Whether usable: with the switch off everything passes; with it on, decided by tier + unlock records.
     static func usable(_ theme: Theme, unlocked: Set<String>) -> Bool {
         !Channel.showsPricing || theme.tier == .free || unlocked.contains(theme.id)
     }
@@ -84,7 +84,7 @@ final class ThemeManager: ObservableObject {
         return true
     }
 
-    /// 试穿：先穿上身再决定留不留。锁定态不许直接 select，只能试。
+    /// Try-on: wear it first, then decide whether to keep it. Locked skins can't be selected directly, only tried on.
     func startTrying(_ theme: Theme) {
         guard theme.isPaid, !canUse(theme) else { return }
         tryingID = theme.id
@@ -94,15 +94,15 @@ final class ThemeManager: ObservableObject {
         tryingID = nil
     }
 
-    /// 截图模式专用：把皮肤直接穿上身，但不碰偏好。
-    /// 皮肤页那张「使用中」徽章读的是 `current`，只往渲染器注入 Theme 的话，
-    /// 图里画着晨雾、徽章却指着作者上次选的那套——徽章会撒谎。
+    /// Snapshot mode only: put the skin on directly without touching preferences.
+    /// The skin page's "In use" badge reads `current`; injecting only the Theme into the renderer would
+    /// draw Morning Mist while the badge points at the author's last pick: the badge would lie.
     func useForSnapshot(_ theme: Theme) {
         tryingID = nil
         current = theme
     }
 
-    /// 记为已解锁：当前实现是直接放行
+    /// Record as unlocked: the current implementation simply allows it
     func unlock(_ theme: Theme) {
         unlockedPremiumIDs.insert(theme.id)
         defaults.set(Array(unlockedPremiumIDs), forKey: Keys.unlocked)

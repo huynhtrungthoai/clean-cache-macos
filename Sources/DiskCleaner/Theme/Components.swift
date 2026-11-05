@@ -989,7 +989,7 @@ struct VolumeChip: View {
                         .shadow(color: theme.palette.tint.opacity(0.6),
                                 radius: isDark ? 4.5 : 0)
                     if showsFree {
-                        Text(LF("可用 %@", human(u.available)))
+                        Text(LF("%@ free", human(u.available)))
                             .font(theme.bodyFont(.caption2))
                             .monospacedDigit()
                             .foregroundStyle(theme.palette.inkSecondary)
@@ -1072,7 +1072,7 @@ struct GaugeFreshness: View {
                 Circle()
                     .fill(theme.palette.safeFG)
                     .frame(width: 5, height: 5)
-                Text(LF("量完 · %@", Self.stamp(at)))
+                Text(LF("Measured · %@", Self.stamp(at)))
                     .font(theme.numeric(size: 10))
                     .kerning(0.5)
                     .monospacedDigit()
@@ -1080,7 +1080,7 @@ struct GaugeFreshness: View {
                     .fixedSize()
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(LF("上一轮量完于 %@", Self.stamp(at)))
+            .accessibilityLabel(LF("Last full scan finished at %@", Self.stamp(at)))
         }
     }
 
@@ -1095,16 +1095,16 @@ struct GaugeFreshness: View {
         time.locale = Locale(identifier: "en_US_POSIX")   // 小时:分固定两位，不跟地区走
         time.dateFormat = "HH:mm"
         if cal.isDate(date, inSameDayAs: now) {
-            return L("今天") + " " + time.string(from: date)
+            return L("Today") + " " + time.string(from: date)
         }
         if let yesterday = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: now)),
            cal.isDate(date, inSameDayAs: yesterday) {
-            return L("昨天") + " " + time.string(from: date)
+            return L("Yesterday") + " " + time.string(from: date)
         }
         let days = cal.dateComponents([.day],
                                       from: cal.startOfDay(for: date),
                                       to: cal.startOfDay(for: now)).day ?? .max
-        if days < 7 { return LF("%1$d 天前", days) }
+        if days < 7 { return LF("%1$d days ago", days) }
         let day = DateFormatter()
         day.setLocalizedDateFormatFromTemplate("MMMd")    // 跟着系统语言排「10月14日 / Oct 14」
         return day.string(from: date)
@@ -1970,14 +1970,14 @@ struct SweepRing: View {
     /// 真去另一页。
     private func segHelp(_ seg: GaugeSegment) -> String {
         if let hint = seg.hint { return hint }
-        if seg.drill != nil { return LF("点开摊开「%@」的明细", seg.label) }
-        if seg.jumpTo != nil { return LF("点这一条去另一页看「%@」", seg.label) }
+        if seg.drill != nil { return LF("Click to open the details of “%@”", seg.label) }
+        if seg.jumpTo != nil { return LF("Click this slice to see “%@” on another page", seg.label) }
         return seg.label
     }
 
     private var accessibilitySummary: String {
         let parts = segments.filter { !$0.label.isEmpty }.map { "\($0.label) \($0.sizeShown)" }
-        return LF("磁盘占用环形图：%@", parts.joined(separator: L10n.isHanScript ? "，" : ", "))
+        return LF("Disk usage ring: %@", parts.joined(separator: ", "))
     }
 }
 
@@ -2525,23 +2525,23 @@ struct RingLedgerRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(onExpand == nil ? seg.label
-                : (expanded ? LF("收起 %@ 的明细", seg.label)
-                            : LF("摊开 %@ 的明细", seg.label)))
+                : (expanded ? LF("Hide what's inside %@", seg.label)
+                            : LF("Show what's inside %@", seg.label)))
             Spacer(minLength: 6)
             armCluster
             if let onGrant {
                 ThemeButton(kind: .compact, symbol: "lock.open",
-                            title: grantCompact ? "" : L("去授权")) { onGrant() }
-                    .accessibilityLabel(L("去授权"))
-                    .help(L("打开「系统设置 › 隐私与安全性 › 完全磁盘访问权限」；勾完要重启 CleanPilot 才生效"))
+                            title: grantCompact ? "" : L("Grant access")) { onGrant() }
+                    .accessibilityLabel(L("Grant access"))
+                    .help(L("Opens System Settings › Privacy & Security › Full Disk Access; restart CleanPilot once you've ticked it"))
             }
             if let onReveal, let path = seg.path {
-                ThemeButton(kind: .ghost, title: L("访达显示")) { onReveal() }
-                    .help(LF("在访达里打开 %@", path))
+                ThemeButton(kind: .ghost, title: L("Reveal")) { onReveal() }
+                    .help(LF("Open %@ in Finder", path))
             }
             if let onDeepDive, let path = seg.path {
-                ThemeButton(kind: .ghost, title: L("深挖")) { onDeepDive() }
-                    .help(LF("只扫 %@ 这一棵，去大文件页列它名下最大的那些文件", path))
+                ThemeButton(kind: .ghost, title: L("Dig in")) { onDeepDive() }
+                    .help(LF("Scan only %@ and list its largest files on the Large Files page", path))
             }
         }
         .padding(.horizontal, 8)
@@ -2556,10 +2556,10 @@ struct RingLedgerRow: View {
         .contentShape(Rectangle())
         .onHover { onHover?($0) }
         .help(seg.hint ?? (seg.drill == nil ? seg.label
-                                             : LF("点开摊开「%@」的明细", seg.label)))
+                                             : LF("Click to open the details of “%@”", seg.label)))
         .accessibilityElement(children: .combine)
         .accessibilityHint(onExpand == nil ? ""
-                        : LF("点这一行摊开「%@」的明细；带着那道记号的数点两次才收走", seg.label))
+                        : LF("Open this row to see the details of “%@”. The number carrying that mark takes two clicks to clear.", seg.label))
     }
 
     /// 行首那一格：8×8 的档色块，占满 16 pt 的槽，六行的名字才落在同一条竖线上。
@@ -2611,7 +2611,7 @@ struct RingLedgerRow: View {
         .contentShape(Rectangle())
         .onTapGesture { if armable { tap?() } }
         if armable {
-            both.help(LF("点两次把「%@」移进废纸篓", seg.label))
+            both.help(LF("Click twice to move “%@” to the Trash", seg.label))
         } else {
             both
         }
@@ -3062,10 +3062,10 @@ struct LoadingRow: View {
                         let r = progress.snapshot()
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 5) {
-                                Text(L("正在看"))
+                                Text(L("Now scanning"))
                                     .foregroundStyle(theme.palette.inkTertiary)
                                 Text(r.current.isEmpty
-                                     ? L("刚开始，还没进到目录里")
+                                     ? L("Just started — no folder yet")
                                      : displayPath(URL(fileURLWithPath: r.current)))
                                     .foregroundStyle(theme.palette.inkSecondary)
                                     .lineLimit(1)
@@ -3075,16 +3075,16 @@ struct LoadingRow: View {
                                            alignment: .leading)
                             }
                             HStack(spacing: 5) {
-                                Text(LF("已检查 %@",
-                                        cnt(r.files, progress.counted == .files ? "个文件" : "个条目")))
+                                Text(LF("Checked %@",
+                                        cnt(r.files, progress.counted == .files ? "files" : "entries")))
                                 // 找目录那一趟不量体积（node_modules 页），这一格就永远是 0 B。
                                 // 报一个永远不动的 0 是在演示一个不存在的能力——跟「空的那一堆不写」同一条规矩。
                                 if r.bytes > 0 {
                                     Text("·")
-                                    Text(LF("已走过 %@", human(r.bytes)))
+                                    Text(LF("Covered %@", human(r.bytes)))
                                 }
                                 Text("·")
-                                Text(LF("用时 %@", elapsed(r.elapsed)))
+                                Text(LF("Elapsed %@", elapsed(r.elapsed)))
                             }
                             .foregroundStyle(theme.palette.inkTertiary)
                         }
@@ -3129,7 +3129,7 @@ struct NoticeBar: View {
                     .lineLimit(2)
                 Spacer(minLength: 10)
                 if !store.trashHistory.isEmpty {
-                    Button(L("撤销")) { store.notice = store.undoLast() }
+                    Button(L("Undo")) { store.notice = store.undoLast() }
                         .buttonStyle(.plain)
                         .font(theme.bodyFont(.callout).weight(.semibold))
                         .foregroundStyle(theme.palette.tint)
@@ -3142,7 +3142,7 @@ struct NoticeBar: View {
                         .foregroundStyle(theme.palette.inkTertiary)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(L("关闭提示"))
+                .accessibilityLabel(L("Dismiss notice"))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)

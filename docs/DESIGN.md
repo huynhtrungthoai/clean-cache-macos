@@ -1,137 +1,137 @@
-# 设计规则
+# Design rules
 
-> 中文优先。代码里的 token 定义在 `Sources/DiskCleaner/Theme/`，本文只写**为什么**这么定。
-> 改任何视觉之前先读这一页——这里的每条规则都对应过一次返工。
+> Token definitions live in `Sources/DiskCleaner/Theme/`; this page records only **why** they are what they are.
+> Read it before changing anything visual — every rule here cost a round of rework.
 >
-> **English.** Design rules, Chinese-first. The two that never bend: body text is never colored
-> (only `palette.ink` / `inkSecondary` — color belongs to icon tiles, the ring chart, buttons and
-> badges), and page headers never sit on a fully saturated block. The advanced tier is defined by
-> *structural* differences (typeface, radius, elevation, motion), never by a different color scheme.
+> The two that never bend: body text is never colored (only `palette.ink` / `inkSecondary` — color
+> belongs to icon tiles, the ring chart, buttons and badges), and page headers never sit on a fully
+> saturated block. The advanced tier is defined by *structural* differences (typeface, radius,
+> elevation, motion), never by a different color scheme.
 
 ---
 
-## 1. 两条跨皮肤铁律
+## 1. Two cross-skin rules
 
-1. **正文禁用染色。** 主文字只用 `palette.ink`，次要文字只用 `palette.inkSecondary`（每套皮肤各自定义）。
-   彩色只出现在图标块、环形图、徽章、按钮、数据强调上。
-   理由：这是 DaisyDisk / CleanMyMac 那一类工具的通行纪律——正文一旦开始变色，界面立刻从"工具"掉进"海报"。
-2. **页头 / banner 禁止整块高饱和底色。** 用卡片 + 描边，色彩只留在小面积元素里。
-   整块高饱和头图会把视觉重心钉在页面上沿，下面的数据反而没人看。
+1. **Body text is never tinted.** Primary text uses only `palette.ink`, secondary text only `palette.inkSecondary` (each skin defines its own).
+   Color appears only on icon tiles, the ring chart, badges, buttons and data highlights.
+   Why: this is the standard discipline of tools like DaisyDisk / CleanMyMac — once body text starts changing color, the UI drops from "tool" to "poster".
+2. **Page headers / banners never get a solid saturated fill.** Use a card plus stroke; keep color in small elements.
+   A saturated header block pins the visual weight to the top edge, and nobody looks at the data below.
 
-## 2. 皮肤阵容：基础 3 + 进阶 3
+## 2. Skin lineup: 3 basic + 3 advanced
 
-| 皮肤 | 分组 | 结构身份（不是配色身份） |
+| Skin | Group | Structural identity (not a color identity) |
 |---|---|---|
-| 晨雾 `dawn` | 基础·默认 | 系统字 + 软阴影 + squircle，中性纸 + 克制蓝，深色模式一等公民 |
-| 石墨 `graphite` | 基础 | 同上骨架，深色 |
-| 薄荷 `mint` | 基础 | 圆体 + 大圆角 + 圆形图标块，绿 |
-| 极夜黑金 `midnight` | 进阶 | **衬线 + 直角（radius 2–4）+ 零阴影 + 零动效** → 克制的贵 |
-| 极光玻璃 `aurora` | 进阶 | **圆体 + radius 22 + 真 `.thinMaterial` + 弹性动画 + 光斑背景** → 外放的炫 |
-| 水墨宣纸 `inkwash` | 进阶 | **衬线 + 纸纹纤维 + 方印章 + 静止** → 有文化的慢 |
+| Morning Fog `dawn` | Basic, default | System font + soft shadow + squircle, neutral paper + restrained blue, dark mode first-class |
+| Graphite `graphite` | Basic | Same skeleton, dark |
+| Mint `mint` | Basic | Rounded font + large radius + circular icon tiles, green |
+| Midnight Gold `midnight` | Advanced | **Serif + square corners (radius 2–4) + no shadow + no motion** → restrained luxury |
+| Aurora Glass `aurora` | Advanced | **Rounded font + radius 22 + real `.thinMaterial` + springy animation + glow backdrop** → extroverted flash |
+| Ink Wash `inkwash` | Advanced | **Serif + paper fiber + square seal + still** → cultured and slow |
 
-代码里的 `tier` 在默认构建里不参与任何判定——六套皮肤一律可用，`Channel.showsPricing` 为真时它才成为分组依据。
+In the default build `tier` decides nothing — all six skins are available; it only becomes a grouping key when `Channel.showsPricing` is true.
 
-## 3. 三条皮肤设计铁律
+## 3. Three skin design rules
 
-1. **差异写在骨架上，不写在配色上。** 只换色的皮肤没有存在的必要——所以三套进阶在字体面、圆角、
-   阴影/材质、动效签名上**互不相同，且都不同于基础三套**。加新皮肤先问：它的骨架差异在哪？
-   答不上来就别加。
-2. **进阶组靠气质拉开，不靠功能拉开。** 皮肤只是外观层，六套功能完全一致——差异永远不落在能力上。
-3. **皮肤卡必须渲染真实缩略图。** 早期的卡片是三个色块，看不出皮肤之间的差别；现在每张卡直接渲该皮肤下的
-   迷你侧边栏 + 环形图 + 列表行 + 按钮。皮肤页在 `AppearanceView`，另有试穿（`tryingID`）：
-   先穿上身、顶部横幅一键还原。
+1. **Differences live in the skeleton, not the palette.** A recolor-only skin has no reason to exist — so the three advanced skins
+   differ from each other **and from the three basic ones** in typeface, radius, shadow/material and motion signature.
+   Before adding a skin, ask: where is its skeleton different? No answer, no skin.
+2. **The advanced group is set apart by character, not features.** Skins are a presentation layer; all six are functionally identical — the difference never lands on capability.
+3. **Skin cards must render a real thumbnail.** Early cards were three color swatches and you couldn't tell skins apart; now each card renders
+   a mini sidebar + ring chart + list rows + buttons in that skin. The Skins page is `AppearanceView`, with a try-on (`tryingID`):
+   wear it first, one-tap revert from the top banner.
 
-## 4. 架构约束
+## 4. Architecture constraints
 
-- `Theme` = 纯数据；`ThemeManager` 单例 + UserDefaults 三个 key（选中的皮肤 / 已解锁数组 / 明暗开关）；
-  视图通过 `@Environment(\.theme)` 拿，`.themed()` 注入。
-- **不要**再往 `ContentView` 上加 `.id(skin.id)` 强制重建子树——那个写法每换一次肤就把全盘扫描重跑一遍。
-- 视图层只准引用 `theme.*` token，禁止手写色值、禁止假设浅色。
-  环是这条唯一一直没执行的地方，现在执行了：环的材质数全在 `Theme/RingStyle.swift`
-  （`RingStyle.shipped` ＝ 今天线上那一版），绘制全在 `Theme/RingLayers.swift`，
-  `SweepRing` 只留状态、事件与无障碍。**出第二款材质 = 在 `RingStyle` 加一份数、`RingLook` 加一个 case**，
-  视图那一边一行不动；哪套皮肤穿哪一款由 `skins.json` 的 `"ring"` 那一行定，用户投放的 JSON 走同一个字段。
-  今天六套内置皮肤都写 `"crystal"`，所以 `shipped` 现在只由 `DISKWISE_RING_STYLE=standard` 这一格开关取到。
-  每个数为什么是这个数，记在它自己的字段注释上。
-- 环上那三档不上色的灰（量到了动不了 / 压根没量到 / 空闲）跟着**皮肤**取色、两套材质共用一份，
-  所以它们在 `Components.swift` 的「环上的墨」那一段（`SweepRing.blockedInk` 等），不在 `RingStyle` 里。
-  搬过去的理由是**第二个用环的人**：首次运行那一屏的示例环读同一份配方，不重抄一遍近似色。
-- 但**几何不进材质，也不进配置**：哪一段画在哪儿、这一点归谁，只由 Core 的 `GaugeLayout` 算
-  （`DiskCleanerCore/RingGeometry.swift`）。用户投放的 JSON 可以按 id 选形状、可以改材质，
-  不可以定义区间——区间归错一位，代价是第二下点击删错目录。
-- 明暗：皮肤自带 `scheme`（可为 nil = 跟随系统），App 级 `forcedScheme` 优先于皮肤。
-- 皮肤可用性只有一个开关：`Channel.showsPricing`（编译期 `-DAPPSTORE`，见 `build.sh` 的 `CHANNEL=appstore`）。
-  默认关闭 → 六套皮肤全可用，不渲染分区标题和 `PaywallSheet`；为真时判定只落在 `ThemeManager.canUse`
-  和 `unlock` 两处，**视图零改动**。
-- 每个页面只有**一个**滚动容器，列表行用 `LazyVStack` 自绘卡片。macOS 13 的 `ScrollView` 会把内容的完整
-  高度当成自己的理想尺寸上报，套两层会让 detail 列胀到一千多磅、整个界面被顶出窗口。
+- `Theme` = pure data; `ThemeManager` singleton + three UserDefaults keys (selected skin / unlocked array / light-dark toggle);
+  views get it via `@Environment(\.theme)`, injected with `.themed()`.
+- **Don't** add `.id(skin.id)` to `ContentView` again to force a subtree rebuild — that reruns the full disk scan on every skin change.
+- Views may reference only `theme.*` tokens: no hand-written color values, no assuming light mode.
+  The ring was the one place this was never enforced; now it is: ring material numbers all live in `Theme/RingStyle.swift`
+  (`RingStyle.shipped` = the version shipping today), drawing all lives in `Theme/RingLayers.swift`,
+  and `SweepRing` keeps only state, events and accessibility. **A second material = one more set of numbers in `RingStyle` plus one case in `RingLook`**;
+  the view side doesn't change a line. Which skin wears which material is set by the `"ring"` line in `skins.json`; user-supplied JSON uses the same field.
+  Today all six built-in skins say `"crystal"`, so `shipped` is reachable only through the `DISKWISE_RING_STYLE=standard` switch.
+  Why each number is what it is is recorded in its own field comment.
+- The ring's three uncolored grays (measured but can't touch / never measured / free) take their color from the **skin** and are shared by both materials,
+  so they live in the "ring ink" section of `Components.swift` (`SweepRing.blockedInk` etc.), not in `RingStyle`.
+  The reason to move them was the **second user of the ring**: the sample ring on the first-run screen reads the same recipe instead of copying approximate colors.
+- But **geometry stays out of materials and out of config**: which segment is drawn where and who owns which point is computed only by Core's `GaugeLayout`
+  (`DiskCleanerCore/RingGeometry.swift`). User-supplied JSON may pick a shape by id and change the material,
+  but may not define ranges — one range off by one, and the second click deletes the wrong folder.
+- Light/dark: a skin carries its own `scheme` (nil = follow system); the app-level `forcedScheme` takes precedence over the skin.
+- Skin availability has a single switch: `Channel.showsPricing` (compile-time `-DAPPSTORE`, see `CHANNEL=appstore` in `build.sh`).
+  Off by default → all six skins available, no section headers and no `PaywallSheet`; when true the decision lives only in `ThemeManager.canUse`
+  and `unlock`, **with zero view changes**.
+- Each page has exactly **one** scroll container; list rows are self-drawn cards in a `LazyVStack`. macOS 13's `ScrollView` reports the content's full
+  height as its ideal size; nesting two inflates the detail column to over a thousand points and pushes the whole UI out of the window.
 
-## 5. 图标块与图表配色
+## 5. Icon tiles and chart colors
 
-- 侧边栏/列表图标块**不再全皮肤通用**：形状跟 `tileShape`（squircle / circle / rounded），配色跟
-  `tileStrategy`——基础三套用 `.spectrum`（`Theme.spectrumLight` / `spectrumDark` 两条 10 色品牌光谱，
-  与侧边栏条目一一对应，靠颜色认路），两套衬线克制皮肤（黑金 / 水墨）用 `.duotone`
-  （`palette.tint` 与 `palette.ink` 交替，靠形状和位置认路）。
-  理由：**满屏彩虹会毁掉安静**——水墨宣纸本身是浅色纸面、并不是深色皮肤，照样不该出彩虹，
-  所以选策略看的是气质不是明暗。图标前景：深色 + spectrum 用 `palette.paper`，其余纯白。
-- `chart[]` 有位置语义，**不要当成随机色板取用**：
-  - `chart[0..3]`：环形图前 4 大分段和主要数据强调（要饱和）；
-  - `chart[4]`：固定是**退让色**——"其他已用"分段、次要条，任何"不想被注意"的数据都用它。
-    它常年是环形仪表最大的一段，抢色就把整张图糊了；每套皮肤的 `chart[4]` 都刻意选成低饱和灰调，
-    加皮肤时保持这个约定；
-  - `chart[5]`：留给 node_modules / Docker 的进度条。
+- Sidebar/list icon tiles are **no longer the same across skins**: shape follows `tileShape` (squircle / circle / rounded), color follows
+  `tileStrategy` — the three basic skins use `.spectrum` (`Theme.spectrumLight` / `spectrumDark`, two 10-color brand spectrums
+  mapped one-to-one to sidebar entries, so you navigate by color), and the two restrained serif skins (Midnight Gold / Ink Wash) use `.duotone`
+  (`palette.tint` alternating with `palette.ink`, so you navigate by shape and position).
+  Why: **a screenful of rainbow destroys the calm** — Ink Wash is a light paper surface, not a dark skin, and still shouldn't get a rainbow,
+  so the strategy follows character, not light/dark. Icon foreground: dark + spectrum uses `palette.paper`, everything else pure white.
+- `chart[]` has positional meaning; **don't treat it as a random palette**:
+  - `chart[0..3]`: the ring chart's top 4 segments and primary data highlights (saturated);
+  - `chart[4]`: always the **yielding color** — the "other used" segment, secondary bars, any data that shouldn't draw attention.
+    It is usually the largest segment of the ring gauge, so a loud color would muddy the whole chart; every skin's `chart[4]` is deliberately a low-saturation gray tone.
+    Keep this convention when adding skins;
+  - `chart[5]`: reserved for node_modules / Docker progress bars.
 
-## 6. 列表行的解剖与算术
+## 6. List row anatomy and arithmetic
 
-总览那屏先做出来，回头一看其余数据页全都不像同一个 App：不是配色问题，是**两套行解剖并存**——
-每页各自画一个带描边的白盒、一个单档数字、一条按页面配色的比例条，而总览是一块容器 + 一道分段线 +
-两档数字 + 只有"能动"才着色。所以下面这八条从总览抄过来，十个页面一律照办。
-前七条是排版与算术，第八条是交互。
+Once the Overview screen was built, none of the other data pages looked like the same app: not a color problem but **two row anatomies coexisting** —
+each page drew its own stroked white box, a single-tier number and a page-colored proportion bar, while Overview used one container + a divider line +
+two-tier numbers + color only for what "can be acted on". So these eight rules were copied from Overview, and all ten pages follow them.
+The first seven are typography and arithmetic; the eighth is interaction.
 
-1. **一块只有一个展示级数字。** 一行里最大的那个字号只留给"这一行值多少"。
-   原先重复文件页的组名、"每份 2.4 GB"、"可收回 14.1 GB" 三样挤在同一档，眼睛得自己找主数。
-2. **数与单位分两档。** 数字 `numeric(size: 21, weight: .light)`（能动）或 17（只能看），
-   单位单独一行档：11pt + `inkTertiary`。理由很实际：单位是次要信息，跟着数字一起 21pt 会把
-   一列撑宽，而且"GB" 抢了数字的戏。实现上把 `human()` 那串字按最后一个空格切成两半，
-   不在界面里重新格式化。
-3. **行不套盒子，用一道 1px 分段线。** `separator.opacity(0.7)` 高 1 磅、左右各缩 8 磅，
-   只在非首行画。每行一个描边白盒时，27 行就是 27 个卡片，看着像 27 件不相干的东西；
-   分段线说的是"这些行是一张表"。
-4. **彩色只给动得了的。** 能进废纸篓的行：`SweepRing.lamp` 灯色 + 灯色比例条 + 勾选框；
-   动不了的行：`inkSecondary` 数字 + 灰条，勾选框位置留空但不可见。
-   原先比例条按页面配色（重复页粉、Docker 页橙），颜色说的是"你在哪一页"而不是"这行能不能删"——
-   后者才是这一屏唯一需要一眼分清的轴，页面身份交给徽章和页头。
-5. **悬停双向点亮不下沉到列表页。** 总览 6 行可以做"点行亮环、点环亮行"，
-   缓存页 27 项、大文件页 61 个文件照做等于闪屏。列表页只留一行自己的底光。
-6. **比大小靠每行那道定宽 232 的比例条，不靠整条拼满 100% 的账带。** 总览曾经在最底下画一条
-   七段彩带当尺，2026-09-27 撤掉：带子上没有标签，读不出哪一段是哪一段，而同一本账在右边
-   那六行里逐行写得更清楚。尺现在长在它描述的那一行上（`RingLedgerRow` 的 `fraction`），
-   宽度与列表页同一档——换页时"一格的长度代表多少"不用重新学。
-7. **印出来的数必须加得起来。** 一整列数字用 `addableHumanColumn`（整列强行统一到总数那个单位 +
-   最大余数法补位），页头那句合计用 `sumShown`（拿屏幕上那几串字做加减，不是拿字节）。
-   曾经实拍到一屏"12.0 + 6.3 + 4.2 = 22.5"而圆心写 22.4：字节加法一步没错，错在每项都各自四舍五入过。
-   用户第一个核对的就是这个，同一屏两本账就是工具的错。整列统一单位后会被压成 `0.0` 的极小行
-   印成 `< 0.1`——它确实占着地方，只是不到这一列的最小刻度，印 0.0 等于告诉用户这行不存在。
-8. **动手两段式只留在英雄卡。** 环形上"点一下上膛、再点才收走"是招牌画面的编排；
-   列表页本来就是多选，勾选框 + 系统确认框是对的，不该再套一层。
+1. **One display-size number per block.** The largest type in a row is reserved for "what this row is worth".
+   The Duplicates page used to put the group name, "2.4 GB each" and "14.1 GB reclaimable" at the same size, leaving the eye to find the main number.
+2. **Number and unit on two tiers.** Number `numeric(size: 21, weight: .light)` (actionable) or 17 (view only),
+   unit on its own tier: 11pt + `inkTertiary`. The reason is practical: the unit is secondary, and at 21pt next to the number it widens
+   the column and "GB" steals the number's thunder. Implementation splits the `human()` string at its last space;
+   the UI never reformats it.
+3. **Rows aren't boxed; use a 1px divider.** `separator.opacity(0.7)`, 1pt tall, inset 8pt each side,
+   drawn only on non-first rows. With a stroked white box per row, 27 rows are 27 cards and look like 27 unrelated things;
+   a divider says "these rows are one table".
+4. **Color only for what can be acted on.** Rows that can go to the Trash: `SweepRing.lamp` color + lamp-colored proportion bar + checkbox;
+   rows that can't: `inkSecondary` number + gray bar, checkbox slot kept but invisible.
+   Bars used to follow the page color (pink on Duplicates, orange on Docker), so color said "which page you're on" instead of "can this row be deleted" —
+   the latter is the only axis this screen needs to separate at a glance; page identity belongs to badges and the header.
+5. **Two-way hover highlighting doesn't go down to list pages.** Overview's 6 rows can do "hover a row lights the ring, hover the ring lights the row";
+   on the Caches page's 27 items or the Big Files page's 61 files that would flicker. List pages keep only a row's own highlight.
+6. **Size is compared by each row's fixed 232-wide proportion bar, not by a ledger strip that fills 100%.** Overview once drew a
+   seven-segment color strip at the bottom as a ruler; it was removed on 2026-09-27: the strip had no labels, you couldn't tell which segment was which, and the same ledger
+   was spelled out more clearly row by row in the six rows on the right. The ruler now lives on the row it describes (`RingLedgerRow`'s `fraction`),
+   at the same width as on list pages — switching pages doesn't require relearning "how much one cell is worth".
+7. **Printed numbers must add up.** A column of numbers uses `addableHumanColumn` (force the whole column into the total's unit +
+   largest-remainder rounding); the header total uses `sumShown` (adds the strings on screen, not the bytes).
+   A screenshot once showed "12.0 + 6.3 + 4.2 = 22.5" with 22.4 in the ring center: the byte addition was right; each item had been rounded on its own.
+   That is the first thing users check, and two ledgers on one screen is the tool's fault. Tiny rows that would collapse to `0.0` in a unified column
+   print as `< 0.1` — they do take space, just below the column's smallest tick; printing 0.0 tells the user the row doesn't exist.
+8. **Two-step action stays on the hero card only.** "Tap once to arm, tap again to sweep" on the ring is choreography for the signature screen;
+   list pages are multi-select already, and checkbox + system confirmation dialog is correct — don't add another layer.
 
-两条从这条规矩里顺出来的算术修复，属于"数字对不上"而不是"不好看"：
+Two arithmetic fixes follow from this rule; they are about "numbers don't match", not "doesn't look nice":
 
-- **有包含关系的条目不能重复相加。** 知识库条目互相套着（`~/Library/Caches` 和它下面的
-  `Caches/Homebrew` 是同一段字节），全选合计必须先 `dropNested` 再按并集加，页脚同时点明合计口径。
-- **明细行不计入页头总数。** 概览段（`docker df` 那四行）已经是合计，下面又列了它名下的具体镜像，
-  两者相加等于把同一批字节报两遍。页头只加概览段，明细只列不加。
-- **借来的数要先换成这一页的尺，而且要带上它自己的主语。** Docker 报的 `13.04GB (54%)` 是 1024 进制、
-  单位粘在数字上，直接印出来就和同一屏那几行十进制两档数字是两种口径；`scanDocker` 先解析成字节，
-  界面再用 `human(_:inRulerOf:)` 印成 `14.0 GB`。更要紧的是措辞：「可回收」在本工具里专指
-  "我们替你搬得走的"，而这一页一项都动不了，所以那句写成「Docker Desktop 里还能清 14.0 GB（54%）」——
-  否则页头挂着「本页不设删除键」、行里却写着「可回收 13 GB」，同一屏自己跟自己对不上。
+- **Nested entries must not be added twice.** Knowledge-base entries nest (`~/Library/Caches` and its child
+  `Caches/Homebrew` are the same bytes), so select-all totals must `dropNested` first and sum the union, and the footer states how the total is counted.
+- **Detail rows don't count toward the header total.** The summary section (the four `docker df` rows) is already a total, and the specific images under it are listed below;
+  adding both reports the same bytes twice. The header sums only the summary; details are listed, not added.
+- **Borrowed numbers must be converted to this page's ruler, and keep their own subject.** Docker's `13.04GB (54%)` is base-1024
+  with the unit glued to the number; printed as-is it is a different convention from the decimal two-tier numbers on the same screen. `scanDocker` parses it to bytes first,
+  and the UI prints it with `human(_:inRulerOf:)` as `14.0 GB`. Wording matters more: "reclaimable" in this tool means specifically
+  "what we can move for you", and this page can't touch a single item, so the line reads "Docker Desktop can still free 14.0 GB (54%)" —
+  otherwise the header says "this page has no delete button" while a row says "13 GB reclaimable", and the screen contradicts itself.
 
-## 7. 文案语气
+## 7. Copy tone
 
-界面文案是产品的一部分，不是占位符。中文写"人话"（"空间都去哪了""哪些缓存敢删"），英文按英文重写而不是
-逐句对译（"Where did the space go" → "Gone, but still here" 这类）。两条约束：
+UI copy is part of the product, not a placeholder. Write in plain human language ("Where did the space go", "Which caches are safe to delete"); translations are rewritten
+for each language rather than translated sentence by sentence (e.g. "Gone, but still here"). Two constraints:
 
-- 英文一律美式拼写（recognize / color / summarize），不混英式。
-- 数量词交给 `cnt()`：中文直接拼量词，英文查单复数表。模板里**不要再写一遍量词**，
-  否则会出 "27 items items listed"。
+- English uses American spelling throughout (recognize / color / summarize), no British mix.
+- Counts go through `cnt()`, which looks up each language's singular/plural table. **Don't write the unit again in the template**,
+  or you get "27 items items listed".

@@ -9,6 +9,11 @@ struct DiskCleanerApp: App {
     @StateObject private var themeManager = ThemeManager.shared
 
     init() {
+        // Release builds: drop every DISKWISE_* developer hook before anything reads it
+        // (screenshot hooks can trash files without a confirm; the home shim moves the
+        // deletion boundary). @StateObject initialisers run later, so this is first.
+        scrubDevEnvironment()
+        migrateLegacyDefaults()
         // 截图模式自己 exit，不会回到这里往下走
         if let outDir = SnapshotMode.requestedDir { SnapshotMode.run(outDir: outDir) }
         // 沙盒版：先把上次的家目录授权续上，晚一步就会有页面拿容器路径去扫描
@@ -62,7 +67,7 @@ struct DiskCleanerApp: App {
         // 留一颗按下去只会响一声的键。
         .commands {
             CommandGroup(replacing: .appSettings) {
-                Button(L("设置")) {
+                Button(L("Settings")) {
                     // 和点侧栏同一条：换目的地，顺手把导航历史压成只有这一站。
                     store.resetNav(to: .menuLaunch)
                     NSApp.activate(ignoringOtherApps: true)
@@ -75,7 +80,7 @@ struct DiskCleanerApp: App {
             // 键写在菜单上而不是裸 `?`：裸 `?` 会先进菜单键等价这一层，把反馈邮箱里那个
             // 问号吃掉（稿子的 `?` 是无修饰键，网页里不会跟输入框抢，原生窗口里会）。
             CommandGroup(replacing: .help) {
-                Button(L("清理说明")) {
+                Button(L("How cleaning works")) {
                     Prefs.shared.reopenGuide()
                     NSApp.activate(ignoringOtherApps: true)
                 }
@@ -309,13 +314,13 @@ final class AppStore: ObservableObject {
     }
 
     func undoLast() -> String {
-        guard let last = trashHistory.popLast() else { return L("没有可撤销的操作") }
+        guard let last = trashHistory.popLast() else { return L("Nothing to undo") }
         do {
             try untrash(last)
-            return LF("已放回：%@", last.displayName)
+            return LF("Restored: %@", last.displayName)
         } catch {
             trashHistory.append(last)
-            return LF("撤销失败：%@", error.localizedDescription)
+            return LF("Undo failed: %@", error.localizedDescription)
         }
     }
 
@@ -382,25 +387,25 @@ enum AppPanel: Hashable, CaseIterable {
     /// 侧边栏标题：这里给源文案（key），显示前才查词表
     var titleKey: String {
         switch self {
-        case .smart: return "智能扫描"
-        case .overview: return "空间总览"
-        case .big: return "大文件"
-        case .old: return "很久没动"
-        case .dup: return "重复文件"
+        case .smart: return "Smart Scan"
+        case .overview: return "Overview"
+        case .big: return "Large Files"
+        case .old: return "Long Untouched"
+        case .dup: return "Duplicates"
         case .nodemodules: return "node_modules"
-        case .docker: return "Docker 占用"
-        case .devcache: return "开发缓存"
-        case .caches: return "应用缓存"
-        case .orphans: return "卸载残留"
-        case .uninstall: return "卸载 App"
-        case .trash: return "废纸篓"
-        case .crashDumps: return "崩溃转储"
-        case .diagReports: return "系统诊断报告"
-        case .observation: return "观察"
-        case .appearance: return "外观皮肤"
-        case .feedback: return "问题反馈"
-        case .folderDrill: return "文件夹详情"
-        case .menuLaunch: return "菜单栏与启动"
+        case .docker: return "Docker Usage"
+        case .devcache: return "Dev Caches"
+        case .caches: return "App Caches"
+        case .orphans: return "Leftovers"
+        case .uninstall: return "Uninstall Apps"
+        case .trash: return "Trash"
+        case .crashDumps: return "Crash dumps"
+        case .diagReports: return "System diagnostics reports"
+        case .observation: return "Observation"
+        case .appearance: return "Skins"
+        case .feedback: return "Feedback"
+        case .folderDrill: return "Folder details"
+        case .menuLaunch: return "Menu Bar & Launch"
         case .agent: return "AI Agent"
         }
     }
@@ -601,32 +606,32 @@ struct ContentView: View {
     private var sidebarTheme: Theme { SkinCatalog.byID("graphite") ?? theme }
 
     private var sidebar: some View {
-        ScrollView {
+        List {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 10) {
                     BrandLogo(size: 38)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(Product.name).font(sidebarTheme.prose(size: 19, weight: .bold))
                             .lineLimit(1).minimumScaleFactor(0.85)
-                        Text(L("让 Mac 轻装上阵")).font(sidebarTheme.prose(size: 11))
+                        Text(L("A little care for your Mac")).font(sidebarTheme.prose(size: 11))
                             .foregroundStyle(sidebarTheme.palette.inkSecondary)
                     }
                 }
                 .foregroundStyle(sidebarTheme.palette.ink)
                 .padding(.horizontal, 8).padding(.top, 12).padding(.bottom, 20)
                 sideSection("", [.smart])
-                sideSection(L("清理"), [.caches, .trash])
-                sideSection(L("应用程序"), [.uninstall, .orphans])
-                sideSection(L("文件与空间"), [.overview, .big, .dup])
+                sideSection(L("Clean up"), [.caches, .trash])
+                sideSection(L("Applications"), [.uninstall, .orphans])
+                sideSection(L("Files & Storage"), [.overview, .big, .dup])
                 DisclosureGroup(isExpanded: $showsAdvanced) {
                     sideSection("", [.old, .devcache, .nodemodules, .docker])
                     if scans.diagnostics.hasFindings {
-                        sideSection(L("诊断与转储"), [.crashDumps, .diagReports])
+                        sideSection(L("Diagnostics and dumps"), [.crashDumps, .diagReports])
                     }
                     sideSection("", [.observation])
                     if !Channel.isAppStore { sideSection("", [.agent]) }
                 } label: {
-                    Text(L("更多工具"))
+                    Text(L("More Tools"))
                         .font(sidebarTheme.prose(size: 12, weight: .medium))
                         .foregroundStyle(sidebarTheme.palette.inkSecondary)
                 }
@@ -635,13 +640,15 @@ struct ContentView: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(SidebarMaterial().ignoresSafeArea())
         .disabled(grant.needsGrant)
         .opacity(grant.needsGrant ? 0.4 : 1)
-        // 红绿灯那一条用 safeAreaInset 而不是 VStack 兄弟节点：后者在 macOS 13 会把
-        // 整列撑到内容的理想高度，窗口不够高时上下各切一截（页头直接消失）。
-        // 让出来的这条铺上侧边栏材质，滚过头的内容从它底下穿过去，就是系统的滚动边缘效果。
         .safeAreaInset(edge: .top, spacing: 0) {
             ChromeStrip(leading: Chrome.trafficLightInset).background(SidebarMaterial())
         }
@@ -684,14 +691,14 @@ struct ContentView: View {
             Divider().overlay(sidebarTheme.palette.separator).padding(.horizontal, 12)
             HStack(spacing: 16) {
                 Button { store.resetNav(to: .menuLaunch) } label: {
-                    Label(L("设置"), systemImage: "gearshape")
+                    Label(L("Settings"), systemImage: "gearshape")
                 }
                 Button { store.resetNav(to: .appearance) } label: {
                     Image(systemName: "paintpalette")
-                }.help(L("外观皮肤"))
+                }.help(L("Skins"))
                 Button { store.resetNav(to: .feedback) } label: {
                     Image(systemName: "questionmark.circle")
-                }.help(L("问题反馈"))
+                }.help(L("Feedback"))
             }
             .buttonStyle(.plain)
             .font(sidebarTheme.prose(size: 12))
@@ -773,7 +780,7 @@ struct ContentView: View {
         // 只留这一处标题：给「窗口」菜单和旁白用，标题栏本身已经不再显示文字。
         // 页面里那十处 navigationTitle 全删了——同一个名字在屏幕上出现两遍，
         // 一遍还是系统字号，看起来就像另一层没对齐的界面。
-        .navigationTitle(grant.needsGrant ? L("访问授权") : (selection?.title ?? L("空间总览")))
+        .navigationTitle(grant.needsGrant ? L("Folder access") : (selection?.title ?? L("Overview")))
     }
 
     @ViewBuilder private var page: some View {
@@ -816,10 +823,10 @@ private struct BackButton: View {
             Button {
                 store.goBack()
             } label: {
-                Label(L("返回"), systemImage: "chevron.backward")
+                Label(L("Back"), systemImage: "chevron.backward")
             }
             .labelStyle(.titleAndIcon)
-            .help(LF("回到「%@」", store.backTargetLabel))
+            .help(LF("Back to “%@”", store.backTargetLabel))
         }
     }
 }
@@ -894,7 +901,7 @@ private struct NewBadge: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        Text(L("新"))
+        Text(L("New"))
             .font(theme.bodyFont(.caption2).weight(.semibold))
             .foregroundStyle(theme.palette.tint)
             .padding(.horizontal, 5)
@@ -919,5 +926,20 @@ private struct SidebarMaterial: View {
             ThemedBackdrop()
             theme.palette.paper.opacity(theme.elevation == .glass ? 0.62 : 0.55)
         }
+    }
+}
+
+/// One-time copy of preferences from the legacy bundle ID (`com.dreamofxm.diskcleaner`) into
+/// CleanPilot's own domain. Keys already set in the new domain win; AppKit's own `NS*` keys
+/// (window frames etc.) are skipped. The sandbox bookmark comes along but will not resolve
+/// under the new identity; `HomeAccess.restore()` then clears it and asks again.
+private func migrateLegacyDefaults() {
+    let d = UserDefaults.standard
+    let marker = "cleanpilot.migratedLegacyDefaults.v1"
+    guard Bundle.main.bundleIdentifier == Product.bundleID, !d.bool(forKey: marker) else { return }
+    defer { d.set(true, forKey: marker) }
+    guard let old = d.persistentDomain(forName: Product.legacyBundleID) else { return }
+    for (k, v) in old where !k.hasPrefix("NS") && d.object(forKey: k) == nil {
+        d.set(v, forKey: k)
     }
 }

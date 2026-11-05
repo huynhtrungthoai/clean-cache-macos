@@ -1,29 +1,29 @@
 {
-  "_说明": "DiskWise 皮肤目录。这里只有数据，没有逻辑：加一套皮肤 = 往 skins 数组里加一个对象，不用改任何 Swift 代码，也不用重编译工具链（在 GitHub 网页上编辑本文件、提 PR 即可）。顺序就是皮肤页的展示顺序，第一套是默认皮肤。缺字段会取下面的默认值，整份文件读不出来时界面退回内置的朴素皮肤，不会空白。",
-  "_字段": {
-    "id": "唯一标识，小写字母与连字符，改了等于换了一套皮肤（用户已选的偏好会失效）",
-    "name": "皮肤名。中文原文即本地化 key，其它语言的译文在 Sources/DiskCleaner/Resources/<语言>.lproj/Localizable.strings",
-    "tagline": "一句话标语，同上走词表",
-    "tier": "free | premium。只在 Channel.showsPricing 为真时参与分组，默认构建下六套一律可用",
-    "scheme": "null | light | dark。皮肤自带明暗，null 表示跟随系统",
-    "color": "颜色写法 #RRGGBB，或带透明度 #RRGGBB@0.5",
-    "face": "字体设计 system | rounded | serif",
+  "_about": "CleanPilot skin catalog. Data only, no logic: adding a skin = adding one object to the skins array, no Swift changes and no toolchain rebuild (edit this file on GitHub and open a PR). Array order is the order on the Skins page; the first skin is the default. Missing fields take the defaults below; if the whole file can't be read, the UI falls back to a plain built-in skin instead of going blank.",
+  "_fields": {
+    "id": "Unique id, lowercase letters and hyphens. Changing it makes it a different skin (users' saved choice is lost)",
+    "name": "Skin name. The English source text is the localization key; translations live in Sources/DiskCleaner/Resources/<lang>.lproj/Localizable.strings",
+    "tagline": "One-line tagline, localized the same way",
+    "tier": "free | premium. Only used for grouping when Channel.showsPricing is true; in the default build all six are available",
+    "scheme": "null | light | dark. The skin's own appearance; null follows the system",
+    "color": "Colors are #RRGGBB, or with alpha #RRGGBB@0.5",
+    "face": "Font design system | rounded | serif",
     "displayWeight": "ultraLight | thin | light | regular | medium | semibold | bold | heavy | black",
-    "elevation": "卡片靠什么浮出背景 flat（只描边）| soft（柔和投影）| hard（实心偏移影）| glass（材质加高光）",
-    "backdrop": "{kind: solid} 或 {kind: wash, colors:[…]} 纵向渐层 或 {kind: aurora, colors:[…]} 径向光斑 或 {kind: fiber, tint, strength} 纸纹",
-    "motion": "动效签名 still | calm | springy",
-    "tileShape": "图标块形状 circle | squircle | rounded",
-    "tileStrategy": "图标块上色策略 spectrum（一类一色）| duotone（主色与墨色交替）",
-    "ring": "环的材质：standard（线上那一版）| crystal（水晶棒，横截面有折射亮线）。名字认不出时回 standard，不影响这套皮肤其余部分。可选值只有这几个，因为材质是写在 Swift 里的一堆数（Sources/DiskCleaner/Theme/RingStyle.swift），加一款新材质要先在那里加数——JSON 能**选**材质、能选形状，但不能定义几何，理由记在 DiskCleanerCore/RingGeometry.swift 的「几何不进配置」那条线上。缺这一字段 = standard，所以老文件不用改。",
-    "_铁律": "所有皮肤共用：正文只用 ink / inkSecondary，绝不染色；彩色只给图标块、环形图、按钮、徽章；页头禁止整块高饱和底色。"
+    "elevation": "How cards lift off the background: flat (stroke only) | soft (soft shadow) | hard (solid offset shadow) | glass (material plus highlight)",
+    "backdrop": "{kind: solid}, or {kind: wash, colors:[...]} vertical gradient, or {kind: aurora, colors:[...]} radial glows, or {kind: fiber, tint, strength} paper texture",
+    "motion": "Motion signature still | calm | springy",
+    "tileShape": "Icon tile shape circle | squircle | rounded",
+    "tileStrategy": "Icon tile coloring: spectrum (one color per category) | duotone (alternating accent and ink)",
+    "ring": "Ring material: standard (the shipping one) | crystal (crystal rod with refractive highlights in cross-section). Unknown names fall back to standard without affecting the rest of the skin. Only these values exist because a material is a set of numbers in Swift (Sources/DiskCleaner/Theme/RingStyle.swift); a new material needs numbers added there first. JSON can **pick** a material and a shape but cannot define geometry; the reasoning is in DiskCleanerCore/RingGeometry.swift under \"geometry stays out of config\". Missing field = standard, so old files need no changes.",
+    "_rule": "Applies to all skins: body text uses only ink / inkSecondary, never tinted; color goes only to icon tiles, the ring chart, buttons and badges; page headers never get a solid saturated fill."
   },
   "version": 1,
   "updated": "2026-10-21",
   "skins": [
     {
       "id": "dawn",
-      "name": "晨雾",
-      "tagline": "像系统自带的那样自然",
+      "name": "Morning Fog",
+      "tagline": "As native as it gets",
       "tier": "free",
       "scheme": null,
       "palette": {
@@ -67,8 +67,8 @@
     },
     {
       "id": "graphite",
-      "name": "石墨",
-      "tagline": "夜里干活不刺眼",
+      "name": "Graphite",
+      "tagline": "Easy on the eyes at night",
       "tier": "free",
       "scheme": "dark",
       "palette": {
@@ -112,8 +112,8 @@
     },
     {
       "id": "mint",
-      "name": "薄荷",
-      "tagline": "刚擦过的桌子",
+      "name": "Mint",
+      "tagline": "A freshly wiped desk",
       "tier": "free",
       "scheme": null,
       "palette": {
@@ -157,8 +157,8 @@
     },
     {
       "id": "midnight",
-      "name": "极夜黑金",
-      "tagline": "直角、细线、不解释",
+      "name": "Polar Night",
+      "tagline": "Square corners, hairlines, no explaining",
       "tier": "premium",
       "scheme": "dark",
       "palette": {
@@ -202,8 +202,8 @@
     },
     {
       "id": "aurora",
-      "name": "极光玻璃",
-      "tagline": "会呼吸的那一层",
+      "name": "Aurora Glass",
+      "tagline": "A layer that breathes",
       "tier": "premium",
       "scheme": null,
       "palette": {
@@ -247,8 +247,8 @@
     },
     {
       "id": "inkwash",
-      "name": "水墨宣纸",
-      "tagline": "一纸一印，墨分五色",
+      "name": "Ink & Paper",
+      "tagline": "Ink on rice paper, five shades deep",
       "tier": "premium",
       "scheme": null,
       "palette": {

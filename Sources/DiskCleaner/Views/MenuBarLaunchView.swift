@@ -1,13 +1,13 @@
 import SwiftUI
 import DiskCleanerCore
 
-// ── 菜单栏与启动页（稿子①新加的那一屏）──────────────────────────────────────
+// ── Menu bar & launch page (the new screen from mockup 1) ──────────────────────────────────────
 //
-// 这一屏只有两格开关，是 ⌘, 该落的地方。稿子①写着：扫描范围、单位口径、语言这些
-// 等有真实需要再进来，不预先摆空位——所以这里不铺一屏系统设置的仿制品。
+// This screen has just two toggles; it's where ⌘, should land. Mockup 1 says scan scope, units, language and the like
+// come in only when there's a real need; no pre-placed empty slots - so we don't lay out a knock-off of System Settings here.
 //
-// 两行下面那两句注解走 inkTertiary 灰小字，不给灯色也不给警示色：
-// 跨皮肤铁律第 1 条，正文不染色；而且这两格都不是「动得了的东西」。
+// The two notes under the rows use small inkTertiary gray text, no accent or warning color:
+// cross-skin rule #1, body text is not tinted; and neither toggle is "something that can be moved".
 
 struct MenuBarLaunchView: View {
     @Environment(\.theme) private var theme
@@ -17,8 +17,8 @@ struct MenuBarLaunchView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 16) {
                 PageHeader(symbol: "gearshape.2",
-                           title: L("菜单栏与启动"),
-                           subtitle: L("App 没开窗的时候，你从哪里找到它"),
+                           title: L("Menu Bar & Launch"),
+                           subtitle: L("Where to find CleanPilot when no window is open"),
                            variant: .display)
 
                 ScrollView {
@@ -29,7 +29,7 @@ struct MenuBarLaunchView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
-                    // 与反馈页同宽：两格开关加一句注解，铺开成横幅就读成设置了整个 macOS
+                    // Same width as the feedback page: two toggles plus a note, stretched into a banner, reads like settings for all of macOS
                     .frame(maxWidth: 820, alignment: .leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -41,17 +41,17 @@ struct MenuBarLaunchView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: 两格开关
+    // MARK: Two toggles
 
     private var switches: some View {
         VStack(spacing: 0) {
-            SwitchLine(title: L("在菜单栏显示可用容量"),
-                       note: L("只看卷的剩余空间，不扫盘、不读你的文件 · 默认开着"),
+            SwitchLine(title: L("Show free space in the menu bar"),
+                       note: L("It only asks the volume how much is left — no disk scan, no reading your files · on by default"),
                        isOn: Binding(get: { prefs.menuBarEnabled },
                                      set: { prefs.setMenuBar($0) }))
             Divider().overlay(theme.palette.separator)
-            SwitchLine(title: L("开机时启动 CleanPilot"),
-                       note: L("不随机启动时，菜单栏只在 App 开着时出现 · 系统设置里允许后才生效"),
+            SwitchLine(title: L("Open at Login"),
+                       note: L("Without it the number shows only while CleanPilot is open · it takes effect once you allow it in System Settings"),
                        isOn: Binding(get: { prefs.loginItemEnabled },
                                      set: { prefs.setLoginItem($0) })) {
                 if prefs.loginItemBlocked { openSettingsButton }
@@ -64,14 +64,14 @@ struct MenuBarLaunchView: View {
 
     private var openSettingsButton: some View {
         ThemeButton(kind: .compact, symbol: "arrow.up.right.square",
-                    title: L("打开系统设置")) { Prefs.openLoginItemsSettings() }
+                    title: L("Open System Settings")) { Prefs.openLoginItemsSettings() }
             .fixedSize()
     }
 
-    // MARK: 诊断（PR-4）
+    // MARK: Diagnostics (PR-4)
     //
-    // 探针默认关是隐私承诺的边界（PRIVACY.md「读什么」）；保留策略默认关、
-    // 首次遇到再生类别只在崩溃转储页建议一次，不自动启用。
+    // Probes off by default is the boundary of the privacy promise (PRIVACY.md "What we read"); retention policy is off by default,
+    // and is suggested only once on the crash-dump page the first time a regenerating category is seen; never auto-enabled.
 
     @AppStorage("diagnosticProbeEnabled") private var probeEnabled = false
     @AppStorage("retention.crash-dumps.enabled") private var retentionOn = false
@@ -79,17 +79,17 @@ struct MenuBarLaunchView: View {
 
     private var diagnostics: some View {
         VStack(spacing: 0) {
-            SectionLabel(text: L("诊断"))
-            SwitchLine(title: L("内容探针"),
-                       note: L("只读崩溃转储文件头 64 KB · 结果仅存本机 · 默认关闭"),
+            SectionLabel(text: L("Diagnostics"))
+            SwitchLine(title: L("Content probe"),
+                       note: L("Reads only the first 64 KB of crash dumps · results stay local · off by default"),
                        isOn: $probeEnabled)
             Divider().overlay(theme.palette.separator)
-            SwitchLine(title: L("保留策略：崩溃转储"),
-                       note: LF("保留最新 %@，超出部分手动修剪；不自动执行", cnt(retentionCount, "个")),
+            SwitchLine(title: L("Retention: crash dumps"),
+                       note: LF("Keep the newest %@; trim the rest manually — never automatic", cnt(retentionCount, "items")),
                        isOn: $retentionOn)
             if retentionOn {
                 HStack {
-                    ThemeStepper(label: L("保留个数"), value: $retentionCount,
+                    ThemeStepper(label: L("Keep count"), value: $retentionCount,
                                  range: 100...10_000, step: 100)
                     Spacer()
                 }
@@ -103,15 +103,15 @@ struct MenuBarLaunchView: View {
     }
 
     private var footnote: some View {
-        Text(L("这一屏只有上面两行。扫描范围、单位口径、语言这些等有真实需要再进来。"))
+        Text(L("These two switches are the whole page. Scan scope, unit basis and language come when there’s a real need for them."))
             .font(theme.bodyFont(.caption))
             .foregroundStyle(theme.palette.inkTertiary)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
 
-/// 一行 = 一句会说人话的开关名 + 一句口径注解 + 系统那颗开关。
-/// 开关尺寸不自己画：`.switch` 就是系统设置里那一只，稿子①量到的 38×22 pt 是它的实测值。
+/// One row = a toggle name in plain language + a note on what it means + the system switch.
+/// The switch is not custom-drawn: `.switch` is the one from System Settings; the 38×22 pt measured on mockup 1 is its actual size.
 private struct SwitchLine<Trailing: View>: View {
     @Environment(\.theme) private var theme
     var title: String

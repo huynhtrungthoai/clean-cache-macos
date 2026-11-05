@@ -1,18 +1,18 @@
 import Foundation
 
-// ── 导航历史（返回那一步靠的就是它）────────────────────────────────────────
+// ── Navigation history (what the Back step relies on) ──────────────────────────
 //
-// 「返回」这件事里唯一会算错的地方是**去重**。
+// The only thing in "Back" that can go wrong is **deduplication**.
 //
-// 用户在下钻页按「上一级」往回走时，父目录本来就在历史里。要是把这一步当成
-// 新的一站追加，历史会变成「…父、子、父」——按返回又跳回子目录，来回打转出不去。
-// 所以规则是：要去的这一站已经记过，就回到它、把它后面那段全丢掉；没记过才追加。
+// When the user walks back with "Up one level" on the drill-down page, the parent is already in history. Appending
+// that step as a new stop turns history into "…parent, child, parent", and Back jumps into the child again, looping forever.
+// So the rule: if the destination was already recorded, return to it and drop everything after it; append only if new.
 //
-// 这条规则跟界面无关，所以放在 Core 里由自检逐条钉住，不靠界面那边自觉。
+// This rule is UI-independent, so it lives in Core and is pinned case by case by the self-test, not left to the UI.
 //
-// 元素是泛型的：这里只管顺序和去重，不认「页」或「目录」是什么——那是 UI 的事。
-// 栈里**恒有至少一站**，`current` 就是此刻这一屏；少了这个不变量，
-// 第一跳之后栈底是空的，返回会退到没有页面的地方。
+// Elements are generic: this only handles order and dedup, it doesn't know what a "page" or "directory" is; that's the UI's job.
+// The stack **always holds at least one stop**, and `current` is the screen right now; without this invariant
+// the stack bottom would be empty after the first hop and Back would land on no page.
 
 public struct NavStack<Stop: Equatable> {
     public private(set) var stops: [Stop]
@@ -21,19 +21,19 @@ public struct NavStack<Stop: Equatable> {
         stops = [stop]
     }
 
-    /// 还能不能往回退。只剩一站时不能。
+    /// Whether we can still go back. Not when only one stop remains.
     public var canGoBack: Bool { stops.count > 1 }
 
-    /// 此刻这一站。
+    /// The current stop.
     public var current: Stop { stops[stops.count - 1] }
 
-    /// 上一站。返回按钮那行说明写的就是它的名字；没有上一站时为 nil。
+    /// The previous stop. The Back button's caption shows its name; nil when there is none.
     public var previous: Stop? { canGoBack ? stops[stops.count - 2] : nil }
 
-    /// 落一站。
+    /// Push a stop.
     ///
-    /// 返回「位置是否真的动了」：已经在栈顶就是 false。视图据此决定要不要重新
-    /// 去量那一层——同一处点两次不该重扫。
+    /// Returns "whether the position actually moved": false if already on top. The view uses this to decide whether
+    /// to re-measure that level; clicking the same place twice should not rescan.
     @discardableResult
     public mutating func arrive(_ stop: Stop) -> Bool {
         if let i = stops.lastIndex(of: stop) {
@@ -45,7 +45,7 @@ public struct NavStack<Stop: Equatable> {
         return true
     }
 
-    /// 退一步，返回退到哪一站。只剩一站时什么都不做、返回 nil。
+    /// Step back; returns the stop we land on. Does nothing and returns nil when only one stop remains.
     @discardableResult
     public mutating func pop() -> Stop? {
         guard canGoBack else { return nil }
@@ -53,10 +53,10 @@ public struct NavStack<Stop: Equatable> {
         return stops[stops.count - 1]
     }
 
-    /// 「根」入口：历史压成只有这一站，返回随即失效。
+    /// "Root" entry: collapses history to just this stop, so Back becomes unavailable.
     ///
-    /// 点侧栏、点面包屑首格都是在**重新挑目的地**，不是往下走一步。
-    /// 把这些也记进历史的话，人会在缓存页按返回跳到大文件页，谁都不想要这个。
+    /// Clicking the sidebar or the first breadcrumb is **choosing a new destination**, not a step down.
+    /// Recording those would make Back on the Caches page jump to the Large Files page, which nobody wants.
     public mutating func reset(to stop: Stop) {
         stops = [stop]
     }

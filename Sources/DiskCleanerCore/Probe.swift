@@ -1,23 +1,23 @@
 import Foundation
 
-// MARK: - 内容探针与归属（PR-3）
+// MARK: - Content probe & provenance (PR-3)
 //
-// 设计出处：plans/design-diagnostic-dumps-velocity-provenance-2026-10-27.md §5，
-// 评审修订 §2.3：探针默认关闭、只读崩溃转储文件头 64KB、结果仅存本机、展示默认脱敏。
-// 这是对 PRIVACY.md「不读文档内容」承诺的显式放宽，承诺文本已随本 PR 同步改写。
+// Design: plans/design-diagnostic-dumps-velocity-provenance-2026-10-27.md §5,
+// review revision §2.3: probe off by default, reads only the first 64KB of crash dumps, results stay on this machine, display redacted by default.
+// This explicitly relaxes the PRIVACY.md promise "we don't read document contents"; the promise text was rewritten in this PR.
 
-/// 内容探针。只读文件头，不做完整 minidump 解析——v1 要的只是
-/// 「崩溃进程是谁」这一句旁证，不是事故报告。
+/// Content probe. Reads only the file header, no full minidump parsing: v1 only needs
+/// one piece of corroboration, "which process crashed", not an incident report.
 public protocol ContentProbe {
     var maxReadBytes: Int { get }
     func probe(_ url: URL) -> ProbeResult
 }
 
 public struct ProbeResult: Equatable {
-    /// false = 未探测（文件超限/格式不符/读不动），诚实展示，绝不装结论
+    /// false = not probed (file over limit / wrong format / unreadable); shown honestly, never fake a conclusion
     public let probed: Bool
     public let executablePath: String?
-    /// 发起源指纹（键值原文，展示前统一脱敏）
+    /// Originator fingerprints (raw key=value, redacted uniformly before display)
     public let originHints: [String]
 
     public init(probed: Bool, executablePath: String? = nil, originHints: [String] = []) {
@@ -27,10 +27,10 @@ public struct ProbeResult: Equatable {
     }
 }
 
-/// Crashpad minidump 探针：校验 MDMP 魔数，strings 扫描 executable_path 与环境指纹键。
+/// Crashpad minidump probe: checks the MDMP magic, strings-scans for executable_path and environment fingerprint keys.
 public struct CrashpadProbe: ContentProbe {
     public let maxReadBytes = 64 * 1024
-    /// 指纹键的后缀约定：撞上就当发起源线索收下，值展示前打码
+    /// Fingerprint key suffix convention: a hit is taken as an originator clue; the value is masked before display
     static let hintSuffixes = ["_SESSION_ID=", "_TOOL_CALL_ID="]
     static let bundleKey = "CFBundleIdentifier="
 
@@ -41,7 +41,7 @@ public struct CrashpadProbe: ContentProbe {
         defer { try? fh.close() }
         let data = (try? fh.read(upToCount: maxReadBytes)) ?? Data()
         guard data.count >= 4 else { return ProbeResult(probed: false) }
-        // 魔数校验防误伤：不是 minidump 的文件（哪怕是用户误放进来的）一律「未探测」
+        // Magic check prevents false hits: anything that isn't a minidump (even if the user dropped it here) is "not probed"
         guard data.prefix(4) == Data("MDMP".utf8) else { return ProbeResult(probed: false) }
 
         let bytes = [UInt8](data)
@@ -52,7 +52,7 @@ public struct CrashpadProbe: ContentProbe {
         var hints: [String] = []
         for suffix in Self.hintSuffixes {
             if let r = find(suffix, in: bytes) {
-                // 键名 = 从等号处往前回溯的大写段（如 CODEBUDDY）＋ 命中的后缀段（_SESSION_ID）
+                // Key name = uppercase run traced back from the '=' (e.g. CODEBUDDY) + the matched suffix (_SESSION_ID)
                 let back = readKey(in: bytes, before: r.start) ?? ""
                 if let val = readToken(in: bytes, from: r.end), !back.isEmpty {
                     hints.append("\(back)\(suffix)\(val)")
@@ -80,20 +80,20 @@ public struct CrashpadProbe: ContentProbe {
         return nil
     }
 
-    /// 从某处读一个「路径/值」token：到 NUL、换行或控制字符为止
+    /// Read a "path/value" token from a position: up to NUL, newline or a control character
     private func readToken(in bytes: [UInt8], from start: Int) -> String? {
         var out: [UInt8] = []
         var i = start
         while i < bytes.count, bytes[i] >= 0x20, bytes[i] != 0x7F {
             out.append(bytes[i])
             i += 1
-            if out.count > 512 { break }   // 路径没有半 KB 长的，超了就是扫进了垃圾
+            if out.count > 512 { break }   // No path is half a KB long; exceeding that means we scanned into garbage
         }
         let s = String(decoding: out, as: UTF8.self).trimmingCharacters(in: .whitespaces)
         return s.isEmpty ? nil : s
     }
 
-    /// 从键值等号处往回读全大写/数字/下划线组成的键名（CODEBUDDY_SESSION_ID 这种）
+    /// Read back from the '=' a key name made of uppercase/digits/underscores (like CODEBUDDY_SESSION_ID)
     private func readKey(in bytes: [UInt8], before end: Int) -> String? {
         var i = end
         while i > 0 {
@@ -105,14 +105,14 @@ public struct CrashpadProbe: ContentProbe {
     }
 }
 
-/// 一条目的归属结算：目录归属 × 内容归属。
+/// Provenance settlement for one entry: directory provenance × content provenance.
 public struct AttributionOutcome: Equatable {
     public let directoryOwner: String?
     public let contentOwner: String?
     public let mixed: Bool
     public let probed: Bool
     public let samples: Int
-    /// 已脱敏的发起源指纹（KEY=d5•••3f 形态），仅本地展示
+    /// Redacted originator fingerprints (KEY=d5•••3f form), displayed locally only
     public let redactedHints: [String]
 
     public var crossAttribution: Bool {
@@ -122,7 +122,7 @@ public struct AttributionOutcome: Equatable {
     }
 }
 
-/// 抽样策略：最新 3 + 最旧 1 + 随机 1（设计稿屏③）。文件不足 5 个就全抽。
+/// Sampling strategy: newest 3 + oldest 1 + random 1 (design mock screen ③). Fewer than 5 files: sample all.
 public func probeSampleFiles(under dirs: [URL], limit: Int = 5) -> [URL] {
     let fm = FileManager.default
     var files: [(url: URL, mtime: Date)] = []
@@ -143,7 +143,7 @@ public func probeSampleFiles(under dirs: [URL], limit: Int = 5) -> [URL] {
     return picked
 }
 
-/// 结算归属：样本全一致才出「内容归属」；不一致标「混合来源」；一个都没探上就是未探测。
+/// Settle provenance: "content provenance" only if all samples agree; disagreement is "mixed sources"; none probed is "not probed".
 public func resolveAttribution(directoryOwner: String?, results: [ProbeResult]) -> AttributionOutcome {
     let probed = results.filter(\.probed)
     guard !probed.isEmpty else {
@@ -161,7 +161,7 @@ public func resolveAttribution(directoryOwner: String?, results: [ProbeResult]) 
                               redactedHints: hints.map(redactHint))
 }
 
-/// 路径 → 进程名：最后一段去掉 .app 外壳的话取包名，否则取可执行名
+/// Path → process name: last component with the .app wrapper stripped gives the bundle name, otherwise the executable name
 public func ownerName(of executablePath: String) -> String {
     let url = URL(fileURLWithPath: executablePath)
     var parts = url.pathComponents.filter { !$0.isEmpty && $0 != "/" }
@@ -172,7 +172,7 @@ public func ownerName(of executablePath: String) -> String {
     return executablePath
 }
 
-/// 指纹脱敏：值只留头 2 尾 2，中间打点。防的是截图外泄，不是防本机阅读。
+/// Fingerprint redaction: keep only the first 2 and last 2 chars of the value, dots in between. Guards against screenshot leaks, not local reading.
 public func redactHint(_ hint: String) -> String {
     guard let eq = hint.firstIndex(of: "=") else { return hint }
     let key = String(hint[hint.startIndex..<eq])
@@ -183,7 +183,7 @@ public func redactHint(_ hint: String) -> String {
     return "\(key)=\(head)••••\(tail)"
 }
 
-/// 探针总开关。默认关——隐私承诺的边界在这（PRIVACY.md「读什么」随本键同步改写）。
+/// Probe master switch. Off by default: this is the privacy-promise boundary (PRIVACY.md "what we read" is rewritten in sync with this key).
 public func diagnosticProbeEnabled() -> Bool {
     UserDefaults.standard.object(forKey: "diagnosticProbeEnabled") as? Bool ?? false
 }

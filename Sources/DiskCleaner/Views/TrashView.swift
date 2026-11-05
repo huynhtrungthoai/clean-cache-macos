@@ -17,8 +17,8 @@ struct TrashView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PageHeader(symbol: "trash", title: L("废纸篓"),
-                       subtitle: L("东西都在这躺着，后悔药管够——清空才真没"),
+            PageHeader(symbol: "trash", title: L("Trash"),
+                       subtitle: L("Everything waits here, fully reversible — emptying is the point of no return"),
                        variant: .display)
                 .pagePadding()
                 .padding(.top, 14)
@@ -29,7 +29,7 @@ struct TrashView: View {
                     HStack(alignment: .top, spacing: 12) {
                         ThemedCard {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(L("废纸篓现在"))
+                                Text(L("Trash right now"))
                                     .font(theme.bodyFont(.caption))
                                     .foregroundStyle(theme.palette.inkTertiary)
                                 SizeNumber(shown: sizeText, size: 34)
@@ -44,12 +44,12 @@ struct TrashView: View {
                         // 谁才是「这一屏的答案」得靠读字；而右边那颗在没往里移东西时拍的是一枚零。
                         ThemedCard(alt: true) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(L("本次移入"))
+                                Text(L("Moved this session"))
                                     .font(theme.bodyFont(.caption))
                                     .foregroundStyle(theme.palette.inkTertiary)
                                 SizeNumber(shown: sized(store.trashedBytes), size: 17,
                                            color: theme.palette.inkSecondary)
-                                Text(LF("%@可撤销", cnt(store.trashHistory.count, "项")))
+                                Text(LF("Undo available for %@", cnt(store.trashHistory.count, "items")))
                                     .font(theme.bodyFont(.caption2))
                                     .foregroundStyle(theme.palette.inkTertiary)
                             }
@@ -62,7 +62,7 @@ struct TrashView: View {
                             Image(systemName: "shield.checkerboard")
                                 .font(.system(size: 14))
                                 .foregroundStyle(theme.palette.tint)
-                            Text(L("本工具所有的“删除”都只是移入废纸篓。真正释放空间要清空——这一步由访达执行，访达会让你确认后才动手。"))
+                            Text(L("Every “delete” here only moves items to the Trash. Freeing space for real means emptying it — a step Finder carries out, and Finder makes you confirm first."))
                                 .font(theme.bodyFont(.callout))
                                 .foregroundStyle(theme.palette.inkSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -72,11 +72,11 @@ struct TrashView: View {
 
                     HStack(spacing: 10) {
                         ThemeButton(kind: .secondary, symbol: "folder",
-                                    title: L("访达中打开")) { openTrashInFinder() }
+                                    title: L("Open in Finder")) { openTrashInFinder() }
                         ThemeButton(kind: .secondary, symbol: "arrow.clockwise",
-                                    title: L("重新统计")) { refresh() }
+                                    title: L("Recount")) { refresh() }
                         ThemeButton(kind: .secondary, symbol: "arrow.uturn.backward",
-                                    title: L("撤销上次"),
+                                    title: L("Undo last"),
                                     isDisabled: store.trashHistory.isEmpty) {
                             Sound.shared.play(.undo)
                             message = store.undoLast()
@@ -85,11 +85,11 @@ struct TrashView: View {
                         Spacer()
                         if canCommandFinder {
                             ThemeButton(kind: .danger, symbol: "flame",
-                                        title: L("清空废纸篓"),
+                                        title: L("Empty Trash"),
                                         isDisabled: info?.items == 0) { confirmEmpty = true }
                         } else {
                             ThemeButton(kind: .danger, symbol: "flame",
-                                        title: L("在访达中清空"),
+                                        title: L("Empty in Finder"),
                                         isDisabled: info?.items == 0) { emptyInFinder() }
                         }
                     }
@@ -102,7 +102,7 @@ struct TrashView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                             if automationGate {
                                 ThemeButton(kind: .compact, symbol: "lock.open",
-                                            title: L("打开自动化设置")) {
+                                            title: L("Open Automation settings")) {
                                     openAutomationPane()
                                 }
                             }
@@ -110,7 +110,7 @@ struct TrashView: View {
                     }
 
                     if !store.trashHistory.isEmpty {
-                        SectionLabel(text: L("本次操作记录"), detail: L("从新到旧"))
+                        SectionLabel(text: L("This session"), detail: L("Newest first"))
                         historyList
                         Text(historyNote)
                             .font(theme.bodyFont(.caption))
@@ -129,11 +129,11 @@ struct TrashView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { refresh() }
         .onDisappear { measureTask?.cancel() }
-        .alert(L("清空废纸篓？"), isPresented: $confirmEmpty) {
-            Button(L("取消"), role: .cancel) {}
-            Button(L("交给访达清空"), role: .destructive) { empty() }
+        .alert(L("Empty the Trash?"), isPresented: $confirmEmpty) {
+            Button(L("Cancel"), role: .cancel) {}
+            Button(L("Empty via Finder"), role: .destructive) { empty() }
         } message: {
-            Text(L("这一步交给访达执行，本工具不会自己永久删除任何东西；清空后不可恢复。"))
+            Text(L("Finder carries this step out — this app never deletes anything permanently on its own. Emptying cannot be undone."))
         }
     }
 
@@ -178,13 +178,13 @@ struct TrashView: View {
     /// 这一列与右上那张卡是同一笔账：印出来的那几串字相加就是卡上那个数
     /// （整列按卡的单位分摊过，不各说各的）。
     private var historyNote: String {
-        LF("这一列 %1$d 行相加 %2$@，就是上面「本次移入」那个数。",
+        LF("These %1$d rows add up to %2$@ — the number under “Moved this session” above.",
            store.trashHistory.count, sized(store.trashedBytes))
     }
 
     private var sizeText: String {
-        if measuring { return L("统计中…") }
-        guard let info else { return L("未知") }
+        if measuring { return L("Counting…") }
+        guard let info else { return L("Unknown") }
         return sized(info.bytes)
     }
 
@@ -199,10 +199,10 @@ struct TrashView: View {
     /// 主数下面那行小字。「本次没往里移东西」这句是给右边那张灰底卡作的说明：
     /// 那颗零是真的零，不是没量到。
     private var footLine: String {
-        if measuring { return L("正在数过每一个条目…") }
-        guard let info else { return L("这里读不到，以访达为准") }
-        var s = cnt(info.items, "项")
-        if store.trashedBytes == 0 { s += " · " + L("本次没往里移东西") }
+        if measuring { return L("Counting every item…") }
+        guard let info else { return L("Not readable here — Finder has the real number") }
+        var s = cnt(info.items, "items")
+        if store.trashedBytes == 0 { s += " · " + L("nothing moved this session") }
         return s
     }
 
@@ -213,7 +213,7 @@ struct TrashView: View {
 
     private func emptyInFinder() {
         automationGate = false
-        message = L("已打开废纸篓所在的访达窗口：按 ⌘⇧⌫，访达会让你确认后才动手。")
+        message = L("The Trash is open in Finder — press ⌘⇧⌫ and Finder will ask you to confirm before it empties.")
         openTrashInFinder()
     }
 
@@ -233,7 +233,7 @@ struct TrashView: View {
 
     private func empty() {
         automationGate = false
-        message = L("正在请访达清空…")
+        message = L("Asking Finder to empty it…")
         // 清空这一步要同步等访达的事件回执：它可能先弹自己的确认框，清空一个大
         // 废纸篓也能持续好几秒。搁主线程上点完就冻住，看着就是「按了没反应」。
         Task {
@@ -254,7 +254,7 @@ struct TrashView: View {
                 let before = job.free ?? 0
                 let after = volumeUsage()?.free ?? before
                 await MainActor.run {
-                    message = LF("已请访达清空，真实释放约 %@（以访达完成为准）。", human(max(0, after - before)))
+                    message = LF("Asked Finder to empty it — roughly %@ actually freed (count it once Finder finishes).", human(max(0, after - before)))
                     store.clearHistory()
                     refresh()
                 }
@@ -267,19 +267,19 @@ struct TrashView: View {
                 switch t {
                 case .automationDenied:
                     automationGate = true
-                    message = LF("清空失败：%@。系统没放行本工具指挥访达——在「隐私与安全性 → 自动化」里勾上 Finder，勾完重启本工具再试。", why)
+                    message = LF("Emptying failed: %@. macOS hasn't let this app drive Finder — tick Finder under Privacy & Security → Automation, then relaunch CleanPilot and try again.", why)
                 case .finderUnreachable:
                     // 指令压根没送到访达，报「访达拒绝执行」是错怪它。沙盒版就是这样：
                     // 系统不让本工具联系访达，「去勾自动化」也是死路，只能在访达里清。
-                    message = LF("清空失败：%@。这一步只能在访达里做——已打开废纸篓所在的访达窗口，按 ⌘⇧⌫，访达会让你确认后才动手。", why)
+                    message = LF("Emptying failed: %@. This step has to happen in Finder — the Trash is now open there: press ⌘⇧⌫ and Finder will ask you to confirm first.", why)
                     openTrashInFinder()
                 case .finderCanceled:
-                    message = LF("%@。废纸篓里的东西还在，没有清空。", why)
+                    message = LF("%@. Nothing was emptied — the items are still in the Trash.", why)
                 default:
-                    message = LF("清空失败：%@。也可以手动清空：点上面的「访达中打开」，在访达窗口里按 ⌘⇧⌫。", why)
+                    message = LF("Emptying failed: %@. You can also empty it by hand: hit “Open in Finder” above, then press ⌘⇧⌫ in the Finder window.", why)
                 }
             } else {
-                message = LF("清空失败：%@。", why)
+                message = LF("Emptying failed: %@.", why)
             }
             refresh()
         }

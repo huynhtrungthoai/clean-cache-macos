@@ -36,7 +36,7 @@ final class DupModel: ObservableObject {
         let minB = Int64(minMB) * MB
         let targets = defaultScanDirs(scope: scope)
         task = Task {
-            self.phase = L("遍历文件…")
+            self.phase = L("Walking files…")
             self.progress = ScanProgress()
             // 只留下我们删得动的：整盘扫描会走进 /Library、/opt 这些 root 地盘，
             // 那些重复归包管理器管，列出来只会让用户去点一个注定失败的勾选框。
@@ -45,7 +45,7 @@ final class DupModel: ObservableObject {
                                         progress: self.progress)
                 .rows.filter(\.deletable)
             if Task.isCancelled { return }
-            self.phase = LF("比对内容（%@ 个候选）…", String(files.count))
+            self.phase = LF("Comparing contents (%@ candidates)…", String(files.count))
             // 哈希是同步重活，扔后台线程做
             let r = await Task.detached { findDupGroups(files) }.value
             if !Task.isCancelled {
@@ -102,28 +102,28 @@ struct DupView: View {
     /// 这一页只有一档：列出来的每一份都是多出来的副本，本工具都能清。
     /// 每组保留的那份压根没进这一列，所以条子上也不会出现「本工具不碰」那一段。
     private var tiers: [LedgerTier] {
-        [LedgerTier(label: L("本工具能清"), bytes: model.waste, tone: .hot)]
+        [LedgerTier(label: L("Ours to clean"), bytes: model.waste, tone: .hot)]
     }
 
     /// 每组保留的那一份也列在组里（第一行、带锁、勾不动），所以这句话要说的是
     /// 「它在哪儿、为什么按不动」，不是「它不在这一列里」。
-    private var ledgerNote: String? { L("每组日期最新的那份列在组里第一行，带锁、不给勾。") }
+    private var ledgerNote: String? { L("The newest copy in each group is listed first inside it, locked — that row can't be ticked.") }
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "square.on.square", title: L("重复文件"),
-                           subtitle: L("每组日期最新的那份永远保留，动其余的"),
+                PageHeader(symbol: "square.on.square", title: L("Duplicates"),
+                           subtitle: L("The newest copy in each group is always kept"),
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: model.phase.isEmpty ? L("正在比对…") : model.phase,
+                        LoadingRow(text: model.phase.isEmpty ? L("Comparing…") : model.phase,
                                        progress: model.progress)
                     } else {
-                        Text(LF("发现 %1$@，可收回约 %2$@",
-                                cnt(model.groups.count, "组重复"), human(model.waste)))
+                        Text(LF("Found %1$@, about %2$@ recoverable",
+                                cnt(model.groups.count, "duplicate groups"), human(model.waste)))
                     }
-                    ThemeBadge(text: LF("范围：%@", model.scope.uiName),
+                    ThemeBadge(text: LF("Scope: %@", model.scope.uiName),
                                tone: .neutral, symbol: "scope")
                     if !model.envGroups.isEmpty {
                         EnvCopiesClause(count: model.envGroups.count) { envList = true }
@@ -142,8 +142,8 @@ struct DupView: View {
             if model.scanning && model.groups.isEmpty {
                 ScanChecklist(progress: model.progress, scope: model.scope.uiName)
             } else if !model.scanning && model.groups.isEmpty {
-                EmptyState(symbol: "checklist", title: L("没有重复文件"),
-                           hint: LF("%1$@以上的都查过了，调低还能再找些小的，但更慢",
+                EmptyState(symbol: "checklist", title: L("No duplicates"),
+                           hint: LF("Everything above %1$@ has been checked; a lower threshold finds more, but runs slower",
                                     "\(model.minMB) MB"))
                     .frame(maxHeight: .infinity)
             } else {
@@ -161,7 +161,7 @@ struct DupView: View {
 
             CleanBar(count: model.selectedCount, bytes: selectedBytes,
                      bytesText: human(selectedBytes, inRulerOf: model.waste),
-                     errorText: err, hint: L("每组保留日期最新的那份，勾不上"),
+                     errorText: err, hint: L("Each group keeps its newest file — that row can't be ticked"),
                      selection: model.selectAll, flightTarget: true) { confirm = true }
         }
         .frame(maxWidth: .infinity)
@@ -179,8 +179,8 @@ struct DupView: View {
                 .themed(theme)   // 名单跟随当前皮肤，别在弹出来那一刻跳色
         }
         .confirmTrash(isPresented: $confirm,
-                      text: LF("将 %1$@移入废纸篓（每组日期最新的一份永远保留）。",
-                               cnt(model.selectedCount, "个多余副本"))) {
+                      text: LF("Move %1$@ to the Trash (the newest copy in each group is always kept).",
+                               cnt(model.selectedCount, "extra copies"))) {
             doClean()
         }
     }
@@ -206,10 +206,10 @@ struct DupView: View {
                     else { model.selection.subtract(paths) }
                 }),
             icon: rowIcon(g.files.first, "doc.on.doc"),
-            name: LF("%1$@ 等 %2$@",
-                     g.files.first?.lastPathComponent ?? L("重复组"),
-                     cnt(g.files.count, "份")),
-            sub: LF("每份 %@", human(g.size)),
+            name: LF("%1$@ — %2$@",
+                     g.files.first?.lastPathComponent ?? L("Duplicate group"),
+                     cnt(g.files.count, "shares")),
+            sub: LF("%@ each", human(g.size)),
             sizeText: shown[g.id] ?? human(g.waste),
             fraction: Double(g.waste) / Double(maxWaste),
             badge: nil,
@@ -247,9 +247,22 @@ struct DupView: View {
                       animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
         var ok = 0
         var errs: [String] = []
+        // extra path -> the copy this group keeps (files[0]); P0-8 re-checks it per item
+        var keptFor: [String: URL] = [:]
+        for g in model.groups {
+            guard let kept = g.files.first else { continue }
+            for u in g.files.dropFirst() { keptFor[u.path] = kept }
+        }
         for path in model.selection {
             let u = URL(fileURLWithPath: path)
             let sz = fileSize(u)
+            // The scan may be stale: never trash an "extra" unless the kept copy is still there
+            // with identical content, or this could remove the last copy of the data.
+            guard let kept = keptFor[path], duplicateStillMatches(kept: kept, extra: u) else {
+                errs.append(failLine(u.lastPathComponent, TrashError.failed(
+                    "the kept copy is missing or changed since the scan — rescan first")))
+                continue
+            }
             do {
                 let t = try trashItem(u)
                 store.record(TrashRecord(original: u, inTrash: t, size: sz, displayName: u.lastPathComponent))
@@ -262,7 +275,7 @@ struct DupView: View {
             !FileManager.default.fileExists(atPath: u.path)
         } }
         if !errs.isEmpty { err = errList(errs) }
-        store.notice = trashedNotice(ok, "个副本", failed: errs.count)
+        store.notice = trashedNotice(ok, "copies", failed: errs.count)
     }
 }
 
@@ -280,9 +293,9 @@ private struct DupFileRow: View {
     var body: some View {
         HStack(spacing: 10) {
             if isKept {
-                ThemeBadge(text: L("保留"), tone: .safe, symbol: "lock.fill")
+                ThemeBadge(text: L("Kept"), tone: .safe, symbol: "lock.fill")
                     .frame(minWidth: 62, alignment: .leading)
-                    .help(L("每组留下日期最新的那一份：备份、导出这类目录是按日期递增的，留最旧的等于把最新那份删了"))
+                    .help(L("Each group keeps its newest copy: backup and export folders are dated in ascending order, so keeping the oldest would throw away the freshest backup"))
             } else {
                 Toggle("", isOn: Binding(
                     get: { selection.contains(url.path) },
@@ -332,7 +345,7 @@ private struct EnvCopiesClause: View {
 
     var body: some View {
         Button(action: action) {
-            Text(LF("另有 %1$@ 是各环境自己的副本，不参与比对", cnt(count, "组")))
+            Text(LF("Plus %1$@ belonging to their own environments — not compared", cnt(count, "groups")))
                 .font(theme.bodyFont(.caption))
                 .foregroundStyle(fg)
                 .underline(hovering, color: fg)
@@ -368,16 +381,16 @@ private struct EnvCopiesSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(L("不参与比对的组"))
+                Text(L("Excluded from comparison"))
                     .font(theme.display(.title3))
                     .tracking(theme.titleTracking)
                     .foregroundStyle(theme.palette.ink)
-                Text(LF("%1$@ · 共 %2$@", cnt(groups.count, "组"), human(bytes)))
+                Text(LF("%1$@ · %2$@ in total", cnt(groups.count, "groups"), human(bytes)))
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .monospacedDigit()
                 Spacer(minLength: 12)
-                ThemeButton(kind: .ghost, title: L("关闭")) { dismiss() }
+                ThemeButton(kind: .ghost, title: L("Close")) { dismiss() }
             }
             .padding(.horizontal, 20)
             .padding(.top, 18)
@@ -387,15 +400,15 @@ private struct EnvCopiesSheet: View {
                 ItemRow(selected: .constant(false),
                         icon: .path(g.files.first ?? URL(fileURLWithPath: "/")),
                         name: rowName(g),
-                        sub: LF("每份 %1$@ · 住在 %2$@",
-                                human(g.size), cnt(g.envs.count, "个环境")),
+                        sub: LF("%1$@ each · lives in %2$@",
+                                human(g.size), cnt(g.envs.count, "environments")),
                         sizeText: shown[g.id] ?? human(g.bytes),
                         fraction: Double(g.bytes) / Double(maxBytes),
                         selectable: false,
                         lit: false,
                         showRule: groups.first?.id != g.id,
                         preopen: SnapshotMode.expandFirstRow && groups.first?.id == g.id) {
-                            ExplainLine(key: L("住在哪个环境"),
+                            ExplainLine(key: L("Lives in"),
                                         value: g.envs.map { displayPath(URL(fileURLWithPath: $0)) }
                                             .joined(separator: " · "))
                             ForEach(g.files, id: \.path) { u in
@@ -405,7 +418,7 @@ private struct EnvCopiesSheet: View {
             }
             .ledgerCard()
 
-            ListNote(text: L("这些副本各自住在某个环境里。删一份，那个环境就缺一块；卸掉那个环境，整块一起回收。"))
+            ListNote(text: L("Each of these copies lives inside an environment. Delete one and that environment is missing a piece; remove the environment and the whole block goes with it."))
         }
         .frame(width: 780, height: 520)
         .background(theme.palette.paper)
@@ -413,8 +426,8 @@ private struct EnvCopiesSheet: View {
 
     /// 只有一份被摘出去时不说「等 1 份」：那个「等」字承诺了后面还有，而这里没有。
     private func rowName(_ g: EnvDupGroup) -> String {
-        let first = g.files.first?.lastPathComponent ?? L("重复组")
-        return g.files.count > 1 ? LF("%1$@ 等 %2$@", first, cnt(g.files.count, "份")) : first
+        let first = g.files.first?.lastPathComponent ?? L("Duplicate group")
+        return g.files.count > 1 ? LF("%1$@ — %2$@", first, cnt(g.files.count, "shares")) : first
     }
 }
 
@@ -469,13 +482,13 @@ final class OrphansModel: ObservableObject {
 
 /// 残留条目：Core 只给「哪个应用、留在哪、稳不稳」，句子在这拼
 private func orphanWhat(_ it: OrphanItem) -> String {
-    LF("已卸载应用「%1$@」留在 %2$@ 里的数据", L(it.guess), it.loc)
+    LF("Data left in %2$@ by the uninstalled app “%1$@”", L(it.guess), it.loc)
 }
 
 private func orphanRisk(_ it: OrphanItem) -> String {
     it.level == "warn"
-        ? L("重装这个应用时不会带回到这些配置；其他应用不受影响")
-        : L("基本没影响：应用下次需要时会自己重建")
+        ? L("Reinstalling the app won't bring these settings back; other apps are unaffected")
+        : L("Harmless in practice: the app rebuilds it when needed")
 }
 
 struct OrphansView: View {
@@ -491,20 +504,20 @@ struct OrphansView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "app.badge", title: L("卸载残留"),
-                           subtitle: L("App 卸载了，数据没带走——按已装应用逐一对过"),
+                PageHeader(symbol: "app.badge", title: L("Leftovers"),
+                           subtitle: L("Uninstalled apps left data behind — checked against every app still installed"),
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: L("正在盘点已装应用、对孤儿…"),
+                        LoadingRow(text: L("Inventorying installed apps, matching orphans…"),
                                    progress: model.progress)
                     } else {
-                        Text(LF("对过 %1$@，%2$@，共 %3$@",
-                                cnt(model.appCount, "个应用"),
-                                cnt(model.items.count, "处可疑"),
+                        Text(LF("Checked %1$@, found %2$@, %3$@ in total",
+                                cnt(model.appCount, "apps"),
+                                cnt(model.items.count, "suspicious spots"),
                                 human(model.totalBytes)))
                     }
-                    ThemeBadge(text: L("宁可漏报，不可误删"), tone: .neutral)
+                    ThemeBadge(text: L("Under-reports rather than over-deletes"), tone: .neutral)
                 } trailing: {
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.scan() }, stop: { model.stop() })
@@ -517,8 +530,8 @@ struct OrphansView: View {
             if model.scanning && model.items.isEmpty {
                 ScanChecklist(progress: model.progress)
             } else if !model.scanning && model.items.isEmpty {
-                EmptyState(symbol: "app.badge.checkmark", title: L("没有卸载残留"),
-                           hint: L("每个犄角旮旯都对得上号，挺干净"))
+                EmptyState(symbol: "app.badge.checkmark", title: L("No leftovers"),
+                           hint: L("Everything maps to an installed app. Pretty clean."))
                     .frame(maxHeight: .infinity)
             } else {
                 PageLedger(tiers: tiers, rows: model.items.count, note: ledgerNote)
@@ -534,11 +547,11 @@ struct OrphansView: View {
                             showRule: model.items.first?.id != it.id,
                             preopen: SnapshotMode.expandFirstRow
                                 && model.items.first?.id == it.id) {
-                        ExplainLine(key: L("这是什么"), value: orphanWhat(it))
-                        ExplainLine(key: L("删了会怎样"), value: orphanRisk(it))
-                        ExplainLine(key: L("怎么恢复"), value: L("从废纸篓还原，或重装该应用"))
+                        ExplainLine(key: L("What it is"), value: orphanWhat(it))
+                        ExplainLine(key: L("What breaks"), value: orphanRisk(it))
+                        ExplainLine(key: L("How to recover"), value: L("Put it back from the Trash, or reinstall the app"))
                         if let what = contentsLine(it.files, it.newest) {
-                            ExplainLine(key: L("内容"), value: what)
+                            ExplainLine(key: L("Contents"), value: what)
                         }
                         PathLine(path: it.path.path)
                     }
@@ -553,7 +566,7 @@ struct OrphansView: View {
 
             CleanBar(count: model.selected.count, bytes: model.selectedBytes,
                      bytesText: human(model.selectedBytes, inRulerOf: listedTotal),
-                     errorText: err, hint: L("删了会丢数据的那几项本来就不给全选"),
+                     errorText: err, hint: L("The rows that lose data if deleted were never in Select all"),
                      selection: model.selectAll, flightTarget: true) { confirm = true }
         }
         .frame(maxWidth: .infinity)
@@ -564,8 +577,8 @@ struct OrphansView: View {
         .onChange(of: model.items.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { if !model.started { model.scan() } }
         .confirmTrash(isPresented: $confirm,
-                      text: LF("将 %1$@（%2$@）移入废纸篓。",
-                               cnt(model.selected.count, "处残留"),
+                      text: LF("Move %1$@ (%2$@) to the Trash.",
+                               cnt(model.selected.count, "leftovers"),
                                human(model.selectedBytes, inRulerOf: listedTotal))) {
             doClean()
         }
@@ -583,10 +596,10 @@ struct OrphansView: View {
     /// 「删了会丢数据」那档照样能手动勾着删，所以按「本工具全都清得动」记账；它的不同只体现在
     /// 「不给全选」和那一行的灯色上，不是一堆删不掉的字节。
     private var tiers: [LedgerTier] {
-        [LedgerTier(label: L("本工具能清"), bytes: listedTotal, tone: .hot)]
+        [LedgerTier(label: L("Ours to clean"), bytes: listedTotal, tone: .hot)]
     }
 
-    private var ledgerNote: String? { L("删了会丢数据的那几项不在全选范围内，得逐条自己判。") }
+    private var ledgerNote: String? { L(" Rows that lose data if deleted stay out of Select all — judge them one at a time.") }
 
     /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
     /// 候选行取「删了没影响」那档的前两处——钩子不写真账，但起点得是真会飞的那几行。
@@ -622,6 +635,6 @@ struct OrphansView: View {
         model.items.removeAll { !FileManager.default.fileExists(atPath: $0.path.path) }
         for i in model.items.indices { model.items[i].selected = false }
         if !errs.isEmpty { err = errList(errs) }
-        store.notice = trashedNotice(ok, "处残留", failed: errs.count)
+        store.notice = trashedNotice(ok, "leftovers", failed: errs.count)
     }
 }

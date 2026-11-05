@@ -2,7 +2,7 @@
   CleanPilot · Info.plist localisation (English)
 
   Only the few strings Dock, Finder and the system permission prompts read.
-  UI copy is not here — it lives in Localizable.strings, keyed by the Chinese source text.
+  UI copy is not here — it lives in Localizable.strings, keyed by the English source text.
 */
 
 "CFBundleDisplayName" = "CleanPilot";

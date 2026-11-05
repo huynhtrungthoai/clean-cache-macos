@@ -8,15 +8,15 @@
 ## 0. Ưu tiên ngay (trước bản phát hành tiếp theo)
 
 - [x] 🔴 **P0-1** _(đã sửa, chưa commit — `deletionGate` trong `Models.swift`)_ Vá bypass bảo vệ đường dẫn do không phân biệt hoa/thường + symlink (mục 1.1, 1.2)
-- [ ] 🔴 **P0-2** Đổi bundle ID khỏi `com.dreamofxm.diskcleaner`, ký bằng Team ID của mình (mục 3.1)
-- [ ] 🟠 **P0-3** Gỡ biến môi trường `DISKWISE_HOME_SHIM` khỏi bản release (mục 1.3)
-- [ ] 🟠 **P0-4** Release bắt buộc Developer ID + hardened runtime + notarize, không tự rơi về ad-hoc (mục 3.3)
-- [ ] 🟠 **P0-5** Thay Cask / kênh báo lỗi bảo mật / liên hệ / Google Analytics đang trỏ về tác giả gốc (mục 3.2, 3.7, 3.8)
-- [ ] 🟠 **P0-6** Bỏ nút "Empty Trash" không xác nhận ở trang Diagnostic (mục 2.1)
+- [x] 🔴 **P0-2** _(→ `com.huynhtrungthoai.cleanpilot`, ký bằng team cá nhân `HN2G8HJ96Q`)_ Đổi bundle ID khỏi `com.dreamofxm.diskcleaner`, ký bằng Team ID của mình (mục 3.1)
+- [x] 🟠 **P0-3** Gỡ biến môi trường `DISKWISE_HOME_SHIM` khỏi bản release (mục 1.3)
+- [x] 🟠 **P0-4** _(`RELEASE=1` bắt buộc Developer ID của team cá nhân)_ Release bắt buộc Developer ID + hardened runtime + notarize, không tự rơi về ad-hoc (mục 3.3)
+- [x] 🟠 **P0-5** _(website khác ngoài GA chưa rebrand — xem 3.12)_ Thay Cask / kênh báo lỗi bảo mật / liên hệ / Google Analytics đang trỏ về tác giả gốc (mục 3.2, 3.7, 3.8)
+- [x] 🟠 **P0-6** Bỏ nút "Empty Trash" không xác nhận ở trang Diagnostic (mục 2.1)
 - [x] 🟠 **P0-7** _(đã sửa, chưa commit — `isInSensitiveTree`/`isBulkSelectable`)_ Folder Drill: select-all không được chọn dotfile, Keychains, iCloud (mục 2.2, 1.4)
-- [ ] 🟠 **P0-8** Xoá file trùng: kiểm tra lại bản giữ trước khi xoá (mục 2.3)
-- [ ] 🟠 **P0-9** Sandbox grant chỉ chấp nhận home thật (mục 2.4)
-- [ ] 🟠 **P0-10** Bọc SnapshotMode, PerfProbe và mọi `DISKWISE_*` env trong `#if DEBUG` (mục 1.3, 2.5)
+- [x] 🟠 **P0-8** Xoá file trùng: kiểm tra lại bản giữ trước khi xoá (mục 2.3)
+- [x] 🟠 **P0-9** Sandbox grant chỉ chấp nhận home thật (mục 2.4)
+- [x] 🟠 **P0-10** _(cổng `devHooksEnabled` + `scrubDevEnvironment()`; `DEV_HOOKS=1` để chụp screenshot)_ Bọc SnapshotMode, PerfProbe và mọi `DISKWISE_*` env trong `#if DEBUG` (mục 1.3, 2.5)
 
 ---
 
@@ -45,7 +45,7 @@
 - **File:** `HomeAccess.swift:120-127`, `Models.swift:87-115`
 - **Vấn đề:** Biến môi trường đổi `homeDir()` → đổi luôn `isDeletable`/`protectedPaths`/`applicationsDir`. CLI/MCP chạy với env do agent host cấu hình (file config MCP có trường `env`) → có thể đặt `DISKWISE_HOME_SHIM=/Users` hoặc `/` để mở rộng vùng được xoá.
 - **Sửa:**
-  - [ ] Chỉ đọc `DISKWISE_HOME_SHIM`, `DISKWISE_STORE_SHOTS`, `DISKWISE_PERF*`, `DISKWISE_COST`, `DISKWISE_RESOURCES` trong `#if DEBUG` (hoặc build flag `DEMO`).
+  - [x] Chỉ đọc `DISKWISE_HOME_SHIM`, `DISKWISE_STORE_SHOTS`, `DISKWISE_PERF*`, `DISKWISE_COST`, `DISKWISE_RESOURCES` trong `#if DEBUG` (hoặc build flag `DEMO`).
   - [ ] Nếu cần ở release: yêu cầu shim nằm trong `$TMPDIR` và có file marker do `make_demo_home.sh` tạo.
 
 ### 1.4 🟠 Danh sách bảo vệ quá hẹp — thư mục nhạy cảm trong HOME xoá được
@@ -84,7 +84,7 @@
 - **File:** `Verdict.swift:147-151`, `SkinCatalog.swift:13-17`, `L10n.swift:146-150`, `AgentAPI.swift:436-447`
 - **Vấn đề:** Nếu `Bundle.main` không thấy resource (CLI chạy ngoài .app, symlink, dev build), sẽ đọc `Sources/DiskCleaner/Resources/safety_db.json` **tương đối CWD**. MCP server thường được khởi chạy với CWD = project của người dùng → repo độc hại có thể đánh dấu `~/Documents` là `safe/exact` để agent được phép xoá.
 - **Sửa:**
-  - [ ] Bọc fallback dev bằng `#if DEBUG`.
+  - [x] Bọc fallback dev bằng `#if DEBUG` (`devHooksEnabled`; cả bảng en của AgentAPI).
   - [ ] Nhúng SHA-256 của `safety_db.json` vào binary lúc build và kiểm tra khi load; sai → từ chối mọi thao tác xoá của agent.
 
 ### 1.9 🟢 Tìm `docker` qua shell + PATH; đọc pipe sau khi chờ
@@ -115,7 +115,7 @@
 ### 2.1 🟠 Nút "在访达中清空" xoá vĩnh viễn TOÀN BỘ Thùng rác, không xác nhận
 - **File:** `Views/DiagnosticViews.swift:717-720`
 - **Vấn đề:** Sau khi trim crash dump, nút này chạy `Task.detached { _ = try? await emptyTrashViaFinder() }`: xoá vĩnh viễn cả những file không liên quan, nuốt lỗi, không gọi `store.clearHistory()` (trang Trash vẫn hiện undo cho file không còn), nằm ngay cạnh nút "撤销整批". Điều kiện là `Channel.isAppStore` thay vì `HomeAccess.runsSandboxed`.
-- **Sửa:** [ ] Dùng lại alert xác nhận + xử lý lỗi của `TrashView`, hoặc chỉ mở Finder.
+- **Sửa:** [x] (chọn cách mở Finder) Dùng lại alert xác nhận + xử lý lỗi của `TrashView`, hoặc chỉ mở Finder.
 
 ### 2.2 🟠 Folder Drill "Chọn tất cả" chọn cả dotfile / Keychains / iCloud
 - **File:** `Views/FolderDrillView.swift:255, 443`
@@ -128,17 +128,17 @@
 ### 2.3 🟠 Xoá file trùng không kiểm tra lại bản được giữ
 - **File:** `Views/DupOrphansViews.swift:250-258`
 - **Vấn đề:** Dựa vào hash lúc quét. Nếu bản giữ lại (`files[0]`) đã bị di chuyển, xoá hay sửa thì bản duy nhất của nội dung bị chuyển vào Thùng rác.
-- **Sửa:** [ ] Ngay trước khi xoá: kiểm tra bản giữ còn tồn tại, cùng size + mtime (tốt nhất hash lại); không khớp thì bỏ qua cả nhóm.
+- **Sửa:** [x] (`duplicateStillMatches`) Ngay trước khi xoá: kiểm tra bản giữ còn tồn tại, cùng size + mtime (tốt nhất hash lại); không khớp thì bỏ qua cả nhóm.
 
 ### 2.4 🟠 Quyền sandbox chấp nhận thư mục bất kỳ làm "home"
 - **File:** `HomeGrant.swift:36-37`, `DiskCleanerCore/HomeAccess.swift`
 - **Vấn đề:** Thư mục được chọn trở thành `homeDir()` → định nghĩa lại `isDeletable`/`protectedPaths`. Chọn `/Users` thì thư mục của user khác cũng xoá được; chọn ổ ngoài thì mọi quy tắc `~/Library/...` lệch.
-- **Sửa:** [ ] Từ chối nếu `picked.standardized != realHomeDir()`.
+- **Sửa:** [x] `HomeAccess.isRealHome` trong `grant` và `restore`.
 
 ### 2.5 🟡 Hook debug trong SnapshotMode xoá file thật ở bản release
 - **File:** `DiskCleanerApp.swift:13`, `SnapshotMode.swift:580-864`
 - **Vấn đề:** `DISKWISE_SHOTS` + `DISKWISE_RING=arm` / `DISKWISE_CLEAN=run` chuyển file thật vào Thùng rác mà không cần xác nhận. Không bắt buộc có `DISKWISE_HOME_SHIM` (chỉ ghi trong comment), nên sẽ chạy trên home thật. Toàn project không có `#if DEBUG` nào.
-- **Sửa:** [ ] Bọc toàn bộ SnapshotMode/PerfProbe trong `#if DEBUG` (cùng hướng với 1.3).
+- **Sửa:** [x] Bọc toàn bộ SnapshotMode/PerfProbe trong `#if DEBUG` (cùng hướng với 1.3).
 
 ### 2.6 🟡 `NSAppleScript` chạy ngoài main thread
 - **File:** `Views/TrashView.swift:240-243`, `DiagnosticViews.swift:719` → `Scanner.swift:735`
@@ -201,19 +201,21 @@
 ### 3.1 🔴 Bundle ID vẫn là của tác giả gốc
 - **File:** `build_app/build.sh:50`, `Sources/DiskCleaner/Product.swift:14` → `com.dreamofxm.diskcleaner`
 - **Hậu quả:** Chia sẻ UserDefaults/TCC/LaunchServices với DiskWise thật; `brew zap` của DiskWise xoá prefs CleanPilot; không thể ký Developer ID/App Store với ID của team khác; dễ bị nhầm/mạo danh.
-- **Sửa:** [ ] Đổi sang ID của mình (vd. `vn.pharmacity.cleanpilot` / `com.<you>.cleanpilot`), migrate prefs một lần, cập nhật `Product.swift`, `build.sh`, Cask `zap`.
+- **Đã sửa:** `build.sh` + `Product.swift`; `migrateLegacyDefaults()` chép prefs cũ 1 lần. `build.sh` chỉ tự chọn chứng chỉ của team cá nhân và kiểm `TeamIdentifier` sau khi ký (chứng chỉ công ty → build fail).
+- **Sửa:** [x] Đổi sang ID của mình (vd. `vn.pharmacity.cleanpilot` / `com.<you>.cleanpilot`), migrate prefs một lần, cập nhật `Product.swift`, `build.sh`, Cask `zap`.
 
 ### 3.2 🟠 Homebrew Cask cài app của người khác
 - **File:** `Casks/diskwise.rb:2-27`, `docs/homebrew.md`, `Views/AgentPageView.swift:117` (+ chuỗi dịch ở mọi `*.lproj`)
 - **Vấn đề:** URL tải `github.com/DreamOfXM/diskwise/...DiskWise-*.dmg`, `app "DiskWise.app"`; app hướng dẫn `brew install --cask dreamofxm/diskwise/diskwise`. Người dùng CleanPilot sẽ cài binary bên thứ ba.
-- **Sửa:** [ ] Tạo `Casks/cleanpilot.rb` (URL release của mình + `sha256`, `app "CleanPilot.app"`, `binary` cho CLI, `zap` theo bundle ID mới); sửa docs & chuỗi trong app.
+- **Đã sửa:** `Casks/diskwise.rb` → `Casks/cleanpilot.rb` (sha256 placeholder tới khi có release Developer ID), `docs/homebrew.md`, lệnh brew trong app + 10 lproj.
+- **Sửa:** [x] Tạo `Casks/cleanpilot.rb` (URL release của mình + `sha256`, `app "CleanPilot.app"`, `binary` cho CLI, `zap` theo bundle ID mới); sửa docs & chuỗi trong app.
 
 ### 3.3 🟠 Release tự rơi về ký ad-hoc, không hardened runtime
 - **File:** `build_app/build.sh:300-303, 374, 386-394, 482-489, 572`
 - **Vấn đề:** Không có identity "Developer ID Application" → `codesign --sign -` không `--options runtime`, không timestamp; DMG chỉ ký khi `NOTARIZE=1`; README dạy người dùng "Open Anyway" (tập cho người dùng bỏ qua Gatekeeper — rủi ro virus nếu có bản giả mạo).
 - **Sửa:**
-  - [ ] Bản release: thiếu identity → **fail**; ad-hoc chỉ khi `SIGN_IDENTITY=none` rõ ràng.
-  - [ ] Luôn `--options runtime --timestamp`; luôn ký + notarize + staple DMG.
+  - [x] Bản release (`RELEASE=1`): thiếu identity → **fail**; ad-hoc chỉ khi `SIGN_IDENTITY=none` rõ ràng.
+  - [x] Luôn `--options runtime` (timestamp với Developer ID); luôn ký + notarize + staple DMG.
   - [ ] Công bố SHA-256 của DMG trong release notes.
 
 ### 3.4 🟡 Workflow `release.yml` vẫn có thể ghi đè file release
@@ -232,11 +234,11 @@
 ### 3.7 🟡 Kênh báo lỗi bảo mật / phản hồi trỏ về tác giả gốc
 - **File:** `SECURITY.md:9`, `.github/SECURITY.md:24`, `Product.swift:23-24` (email 163.com, nhóm QQ), `docs/contact/qq-group.png` (đóng gói bởi `build.sh:81,199`)
 - **Hậu quả:** Báo cáo lỗ hổng và phản hồi người dùng CleanPilot bị gửi cho bên thứ ba.
-- **Sửa:** [ ] Thay bằng kênh của mình; xoá ảnh QR khỏi bundle.
+- **Sửa:** [x] Thay bằng GitHub Security Advisories của repo mình; gỡ email/QQ khỏi app, bỏ ảnh QR khỏi bundle.
 
 ### 3.8 🟡 Website có Google Analytics trong khi tuyên bố "không telemetry"
 - **File:** `website/index.html:67-73` (`G-4Y56RFLD4W`), `docs/PRIVACY.md:3,7,40`
-- **Sửa:** [ ] Gỡ GA (hoặc dùng property riêng + consent); rebrand PRIVACY.md. (App không có network call — đã xác nhận không có `URLSession`/`NWConnection`.)
+- **Sửa:** [x] Gỡ GA khỏi `website/index.html`; [x] rebrand PRIVACY.md — (hoặc dùng property riêng + consent); rebrand PRIVACY.md. (App không có network call — đã xác nhận không có `URLSession`/`NWConnection`.)
 
 ### 3.9 🟢 Mật khẩu notarize lộ trên command line
 - **File:** `build_app/build.sh:577-578`

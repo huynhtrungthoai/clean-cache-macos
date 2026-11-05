@@ -6,6 +6,7 @@ Only the latest release is supported.
 
 ## Reporting a Vulnerability
 
-Email **hnyxgxm2023+diskwise@gmail.com** with details and a reproduction path.
-Please do not open public issues for vulnerabilities; reports are answered
-within 72 hours and credited in the release notes if you wish.
+Report privately through GitHub's vulnerability reporting:
+https://github.com/huynhtrungthoai/clean-cache-macos/security/advisories/new
+
+Please do not open public issues for vulnerabilities. See `.github/SECURITY.md` for scope.

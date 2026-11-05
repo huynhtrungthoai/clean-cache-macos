@@ -121,7 +121,6 @@ enum SnapshotMode {
         guard !raw.isEmpty else { return nil }
         switch raw {
         case "auto", "system": return .system
-        case "zh", "zh-hans", "chinese": return .zhHans
         case "english": return .en
         default:
             // 其余按 rawValue（en / ja / ru / ptBR…）或语言码（zh-Hant / pt-BR…）认，

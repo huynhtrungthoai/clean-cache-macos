@@ -1,14 +1,14 @@
 import Foundation
 import SQLite3
 
-// MARK: - 保留策略与修剪（PR-4）
+// MARK: - Retention policy & pruning (PR-4)
 //
-// 设计出处：plans/design-diagnostic-dumps-velocity-provenance-2026-10-27.md §6，
-// 评审修订 §3.1：预览数字来自纯计算即终稿；执行前逐项核对 dev/ino，
-// 与预览不一致的跳过并报告（学 agent 通道 execute 的先例）。
-// 不做自动修剪——「保留策略＋自动执行」就是隐形守护进程，违背无守护进程承诺。
+// Design: plans/design-diagnostic-dumps-velocity-provenance-2026-10-27.md §6,
+// review revision §3.1: preview numbers come from pure computation and are final; before executing, each item's dev/ino is re-checked,
+// and items that differ from the preview are skipped and reported (following the agent channel's execute precedent).
+// No automatic pruning: "retention policy + automatic execution" is a hidden daemon, breaking the no-daemon promise.
 
-/// 再生类别的保留策略。nil = 不启用（默认）。
+/// Retention policy for regenerable categories. nil = disabled (default).
 public struct Retention: Equatable {
     public enum Kind: Equatable {
         case count(Int)
@@ -21,7 +21,7 @@ public struct Retention: Equatable {
     }
 }
 
-/// 修剪名单里的一行。dev/ino 在执行时复核——预览和执行之间文件可能被换掉。
+/// One row of the prune list. dev/ino re-checked at execution: the file may be swapped between preview and execution.
 public struct TrimFile: Equatable {
     public let url: URL
     public let size: Int64
@@ -36,7 +36,7 @@ public struct TrimFile: Equatable {
     }
 }
 
-/// 纯计算出的修剪计划：预览即终稿，确认后不重算。
+/// Prune plan from pure computation: the preview is final; not recomputed after confirmation.
 public struct TrimPlan: Equatable {
     public let keep: Int
     public let remove: [TrimFile]
@@ -51,8 +51,8 @@ public struct TrimPlan: Equatable {
     }
 }
 
-/// 枚举可清理面里的 .dmp 文件，按 mtime 保留最新一份，其余进修剪名单。
-/// 只看结构不读内容；执行方复核 dev/ino。
+/// Enumerate .dmp files in the cleanable surface, keep the newest by mtime, put the rest on the prune list.
+/// Looks only at structure, never contents; the executor re-checks dev/ino.
 public func trimPlan(under dirs: [URL], retention: Retention) -> TrimPlan {
     let fm = FileManager.default
     struct Meta { let url: URL; let size: Int64; let mtime: Date; let dev: Int; let ino: Int }
@@ -68,7 +68,7 @@ public func trimPlan(under dirs: [URL], retention: Retention) -> TrimPlan {
                               dev: Int(st.st_dev), ino: Int(st.st_ino)))
         }
     }
-    metas.sort { $0.mtime > $1.mtime }   // 新的在前
+    metas.sort { $0.mtime > $1.mtime }   // newest first
     func keptCount() -> Int {
         switch retention.kind {
         case .count(let n): return min(max(n, 0), metas.count)
@@ -90,7 +90,7 @@ public func trimPlan(under dirs: [URL], retention: Retention) -> TrimPlan {
                     oldestKeptMtime: kept.last?.mtime)
 }
 
-// MARK: - 保留策略存取（UserDefaults 两个键：enabled + count）
+// MARK: - Retention policy storage (two UserDefaults keys: enabled + count)
 
 public func crashRetention() -> Retention? {
     let d = UserDefaults.standard
@@ -109,10 +109,10 @@ public func setCrashRetention(_ r: Retention?) {
     d.set(n, forKey: "retention.crash-dumps.count")
 }
 
-// MARK: - 修剪账本（整批撤销用，落在快照库里）
+// MARK: - Prune ledger (for whole-batch undo; stored in the snapshot DB)
 
 extension SnapshotStore {
-    /// 记一批修剪。original/trash 成对入账，撤销时逐对搬回。
+    /// Record a prune batch. original/trash recorded in pairs; undo moves each pair back.
     public func recordTrim(batchID: String, at: Date, entryKey: String,
                     items: [(original: URL, trash: URL, bytes: Int64)]) {
         guard db != nil else { return }
@@ -140,8 +140,8 @@ extension SnapshotStore {
         exec("COMMIT")
     }
 
-    /// 撤销一整批：把废纸篓里的原路搬回。搬不回的（用户已清空）跳过并计数。
-    /// 返回 (restored, missing)。
+    /// Undo a whole batch: move items from the Trash back to their original paths. Those that can't be (user emptied Trash) are skipped and counted.
+    /// Returns (restored, missing).
     public func undoTrim(batchID: String) -> (restored: Int, missing: Int) {
         guard db != nil else { return (0, 0) }
         var stmt: OpaquePointer?

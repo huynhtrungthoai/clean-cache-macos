@@ -1,30 +1,30 @@
 import DiskCleanerCore
 import Foundation
 
-// MCP server（stdio）：按行分帧的 JSON-RPC 2.0，不引第三方库。
+// MCP server (stdio): newline-framed JSON-RPC 2.0, no third-party libraries.
 //
-// 协议面刻意做窄：initialize / notifications/initialized / tools/list /
-// tools/call / ping，其余带 id 的方法回 -32601——未知方法在 MCP 里几乎总是
-// 客户端版本差异，明确报错比静默成功安全。
+// Protocol surface kept deliberately narrow: initialize / notifications/initialized / tools/list /
+// tools/call / ping; any other method with an id gets -32601. An unknown method in MCP is almost always
+// a client version mismatch, and an explicit error is safer than silent success.
 //
-// stdout 只写协议帧（调试一律 stderr），业务错误（被拒/过期/超限）用
-// isError: true 的**结果**返回而不是 JSON-RPC error：模型要看的是原因码与
-// 下一步指引，不是传输层的报错。
+// stdout carries only protocol frames (debug output always goes to stderr). Business errors (refused/expired/over limit)
+// are returned as a **result** with isError: true rather than a JSON-RPC error: the model needs the reason code and
+// next-step guidance, not a transport-level error.
 
 enum MCPServer {
 
-    /// 客户端在 initialize 里自报的名字（clientInfo.name），落进操作日志回答
-    /// 「这次是谁干的」。没 initialize 就直接调、或没报名字的，记 "mcp"。
+    /// Name the client reports in initialize (clientInfo.name), written to the operation log to answer
+    /// "who did this". Calls without initialize, or without a reported name, are logged as "mcp".
     static var clientName = "mcp"
 
     static func run() async {
         let stdin = FileHandle.standardInput
         var buffer = Data()
-        // 同步逐块读 + 手动按 \n 分帧：readabilityHandler 的回调不保证行完整，
-        // 而每条消息必须独占一行（MCP stdio 规范，正文不得内嵌换行）
+        // Synchronous chunked reads + manual \n framing: readabilityHandler callbacks don't guarantee whole lines,
+        // and every message must occupy exactly one line (MCP stdio spec: bodies must not embed newlines)
         while true {
             let chunk = stdin.availableData
-            if chunk.isEmpty { break }   // EOF：客户端走了，跟着退
+            if chunk.isEmpty { break }   // EOF: client is gone, exit with it
             buffer.append(chunk)
             while let idx = buffer.firstIndex(of: 0x0A) {
                 let lineData = buffer[buffer.startIndex..<idx]
@@ -37,7 +37,7 @@ enum MCPServer {
         }
     }
 
-    // MARK: - 帧处理
+    // MARK: - Frame handling
 
     static func handle(line: String) async {
         guard let req = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else {
@@ -46,7 +46,7 @@ enum MCPServer {
         }
         let id = req["id"]
         let method = req["method"] as? String ?? ""
-        // 通知（无 id）不回包——回了客户端只会当协议错误
+        // Notifications (no id) get no reply; a reply would only be treated as a protocol error by the client
         guard id != nil else { return }
         let params = req["params"] as? [String: Any] ?? [:]
 
@@ -55,7 +55,7 @@ enum MCPServer {
             let requested = params["protocolVersion"] as? String
             let supported = ["2025-06-18", "2025-03-26", "2024-11-05"]
             let version = (requested != nil && supported.contains(requested!)) ? requested! : "2025-06-18"
-            // 自报名字记下来：execute 时随操作落日志（来源标注见 clientName）
+            // Record the self-reported name: logged with the operation on execute (attribution: see clientName)
             if let info = params["clientInfo"] as? [String: Any],
                let name = info["name"] as? String, !name.isEmpty {
                 clientName = name
@@ -69,7 +69,7 @@ enum MCPServer {
                     + "Always show the plan summary to the user and get their consent before execute_cleanup.",
             ])
         case "notifications/initialized", "initialized":
-            // 到这里说明它带了 id（不合规但无害）：按通知处理，不回包
+            // Reaching here means it carried an id (non-compliant but harmless): treat as a notification, no reply
             break
         case "ping":
             reply(id: id, result: [:])
@@ -111,11 +111,11 @@ enum MCPServer {
         let opt: JSONSerialization.WritingOptions = [.sortedKeys]
         guard let data = try? JSONSerialization.data(withJSONObject: msg, options: opt) else { return }
         var out = data
-        out.append(0x0A)   // 一行一帧，不带内嵌换行
+        out.append(0x0A)   // One frame per line, no embedded newlines
         FileHandle.standardOutput.write(out)
     }
 
-    // MARK: - 工具表
+    // MARK: - Tool table
 
     static func tools() -> [[String: Any]] {
         let readOnly = ["readOnlyHint": true] as [String: Any]
@@ -188,7 +188,7 @@ enum MCPServer {
         ]
     }
 
-    // MARK: - 分发
+    // MARK: - Dispatch
 
     struct ToolOut {
         let text: String
@@ -372,7 +372,7 @@ enum MCPServer {
                 "content_owner": outcome.contentOwner ?? NSNull(),
                 "mixed": outcome.mixed,
                 "cross_attribution": outcome.crossAttribution,
-                "origin_hints_redacted": outcome.redactedHints,   // 永远脱敏，无本地例外
+                "origin_hints_redacted": outcome.redactedHints,   // always redacted, no local exception
             ]
             let text = outcome.probed
                 ? "directory: \(outcome.directoryOwner ?? "?") · content: \(outcome.contentOwner ?? "?")"
@@ -386,7 +386,7 @@ enum MCPServer {
         }
     }
 
-    /// AgentAPIError -> 给模型的文案：必须自带下一步（plan_expired 是长对话常态）
+    /// AgentAPIError -> message for the model: must include the next step (plan_expired is routine in long conversations)
     static func agentErrorOut(_ e: AgentAPIError) -> ToolOut {
         let msg: String
         switch e {
@@ -400,9 +400,9 @@ enum MCPServer {
         return ToolOut(text: msg, structured: ["error": e.description])
     }
 
-    // MARK: - 结构化输出
+    // MARK: - Structured output
 
-    /// Encodable -> JSONSerialization 可写回的任意 JSON（structuredContent 用）
+    /// Encodable -> arbitrary JSON writable back via JSONSerialization (for structuredContent)
     static func structify<T: Encodable>(_ value: T) -> [String: Any] {
         guard let data = try? JSONEncoder.agentAPI.encode(value),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -424,7 +424,7 @@ enum MCPServer {
     }
 }
 
-/// 与 main.swift 的 versionString 同源（MCP serverInfo 用）
+/// Same source as main.swift's versionString (used for MCP serverInfo)
 func cliVersion() -> String {
     (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
 }

@@ -5,6 +5,10 @@ import Foundation
 // 全部在 /tmp 里做，不碰用户数据。任一失败打印 FAIL 并以非零退出。
 var failures = 0
 
+// build.sh runs this binary from the release build, where DISKWISE_* hooks are compiled out;
+// the fixtures below need DISKWISE_HOME_SHIM, so opt in explicitly (in-process only).
+enableDevHooksForSelfTest()
+
 func check(_ cond: Bool, _ msg: String) {
     if cond {
         print("PASS  \(msg)")
@@ -25,7 +29,7 @@ let _dbURL = _cands.compactMap { p -> URL? in
 }.first
 let entries = loadSafetyEntries(from: _dbURL)
 check(entries.count > 20, "知识库条目 \(entries.count) > 20")
-check(entries.contains { $0.name == "npm 缓存目录" }, "知识库含 npm 缓存目录")
+check(entries.contains { $0.name == "npm cache folder" }, "知识库含 npm 缓存目录")
 
 // 1.5 品牌标：safety_db 里每个 `icon` 都要有对应的图，否则那一格静默退回通用文件夹，
 //     而「退回通用文件夹」正是这一档要消灭的东西——拼错 slug 是不会有人发现的。
@@ -64,6 +68,30 @@ check(homeDir().path == "/tmp/diskwise-selftest-home", "假家目录开关仍然
 unsetenv("DISKWISE_HOME_SHIM")
 check(!HomeAccess.grant(URL(fileURLWithPath: "/tmp/diskwise-没有这个目录-\(getpid())")),
       "指向不存在的目录不能算授权成功")
+// P0-9: only the real home may become homeDir() (the deletion boundary).
+check(HomeAccess.isRealHome(realHomeDir()), "P0-9：real home is accepted")
+check(HomeAccess.isRealHome(URL(fileURLWithPath: realHomeDir().path.uppercased())),
+      "P0-9：real home in another case is still the real home")
+check(!HomeAccess.isRealHome(URL(fileURLWithPath: "/Users")), "P0-9：/Users is refused as home")
+check(!HomeAccess.isRealHome(URL(fileURLWithPath: "/tmp")), "P0-9：/tmp is refused as home")
+check(!HomeAccess.grant(URL(fileURLWithPath: "/tmp")), "P0-9：granting /tmp fails")
+check(homeDir() == realHomeDir(), "P0-9：a refused grant leaves homeDir untouched")
+
+// P0-8: a duplicate extra is only trashed while the kept copy still matches it.
+do {
+    let d = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("dw-dup-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+    let kept = d.appendingPathComponent("kept.bin"), extra = d.appendingPathComponent("extra.bin")
+    try? Data(repeating: 7, count: 4096).write(to: kept)
+    try? Data(repeating: 7, count: 4096).write(to: extra)
+    check(duplicateStillMatches(kept: kept, extra: extra), "P0-8：identical kept copy → extra may go")
+    check(!duplicateStillMatches(kept: extra, extra: extra), "P0-8：kept == extra is never a match")
+    try? Data(repeating: 8, count: 4096).write(to: kept)
+    check(!duplicateStillMatches(kept: kept, extra: extra), "P0-8：kept copy edited since scan → refuse")
+    try? FileManager.default.removeItem(at: kept)
+    check(!duplicateStillMatches(kept: kept, extra: extra), "P0-8：kept copy gone since scan → refuse")
+    try? FileManager.default.removeItem(at: d)
+}
 // 注：「没经授权面板就不该拿到访问权」这条在非沙盒里量不出来——
 // startAccessingSecurityScopedResource() 对没进沙盒的进程永远返回 true。
 
@@ -107,7 +135,7 @@ do {
     _ = try trashItem(URL(fileURLWithPath: home + "/Documents"))
     check(false, "整体删 Documents 应被拦")
 } catch let e as TrashError {
-    check(e.reasonKey == "系统保护路径，不能整体删除", "整体删 Documents 被拦：\(e.reasonKey)")
+    check(e.reasonKey == "System-protected path; deleting it wholesale is not allowed", "整体删 Documents 被拦：\(e.reasonKey)")
 } catch {
     check(false, "整体删 Documents 被拦：\(error.localizedDescription)")
 }
@@ -139,23 +167,23 @@ do {
     _ = try trashItem(URL(fileURLWithPath: "/Library/Caches"))
     check(false, "删系统区应被拦")
 } catch let e as TrashError {
-    check(e.reasonKey == "超出允许范围（仅限家目录、/Applications 与 /tmp、/var/tmp）",
+    check(e.reasonKey == "Outside the allowed roots (home folder, /Applications, and /tmp and /var/tmp only)",
           "系统区被拦：\(e.reasonKey)")
 }
 
 // 4c. 访达回执的分诊：清空失败时界面要说出「哪一种失败 + 下一步」，
 //     所以错误号必须落到不同的案上——-1743 是系统没放行，-128 是他自己点了取消
-check(finderError(number: -1743, message: "").reasonKey == "没有控制访达的权限",
+check(finderError(number: -1743, message: "").reasonKey == "No permission to control Finder",
       "-1743 归成「没放行自动化」")
-check(finderError(number: -128, message: "User canceled.").reasonKey == "访达的确认被取消了",
+check(finderError(number: -128, message: "User canceled.").reasonKey == "Finder's confirmation was cancelled",
       "-128 归成「被取消」，不当故障报")
 // -600 实测来自沙盒版：发往访达的事件被系统掐掉，访达压根没收到，
 // 说成「访达拒绝执行」是把责任推给了访达。
-check(finderError(number: -600, message: "Application isn’t running.").reasonKey == "指令没能送到访达",
+check(finderError(number: -600, message: "Application isn’t running.").reasonKey == "The command never reached Finder",
       "-600 归成「没送到访达」，不冤枉访达拒绝")
-check(finderError(number: -609, message: "").reasonKey == "指令没能送到访达",
+check(finderError(number: -609, message: "").reasonKey == "The command never reached Finder",
       "-609（目标连接已断）同案")
-check(finderError(number: -10010, message: "err").reasonKey == "访达拒绝执行",
+check(finderError(number: -10010, message: "err").reasonKey == "Finder refused to run it",
       "其它错误号仍算访达拒绝")
 check(finderError(number: -1743, message: "Not authorized").detail.contains("-1743"),
       "详情里留着错误号，远程排查才问得出来")
@@ -684,7 +712,7 @@ check(sumShown(["13.6 GB", "545.5 MB"]) == "14.1 GB",
 check(diffShown("494.4 GB", "14.2 GB") == "480.2 GB",
       "「已用」＝印出来的整块盘 − 印出来的可用，跟圆心那一格同一套算法")
 check(diffShown("14.2 GB", "494.4 GB") == nil, "减成负数不认，交回调用方按字节算")
-check(sumShown(["14.2 GB", "全部清空后"]) == nil,
+check(sumShown(["14.2 GB", "After clearing all"]) == nil,
       "认不出的串不猜：返回 nil，由调用方退回 human(字节)")
 
 // 5. 移废纸篓 + 撤销（/tmp 文件，来回一遍再清掉）
@@ -1040,7 +1068,7 @@ check(drillParent(of: "/Applications/Xcode.app") == "/Applications",
 let vix = VerdictIndex(entries: entries)
 
 let vNpm = vix.verdict(for: home + "/.npm")
-check(vNpm.tier == .safe && vNpm.exact && vNpm.entry?.name == "npm 缓存目录",
+check(vNpm.tier == .safe && vNpm.exact && vNpm.entry?.name == "npm cache folder",
       "精确命中一条 safe 条目（得 \(vNpm.tier.rawValue) / \(vNpm.entry?.name ?? "-")）")
 check(vix.verdict(for: home + "/.ollama/models").tier == .redo,
       "标 warn + cost=redo 的条目判成「删了要重新下载」，不是「删了没影响」，也不是「删了会丢数据」")
@@ -1054,7 +1082,7 @@ let vSimFile = vix.verdict(for: home
     + "/Library/Developer/CoreSimulator/Devices/5BF3AD51-2DC2-4716-9526-F1D347F294E0"
     + "/data/private/var/MobileAsset/AssetsV2/com_apple_MobileAsset_UAF_Siri_Understanding/x.dmg")
 check(vSimFile.tier == .redo && !vSimFile.exact
-        && vSimFile.entry?.name == "模拟器内的系统资产",
+        && vSimFile.entry?.name == "Simulator on-demand assets",
       "模拟器里按需下载的资产落到更细的那一条上，判「删了要重新下载」——"
       + "不再被整条 Devices 的 warn=data 盖成「会丢数据」"
       + "（得 \(vSimFile.tier.rawValue) / \(vSimFile.entry?.name ?? "-") / exact=\(vSimFile.exact)）")
@@ -1104,9 +1132,9 @@ let strayCost = entries.filter { $0.level != "warn" && $0.cost != nil }.map(\.na
 check(strayCost.isEmpty, "safe 条目不带 cost——那是「不用付代价」，不是「代价是空的」（多：\(strayCost.joined(separator: "、"))）")
 let badCost = entries.filter { $0.cost != nil && $0.cost != "redo" && $0.cost != "data" }.map(\.name)
 check(badCost.isEmpty, "cost 只认 redo / data（越界：\(badCost.joined(separator: "、"))）")
-let tOllama = entries.first { $0.name == "Ollama 模型" }?.tier
-let tSim = entries.first { $0.name == "Xcode 模拟器设备" }?.tier
-let tNpm = entries.first { $0.name == "npm 缓存目录" }?.tier
+let tOllama = entries.first { $0.name == "Ollama models" }?.tier
+let tSim = entries.first { $0.name == "Xcode simulator devices" }?.tier
+let tNpm = entries.first { $0.name == "npm cache folder" }?.tier
 check(tOllama == .redo && tSim == .risky && tNpm == .safe,
       "三档映射：warn+redo→删了要重新下载，warn+data→删了会丢数据，safe→删了没影响（得 \(tOllama?.rawValue ?? "-") / \(tSim?.rawValue ?? "-") / \(tNpm?.rawValue ?? "-")）")
 let danglingWarn = entries.filter { $0.level == "warn" && $0.cost == nil }
@@ -1214,7 +1242,7 @@ check(overdrawn.off == 0 && overdrawn.overdrawn == 4 * GB && !overdrawn.balanced
 var nav = NavStack<String>(first: "总览")
 check(!nav.canGoBack, "只有一站时不能返回")
 check(nav.current == "总览", "栈顶就是此刻这一屏")
-check(nav.arrive("大文件"), "落一站算真的动了地方")
+check(nav.arrive("Large Files"), "落一站算真的动了地方")
 check(nav.canGoBack, "两站之后能返回")
 check(nav.previous == "总览", "上一站就是出发的那一站")
 check(nav.pop() == "总览", "退一步回到出发那一站")
@@ -1237,7 +1265,7 @@ check(!same.arrive("总览"), "落在同一站上不算动地方——视图据�
 check(same.stops == ["总览"], "同一站不会把自己叠两层")
 
 var root = NavStack<String>(first: "总览")
-root.arrive("大文件"); root.arrive("缓存")
+root.arrive("Large Files"); root.arrive("缓存")
 root.reset(to: "缓存")
 check(root.stops == ["缓存"] && !root.canGoBack,
       "点侧栏是重新挑目的地，返回随即失效（得 \(root.stops)）")

@@ -28,7 +28,7 @@ brew install --cask dreamofxm/diskwise/diskwise
 
 If it won back space you'd written off, a ⭐ is how the next person finds it.
 
-English | [简体中文](./README.zh-CN.md) | [日本語](./README.ja.md) | [한국어](./README.ko.md)
+English | [日本語](./README.ja.md) | [한국어](./README.ko.md)
 
 </div>
 
@@ -293,7 +293,7 @@ The UI ships in ten languages — English, Simplified and Traditional Chinese, J
 German, Spanish, French, Russian and Brazilian Portuguese — switchable from the language menu on
 the Skins page, and following the system language by default. Same screens in Chinese:
 
-| 空间总览 | 开发缓存 |
+| Space overview | Dev caches |
 |---|---|
 | <img src="docs/screenshots/zh/01-overview.png" width="410" alt="Overview in Simplified Chinese"> | <img src="docs/screenshots/zh/07-dev-cache.png" width="410" alt="Dev Caches in Simplified Chinese"> |
 

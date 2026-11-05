@@ -1,37 +1,37 @@
 import SwiftUI
 import AppKit
 
-// MARK: - 只有命令行、这台机器上没有 .app 的工具：行首挂各家官方品牌标
+// MARK: - Command-line-only tools with no .app on this machine: show each vendor's official brand mark at row start
 //
-// 为什么不能"取不到就算了"：`~/.ollama/models`、`~/.cache/uv`、12 行 node_modules 这些目录，
-// 系统给的就是那只通用蓝文件夹（实测与空目录的 PNG 逐字节相同），整列画下来是一排
-// 一模一样的文件夹——比不画更认不出东西。而这些工具的身份本来各有一张大家都认得的标，
-// 标不依赖这台机器装了什么：命令行工具往往正是 brew / npm 装的，压根没有 .app 可查。
+// Why not "skip if unavailable": dirs like `~/.ollama/models`, `~/.cache/uv`, 12 rows of node_modules
+// get the generic blue system folder (measured: byte-identical PNG to an empty dir), so the column would be a row of
+// identical folders, less recognizable than nothing. Yet each tool already has a widely recognized mark,
+// and the mark doesn't depend on what's installed: CLI tools are often installed via brew / npm, with no .app to look up.
 //
-// 标从哪来：各家公布的官方单色 SVG，栅格成 32/64 两档 PNG 随包发（26 个工具共 64 KB）。
-// 铺法沿用 `IconTile(muted: true)` 那条已定的规矩：浅底同色，不铺实心彩块——
-// 一整排实心块会抢过右边数字那一列，而且和主按钮撞形。
+// Source: each vendor's official monochrome SVG, rasterized to 32/64 PNGs shipped in the bundle (26 tools, 64 KB total).
+// Layout follows the established `IconTile(muted: true)` rule: light wash of the same hue, no solid color blocks;
+// a column of solid blocks would overpower the numbers column on the right and clash with the primary button's shape.
 enum BrandIcons {
-    /// slug → 各家 brand / press 页公布的官方色（simple-icons `_data/simple-icons.json` 逐条对过）
+    /// slug -> official color from each vendor's brand / press page (checked one by one against simple-icons `_data/simple-icons.json`)
     ///
-    /// 这一张表就是清单本身：`Resources/BrandIcons/` 里每个 slug 都要有 ` slug.png` 与
-    /// `slug@2x.png`，反过来也是——多发的标等于替各家商标白占包体积。
+    /// This table is the manifest itself: every slug in `Resources/BrandIcons/` must have ` slug.png` and
+    /// `slug@2x.png`, and vice versa; shipping extra marks just wastes bundle size on others' trademarks.
     static let colors: [String: String] = [
         "ollama":       "000000",   // ~/.ollama/models
-        "openai":       "412991",   // Codex CLI、Whisper 模型缓存
+        "openai":       "412991",   // Codex CLI, Whisper model cache
         "uv":           "DE5FE9",   // ~/.cache/uv
-        "gradle":       "02303A",   // ~/.gradle/caches、wrapper
+        "gradle":       "02303A",   // ~/.gradle/caches, wrapper
         "huggingface":  "FFD21E",   // ~/.cache/huggingface
         "rust":         "000000",   // ~/.cargo/registry
-        "npm":          "CB3837",   // ~/.npm、package-lock.json 的项目
-        "pnpm":         "F69220",   // pnpm store、pnpm-lock.yaml 的项目
+        "npm":          "CB3837",   // ~/.npm, projects with package-lock.json
+        "pnpm":         "F69220",   // pnpm store, projects with pnpm-lock.yaml
         "yarn":         "2C8EBB",   // ~/Library/Caches/Yarn
         "bun":          "000000",   // ~/.bun/install/cache
-        "nodedotjs":    "5FA04E",   // node_modules（项目里没有 lockfile 时）
+        "nodedotjs":    "5FA04E",   // node_modules (when the project has no lockfile)
         "apachemaven":  "C71A36",   // ~/.m2/repository
         "googlechrome": "4285F4",   // ~/.cache/chrome-devtools-mcp
         "homebrew":     "FBB040",   // ~/Library/Caches/Homebrew
-        "go":           "00ADD8",   // ~/go/pkg/mod、~/Library/Caches/go-build
+        "go":           "00ADD8",   // ~/go/pkg/mod, ~/Library/Caches/go-build
         "anaconda":     "44A833",   // ~/.conda/pkgs
         "python":       "3776AB",   // ~/Library/Caches/pip
         "nvm":          "F4DD4B",   // ~/.nvm/.cache
@@ -40,14 +40,14 @@ enum BrandIcons {
         "cocoapods":    "EE3322",   // ~/Library/Caches/CocoaPods
         "intellijidea": "000000",   // ~/Library/Caches/JetBrains/IntelliJIdea*
         "pycharm":      "000000",   // ~/Library/Caches/JetBrains/PyCharm*
-        "androidstudio": "3DDC84",  // ~/Library/Caches/Google/AndroidStudio*、~/.android/avd、Android SDK
+        "androidstudio": "3DDC84",  // ~/Library/Caches/Google/AndroidStudio*, ~/.android/avd, Android SDK
     ]
 
     private static let cache = NSCache<NSString, NSImage>()
 
-    /// 取标。打包版在 `Contents/Resources/BrandIcons`，`swift run` 回落到源码树——
-    /// 跟 safety_db 同一个口径：刻意不用 `Bundle.module`，它找不到 .bundle 就 fatalError，
-    /// 而且回退路径是构建机的绝对路径。
+    /// Loads a mark. Packaged builds use `Contents/Resources/BrandIcons`; `swift run` falls back to the source tree,
+    /// same as safety_db: deliberately avoids `Bundle.module`, which fatalErrors when the .bundle is missing
+    /// and whose fallback path is the build machine's absolute path.
     static func image(_ slug: String) -> NSImage? {
         let key = slug as NSString
         if let hit = cache.object(forKey: key) { return hit }
@@ -58,12 +58,12 @@ enum BrandIcons {
                 return FileManager.default.fileExists(atPath: p) ? URL(fileURLWithPath: p) : nil
             }()
         guard let url, let img = NSImage(contentsOf: url) else { return nil }
-        img.isTemplate = true   // 颜色由皮肤和深浅档决定，标本身只出形状
+        img.isTemplate = true   // color is decided by skin and light/dark; the mark only supplies the shape
         cache.setObject(img, forKey: key)
         return img
     }
 
-    // MARK: 配色
+    // MARK: Colors
 
     private static func components(_ hex: String) -> (Double, Double, Double) {
         let v = UInt32(hex, radix: 16) ?? 0
@@ -79,10 +79,10 @@ enum BrandIcons {
         return Color(.sRGB, red: f(c.0), green: f(c.1), blue: f(c.2), opacity: 1)
     }
 
-    /// 官方色在这套皮肤上看不看得见。Ollama、Rust、IntelliJ 的官方标就是纯黑，
-    /// 铺在深色档上等于没有；Hugging Face 的黄、uv 的粉反过来会在浅色档上糊掉。
-    /// 所以只往"看得见"的方向调：深色档提亮、浅色档压暗，调到那个亮度就停，
-    /// 色相与饱和度原样保留（改色相就不是人家的标了）。
+    /// Whether the official color is visible on this skin. Ollama, Rust and IntelliJ's official marks are pure black,
+    /// invisible on dark; Hugging Face's yellow and uv's pink conversely wash out on light.
+    /// So only adjust toward "visible": lighten on dark, darken on light, stopping once that lightness is reached;
+    /// hue and saturation are kept as-is (changing hue would make it no longer their mark).
     static func tint(_ slug: String, dark: Bool) -> Color {
         guard let hex = colors[slug] else { return .primary }
         let c = components(hex)
@@ -96,7 +96,7 @@ enum BrandIcons {
     }
 }
 
-/// 行首那一格的官方标那一档。铺法与 `IconTile(muted: true)` 一致，两者要改一起改。
+/// The official-mark variant for the row-start cell. Same layout as `IconTile(muted: true)`; change both together.
 struct BrandTile: View {
     @Environment(\.theme) private var theme
     @Environment(\.colorScheme) private var colorScheme

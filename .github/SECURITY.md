@@ -1,6 +1,6 @@
 # Security Policy
 
-DiskWise exists because a disk cleaner is the one kind of utility that should not be
+CleanPilot (derived from DiskWise) exists because a disk cleaner is the one kind of utility that should not be
 able to destroy your data. A bug that breaks that promise is the most serious bug this
 project can have, and it is treated that way.
 
@@ -21,7 +21,7 @@ to an older tag.
 Do not open a public issue for a security problem.
 
 Use GitHub's private vulnerability reporting:
-https://github.com/DreamOfXM/diskwise/security/advisories/new
+https://github.com/huynhtrungthoai/clean-cache-macos/security/advisories/new
 
 If that form is not available to you, open a public issue containing only the sentence
 "security report, please open a private channel" and no technical detail. A private
@@ -36,26 +36,30 @@ more than a description of an attack.
 
 This is worth stating plainly, because most reports concern it.
 
-There is one removal primitive for user data, `trashItem` in `DiskCleanerCore`. It runs
-two guards and then calls `FileManager.trashItem`:
+There is one removal primitive for user data, `trashItem` in `DiskCleanerCore`. It passes
+`deletionGate` and then calls `FileManager.trashItem`:
 
 1. `isProtected` rejects the wholesale removal of locations that must never move as a
-   whole, such as the home directory, `~/Library`, `/`, `/System`, and `/usr`.
+   whole, such as the home directory, `~/Library`, `/`, `/System`, and `/usr`. The
+   comparison is case- and Unicode-normalization-insensitive, like APFS.
 2. `isDeletable` restricts the target to the home directory, `/Applications`, `/tmp`, and
    `/var/tmp`.
+3. `isInSensitiveTree` rejects anything at or under credential, keychain, iCloud Drive,
+   Mail/Messages/Contacts/Calendars and photo/music library locations.
+4. The same checks run again on the canonical location: every parent component resolved
+   with `realpath` (symlinks and on-disk case), the last component left as is so a symlink
+   moves the link and not its target.
 
-The CLI and the MCP server call the same primitive. No other delete path is exposed: no
-shell, no `/bin/rm`, no permanent unlink of a user-selected path. The only `removeItem`
-calls in shipping code target DiskWise's own temporary plan files in the agent handoff
-directory.
+The CLI and the MCP server call the same primitive and the same gate. No other delete path
+is exposed: no shell, no `/bin/rm`, no permanent unlink of a user-selected path. The only
+`removeItem` calls in shipping code target CleanPilot's own temporary plan files in the
+agent handoff directory.
 
-One detail matters for anyone reviewing this code. Both path checks use
-`standardizedFileURL`, which does not resolve symbolic links. That is deliberate:
-`/tmp` and `/var/tmp` are symlinks to `/private`, and resolving them would make the same
-file reachable and unreachable through two spellings. The consequence is that the checks
-compare path text, not resolved inodes, and there is no `isSymbolicLink` filter in the
-removal path. Reports that turn that gap into a removal outside the intended scope are
-in scope for this policy rather than out of it.
+Developer hooks (`DISKWISE_*` environment variables, including the demo home shim) are
+compiled out of release builds and stripped from the environment at launch.
+
+A residual race remains between the gate and the `FileManager.trashItem` call (a parent
+replaced by a symlink in between). Reports that exploit it are in scope.
 
 ## In scope
 
@@ -68,7 +72,7 @@ in scope for this policy rather than out of it.
 - Prompt injection against the MCP server. The server is built to be driven by an agent,
   so a file name, cache entry, or repository name that makes the agent propose something
   outside the intended scope is a real finding, not a curiosity.
-- Elevation of privilege. DiskWise installs no privileged helper, no launch daemon, and
+- Elevation of privilege. CleanPilot installs no privileged helper, no launch daemon, and
   no login item. Anything that gains elevated rights through the app or the CLI is in
   scope.
 - Network. The app makes no network requests and contains no telemetry. An outbound

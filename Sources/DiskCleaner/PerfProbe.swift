@@ -50,7 +50,7 @@ import DiskCleanerCore
 //      由 LaunchServices 补一发 reopen 事件把窗建出来，探针这才挂得上。
 //      `DISKWISE_PERF` 只决定「要不要挂」，窗口才是「有没有得挂」。
 //   3. `-diskcleaner.firstRun.done YES` 压掉首屏那层引导遮罩；不压的话第一段量到的是遮罩。
-//      它是临时参数，不写进正式 defaults（`defaults read com.dreamofxm.diskcleaner` 里没有它）。
+//      它是临时参数，不写进正式 defaults（`defaults read com.huynhtrungthoai.cleanpilot` 里没有它）。
 //
 // ── 红线（2026-10-21 本机 Intel i7-9750H 量的底数，演示树、单实例）──────────
 //
@@ -485,10 +485,10 @@ final class PerfProbe {
         func g(_ b: Int64) -> String { "\(human(b))（\(b) B）" }
         func name(_ t: CostTier) -> String {
             switch t {
-            case .free: return "零代价"
-            case .redo: return "需重下"
-            case .irreversible: return "不可逆"
-            case .off: return "不碰"
+            case .free: return "Zero cost"
+            case .redo: return "Re-download"
+            case .irreversible: return "Irreversible"
+            case .off: return "Hands off"
             }
         }
         let reclaim = overview.cacheTargets.values.flatMap { $0 }.reduce(Int64(0)) { $0 + $1.size }

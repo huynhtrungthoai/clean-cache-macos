@@ -15,9 +15,9 @@ import DiskCleanerCore
 /// 分组标识 → 显示名。排序认 key，界面才查词表。
 func cacheGroupLabel(_ key: String) -> String {
     switch key {
-    case "general": return L("常规缓存")
-    case "cn_app":  return L("国产 App")
-    case "dev":     return L("开发工具")
+    case "general": return L("Everyday caches")
+    case "cn_app":  return L("Chinese apps")
+    case "dev":     return L("Dev tools")
     default:        return key
     }
 }
@@ -35,21 +35,21 @@ enum CachesPage {
         self == .smart ? ["general", "cn_app", "dev"] : (self == .dev ? ["dev"] : ["general", "cn_app"])
     }
     var symbol: String { self == .dev ? "hammer" : "sparkles" }
-    var titleKey: String { self == .smart ? "扫描结果" : (self == .dev ? "开发缓存" : "应用缓存") }
+    var titleKey: String { self == .smart ? "Scan Results" : (self == .dev ? "Dev Caches" : "App Caches") }
     var subtitleKey: String {
-        if self == .smart { return "先查看，再选择要清理的项目" }
-        return self == .dev ? "装过的工具才出现在这一页，删了下次用到会自己重新下载"
-                     : "每项都写明来历，勾你认得的，不认识的别碰"
+        if self == .smart { return "Review the results and choose what to clean" }
+        return self == .dev ? "Only tools you've actually installed show up here; delete one and it re-downloads the next time you need it"
+                     : "Every entry says what it is. Check what you recognize, leave the rest."
     }
     /// 空态在两页说的是两件事：应用页空 = 知识库没读出来（故障）；
     /// 开发页空 = 这台机器压根没装过开发工具（正常），不能拿报错的口吻说它。
     var emptyTitleKey: String {
-        self != .app ? "没有检测到可清理的缓存" : "知识库没加载出来"
+        self != .app ? "No known caches found" : "The knowledge base didn't load"
     }
     var emptyHintKey: String {
-        self == .smart ? "没有发现已知缓存，可以稍后重新扫描"
-            : self == .dev ? "装过 Xcode、npm、Gradle、Ollama 之后回到这里重新扫描"
-                     : "点右上角重新扫描，还不行就提个 Issue"
+        self == .smart ? "No known caches were found. You can scan again later."
+            : self == .dev ? "Install Xcode, npm, Gradle or Ollama, then rescan here"
+                     : "Hit Rescan in the top right; if it persists, open an Issue"
     }
     /// 只有应用页需要把「国产 App」标在行里：开发页整页都是开发工具，再标一遍等于没说。
     var showsGroupLabel: Bool { self == .app }
@@ -64,7 +64,7 @@ private func cacheRowSub(_ item: CacheItem, showsGroup: Bool) -> String? {
     if showsGroup && item.groupKey != "general" { parts.append(cacheGroupLabel(item.groupKey)) }
     parts.append(displayPath(first))
     if item.resolvedPaths.count > 1 {
-        parts.append(LF("%d 处", item.resolvedPaths.count))
+        parts.append(LF("%d paths", item.resolvedPaths.count))
     }
     return parts.joined(separator: " · ")
 }
@@ -105,7 +105,7 @@ struct SimDeviceRows: View {
     var body: some View {
         Group {
             if rows == nil {
-                ExplainLine(key: L("逐台看"), value: L("正在一台一台量，稍等…"))
+                ExplainLine(key: L("By device"), value: L("Measuring each device…"))
             } else {
                 ForEach(rows ?? []) { d in row(d) }
             }
@@ -135,10 +135,10 @@ struct SimDeviceRows: View {
     }
 
     private func booted(_ d: SimDevice) -> String {
-        guard let when = d.lastBooted else { return L("从没启动过") }
+        guard let when = d.lastBooted else { return L("Never booted") }
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
-        return LF("上次启动 %@", f.string(from: when))
+        return LF("Last booted %@", f.string(from: when))
     }
 }
 
@@ -278,13 +278,13 @@ struct CachesView: View {
                     if model.scanning {
                         // 这一页的清单就是下面那列行本身（条目来自知识库，先列后量），
                         // 所以「逐项点亮」在这里等于数字一格一格落下来，页头只管报还差多少条。
-                        LoadingRow(text: LF("正在翻你的缓存目录，已量到 %1$d/%2$d 条",
+                        LoadingRow(text: LF("Digging through your cache folders — %1$d of %2$d measured",
                                             measuredCount, model.items.count),
                                    progress: model.progress)
                     } else {
-                        Text(LF("%d 项可查", model.items.count))
+                        Text(LF("Entries listed: %d", model.items.count))
                         if page == .smart, model.selectAll != nil {
-                            Button(L("选择建议项目")) { model.selectAll?.toggle(true) }
+                            Button(L("Select Recommended")) { model.selectAll?.toggle(true) }
                                 .buttonStyle(.borderless)
                         }
                     }
@@ -312,7 +312,7 @@ struct CachesView: View {
                             brand: item.entry.icon,
                             name: L(item.entry.name),
                             sub: cacheRowSub(item, showsGroup: page.showsGroupLabel),
-                            sizeText: item.size == nil ? L("统计中…") : (shown[item.id] ?? human(item.size ?? 0)),
+                            sizeText: item.size == nil ? L("Counting…") : (shown[item.id] ?? human(item.size ?? 0)),
                             fraction: Double(item.size ?? 0) / Double(maxSize),
                             badge: verdictBadge(item.entry.tier),
                             selectable: (item.size ?? 0) > 0,
@@ -321,11 +321,11 @@ struct CachesView: View {
                             preopen: (SnapshotMode.expandFirstRow
                                 && model.items.first?.id == item.id)
                                 || SnapshotMode.expandsRow(L(item.entry.name), item.entry.name)) {
-                        ExplainLine(key: L("这是什么"), value: L(item.entry.what))
-                        ExplainLine(key: L("删了会怎样"), value: L(item.entry.whatif))
-                        ExplainLine(key: L("怎么恢复"), value: L(item.entry.rec))
+                        ExplainLine(key: L("What it is"), value: L(item.entry.what))
+                        ExplainLine(key: L("What breaks"), value: L(item.entry.whatif))
+                        ExplainLine(key: L("How to recover"), value: L(item.entry.rec))
                         if let what = contentsLine(item.files, item.newest) {
-                            ExplainLine(key: L("内容"), value: what)
+                            ExplainLine(key: L("Contents"), value: what)
                         }
                         if let devDir = simulatorDevicesDir(item) {
                             SimDeviceRows(dir: devDir)
@@ -356,8 +356,8 @@ struct CachesView: View {
         .onChange(of: model.items.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { model.load() }
         .confirmTrash(isPresented: $confirmClean,
-                      text: LF("将 %1$@（%2$@）移入废纸篓。",
-                               cnt(model.selected.count, "项"),
+                      text: LF("Move %1$@ (%2$@) to the Trash.",
+                               cnt(model.selected.count, "items"),
                                human(model.selectedBytes, inRulerOf: listedTotal))) {
             clean()
         }
@@ -407,24 +407,24 @@ struct CachesView: View {
             case .risky:          risk += row.bytes
             }
         }
-        return [LedgerTier(label: L("删了没影响"), bytes: hot, tone: .hot),
-                LedgerTier(label: L("删了要重新下载"), bytes: redo, tone: .warn),
-                LedgerTier(label: L("删了会丢数据"), bytes: risk, tone: .risk)]
+        return [LedgerTier(label: L("No impact"), bytes: hot, tone: .hot),
+                LedgerTier(label: L("Needs re-download"), bytes: redo, tone: .warn),
+                LedgerTier(label: L("Loses data"), bytes: risk, tone: .risk)]
     }
 
     private var ledgerNote: String? {
         // 那一列相加会比底部那个数大，而两个数同屏——不说清是哪几条套着，
         // 用户只会认定其中一个在编。
         model.overlapCount > 0
-            ? LF("%1$d 条的路径就套在别的条目底下，所以「全选」实际能带走 %2$@，不是这一列相加出来的那个数。",
+            ? LF(" %1$d of these paths sit inside another entry, so Select all actually takes %2$@ — not whatever this column adds up to.",
                  model.overlapCount, human(model.selectableBytes))
             : nil
     }
 
     private var barHint: String? {
         model.overlapCount > 0
-            ? LF("%1$d 条路径套在别的条目底下，合计只数最外面那层", model.overlapCount)
-            : L("合计按条目各自的大小相加")
+            ? LF("%1$d paths sit inside others; the total counts the outermost only", model.overlapCount)
+            : L("The total adds each entry's own size")
     }
 
     /// 截图钩子：`DISKWISE_FLIGHT=<0~1>` 时把这一页的飞行钉住拍一张（见 `TrashFlightController`）。
@@ -471,6 +471,6 @@ struct CachesView: View {
             }
         }
         if !errs.isEmpty { errorText = errList(errs) }
-        store.notice = trashedNotice(ok, "项", failed: errs.count)
+        store.notice = trashedNotice(ok, "items", failed: errs.count)
     }
 }

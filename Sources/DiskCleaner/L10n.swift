@@ -24,8 +24,6 @@ enum AppLanguage: String, CaseIterable {
     case system
     case en
     case vi
-    case zhHans
-    case zhHant
     case ja
     case ko
     case de
@@ -40,8 +38,6 @@ enum AppLanguage: String, CaseIterable {
         case .system: return ""
         case .en: return "en"
         case .vi: return "vi"
-        case .zhHans: return "zh-Hans"
-        case .zhHant: return "zh-Hant"
         case .ja: return "ja"
         case .ko: return "ko"
         case .de: return "de"
@@ -59,11 +55,9 @@ enum AppLanguage: String, CaseIterable {
     /// 一种语言的名字不该被翻译。
     var menuLabel: String {
         switch self {
-        case .system: return L("自动")
+        case .system: return L("Automatic")
         case .en: return "English"
         case .vi: return "Tiếng Việt"
-        case .zhHans: return "中文"        // l10n-scan: skip 语言自称
-        case .zhHant: return "繁體中文"     // l10n-scan: skip 语言自称
         case .ja: return "日本語"           // l10n-scan: skip 语言自称
         case .ko: return "한국어"
         case .de: return "Deutsch"
@@ -100,10 +94,6 @@ enum L10n {
     /// 那比显示英文更不像话。
     static func match(_ tag: String) -> AppLanguage {
         let t = tag.lowercased().replacingOccurrences(of: "_", with: "-")
-        if t.hasPrefix("zh") {
-            for script in ["hant", "tw", "hk", "mo"] where t.contains(script) { return .zhHant }
-            return .zhHans
-        }
         if t.hasPrefix("ja") { return .ja }
         if t.hasPrefix("ko") { return .ko }
         if t.hasPrefix("vi") { return .vi }
@@ -153,20 +143,16 @@ enum L10n {
     }
 
     /// 简体中文：源码里的中文原文就是它的文案，压根不必查表。
-    static var isChinese: Bool { active == .zhHans }
 
     /// 汉字排版（简繁都算）。
     ///
     /// 标题字距是照着汉字调的——方块字要透气，衬线皮肤得给到 0.8/1.2；同一套值套到拉丁
     /// 字母上会散成一排省略号。全角标点也按这条分，所以繁体不能只改 `isChinese`：
     /// 它的文案要走词表，但排版规矩跟简体一模一样。
-    static var isHanScript: Bool { active == .zhHans || active == .zhHant }
 
-    static func string(_ zh: String) -> String {
-        guard isChinese else {
-            return resolved.localizedString(forKey: zh, value: zh, table: nil)
-        }
-        return zh
+    /// Keys are the English source text: a missing translation falls back to English.
+    static func string(_ key: String) -> String {
+        resolved.localizedString(forKey: key, value: key, table: nil)
     }
 
     /// 切语言：记住选择，并写 AppleLanguages 让下次启动时系统级一致。
@@ -183,40 +169,20 @@ enum L10n {
 
 /// 界面文案。中文原文即 key，所以源码里看见的中文就是兜底文案。
 @inline(__always)
-func L(_ zh: String) -> String { L10n.string(zh) }
+func L(_ key: String) -> String { L10n.string(key) }
 
 @inline(__always)
-func LF(_ zh: String, _ args: CVarArg...) -> String {
-    String(format: L(zh), arguments: args)
+func LF(_ key: String, _ args: CVarArg...) -> String {
+    String(format: L(key), arguments: args)
 }
 
 /// 中文量词 → 带数量的文案。简体直接拼；繁体换一张换算表；其余语言查单复数表。
-func cnt(_ n: Int, _ zhUnit: String) -> String {
+func cnt(_ n: Int, _ unit: String) -> String {
     // 千分位在这里统一加，而不是各页自己格式化：整盘扫描的读数动辄六位
     // （实测 306772 个目录项），有的写「306,772」有的写「306772」，
     // 同一屏两处长得不一样的数会被读成两个不同的量。
     let head = n.formatted(.number.grouping(.automatic))
-    if L10n.isChinese { return "\(head) \(zhUnit)" }
-    // l10n-scan: off —— 以下中文都是查表入参，译文写在代码里，不进 Localizable.strings
-    //
-    // 繁体不能直接把简体量词拼上去（「个文件」得写「個檔案」），所以它单独一张换算表：
-    // 键仍是源码里那串简体，值换成繁体写法。这样调用点不必知道自己被谁调用。
-    if L10n.active == .zhHant {
-        let hant: [String: String] = [
-            "项": "項", "个文件": "個檔案", "个文件夹": "個檔案夾", "个副本": "個副本", "处残留": "處殘留",
-            "个项目": "個專案", "组": "組", "份": "份", "天": "天", "分钟": "分鐘",
-            "组重复": "組重複", "个应用": "個應用程式", "个包": "個套件",
-            "个 node_modules": "個 node_modules", "个可清理项": "個可清理項",
-            "处可疑": "處可疑", "次": "次", "套": "套", "个多余副本": "個多餘副本",
-            "次操作": "次操作",
-            "个条目": "個條目", "个环境": "個環境", "处": "處",
-        ]
-        return "\(head) \(hant[zhUnit] ?? zhUnit)"
-    }
-    // 其余语言各有一张量词表（见文件末尾 measureWords）：英德西法巴葡分单复数，
-    // 俄语多一档「2–4」的少数形，日韩干脆不分。表里的 key 仍是源码里那串简体中文。
-    // l10n-scan: on
-    guard let forms = measureWords(L10n.active)[zhUnit] else { return "\(head) \(zhUnit)" }
+    guard let forms = measureWords(L10n.active)[unit] else { return "\(head) \(unit)" }
     return "\(head)\(measureGap(L10n.active))\(forms.form(n, in: L10n.active))"
 }
 
@@ -277,238 +243,238 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
     switch lang {
     case .vi:
         return [
-            "项": MeasureForms("mục", "mục"),
-            "个文件": MeasureForms("file", "file"),
-            "个文件夹": MeasureForms("thư mục", "thư mục"),
-            "个副本": MeasureForms("bản sao", "bản sao"),
-            "处残留": MeasureForms("mục còn sót", "mục còn sót"),
-            "个项目": MeasureForms("dự án", "dự án"),
-            "组": MeasureForms("nhóm", "nhóm"),
-            "份": MeasureForms("bản", "bản"),
-            "天": MeasureForms("ngày", "ngày"),
-            "分钟": MeasureForms("phút", "phút"),
-            "组重复": MeasureForms("nhóm trùng", "nhóm trùng"),
-            "个应用": MeasureForms("ứng dụng", "ứng dụng"),
-            "个包": MeasureForms("gói", "gói"),
-            "个 node_modules": MeasureForms("node_modules", "node_modules"),
-            "个可清理项": MeasureForms("mục có thể dọn", "mục có thể dọn"),
-            "处可疑": MeasureForms("mục cần xem", "mục cần xem"),
-            "次": MeasureForms("lần", "lần"),
-            "次操作": MeasureForms("thao tác", "thao tác"),
-            "套": MeasureForms("giao diện", "giao diện"),
-            "个多余副本": MeasureForms("bản sao dư", "bản sao dư"),
-            "个条目": MeasureForms("mục", "mục"),
-            "个环境": MeasureForms("môi trường", "môi trường"),
-            "处": MeasureForms("vị trí", "vị trí"),
+            "items": MeasureForms("mục", "mục"),
+            "files": MeasureForms("file", "file"),
+            "folders": MeasureForms("thư mục", "thư mục"),
+            "copies": MeasureForms("bản sao", "bản sao"),
+            "leftovers": MeasureForms("mục còn sót", "mục còn sót"),
+            "projects": MeasureForms("dự án", "dự án"),
+            "groups": MeasureForms("nhóm", "nhóm"),
+            "shares": MeasureForms("bản", "bản"),
+            "days": MeasureForms("ngày", "ngày"),
+            "minutes": MeasureForms("phút", "phút"),
+            "duplicate groups": MeasureForms("nhóm trùng", "nhóm trùng"),
+            "apps": MeasureForms("ứng dụng", "ứng dụng"),
+            "packages": MeasureForms("gói", "gói"),
+            "node_modules folders": MeasureForms("node_modules", "node_modules"),
+            "cleanable items": MeasureForms("mục có thể dọn", "mục có thể dọn"),
+            "suspicious spots": MeasureForms("mục cần xem", "mục cần xem"),
+            "times": MeasureForms("lần", "lần"),
+            "operations": MeasureForms("thao tác", "thao tác"),
+            "skins": MeasureForms("giao diện", "giao diện"),
+            "extra copies": MeasureForms("bản sao dư", "bản sao dư"),
+            "entries": MeasureForms("mục", "mục"),
+            "environments": MeasureForms("môi trường", "môi trường"),
+            "spots": MeasureForms("vị trí", "vị trí"),
         ]
     case .ja:
         return [
-            "项": MeasureForms("件", "件"),
-            "个文件": MeasureForms("ファイル", "ファイル"),
-            "个文件夹": MeasureForms("フォルダ", "フォルダ"),
-            "个副本": MeasureForms("コピー", "コピー"),
-            "处残留": MeasureForms("件の残存データ", "件の残存データ"),
-            "个项目": MeasureForms("プロジェクト", "プロジェクト"),
-            "组": MeasureForms("グループ", "グループ"),
-            "份": MeasureForms("コピー", "コピー"),
-            "天": MeasureForms("日", "日"),
-            "分钟": MeasureForms("分", "分"),
-            "组重复": MeasureForms("件の重複グループ", "件の重複グループ"),
-            "个应用": MeasureForms("アプリ", "アプリ"),
-            "个包": MeasureForms("パッケージ", "パッケージ"),
-            "个 node_modules": MeasureForms("node_modules", "node_modules"),
-            "个可清理项": MeasureForms("件の削除候補", "件の削除候補"),
-            "处可疑": MeasureForms("件の要注意", "件の要注意"),
-            "次": MeasureForms("回", "回"),
-            "次操作": MeasureForms("回の操作", "回の操作"),
-            "套": MeasureForms("スキン", "スキン"),
-            "个多余副本": MeasureForms("件の余分なコピー", "件の余分なコピー"),
-            "个条目": MeasureForms("件", "件"),
-            "个环境": MeasureForms("環境", "環境"),
-            "处": MeasureForms("箇所", "箇所"),
+            "items": MeasureForms("件", "件"),
+            "files": MeasureForms("ファイル", "ファイル"),
+            "folders": MeasureForms("フォルダ", "フォルダ"),
+            "copies": MeasureForms("コピー", "コピー"),
+            "leftovers": MeasureForms("件の残存データ", "件の残存データ"),
+            "projects": MeasureForms("プロジェクト", "プロジェクト"),
+            "groups": MeasureForms("グループ", "グループ"),
+            "shares": MeasureForms("コピー", "コピー"),
+            "days": MeasureForms("日", "日"),
+            "minutes": MeasureForms("分", "分"),
+            "duplicate groups": MeasureForms("件の重複グループ", "件の重複グループ"),
+            "apps": MeasureForms("アプリ", "アプリ"),
+            "packages": MeasureForms("パッケージ", "パッケージ"),
+            "node_modules folders": MeasureForms("node_modules", "node_modules"),
+            "cleanable items": MeasureForms("件の削除候補", "件の削除候補"),
+            "suspicious spots": MeasureForms("件の要注意", "件の要注意"),
+            "times": MeasureForms("回", "回"),
+            "operations": MeasureForms("回の操作", "回の操作"),
+            "skins": MeasureForms("スキン", "スキン"),
+            "extra copies": MeasureForms("件の余分なコピー", "件の余分なコピー"),
+            "entries": MeasureForms("件", "件"),
+            "environments": MeasureForms("環境", "環境"),
+            "spots": MeasureForms("箇所", "箇所"),
         ]
     case .ko:
         return [
-            "项": MeasureForms("개 항목", "개 항목"),
-            "个文件": MeasureForms("개 파일", "개 파일"),
-            "个文件夹": MeasureForms("개 폴더", "개 폴더"),
-            "个副本": MeasureForms("개 사본", "개 사본"),
-            "处残留": MeasureForms("개 잔여 항목", "개 잔여 항목"),
-            "个项目": MeasureForms("개 프로젝트", "개 프로젝트"),
-            "组": MeasureForms("개 그룹", "개 그룹"),
-            "份": MeasureForms("개 사본", "개 사본"),
-            "天": MeasureForms("일", "일"),
-            "分钟": MeasureForms("분", "분"),
-            "组重复": MeasureForms("개 중복 그룹", "개 중복 그룹"),
-            "个应用": MeasureForms("개 앱", "개 앱"),
-            "个包": MeasureForms("개 패키지", "개 패키지"),
-            "个 node_modules": MeasureForms("개 node_modules", "개 node_modules"),
-            "个可清理项": MeasureForms("개 정리 항목", "개 정리 항목"),
-            "处可疑": MeasureForms("개 의심 항목", "개 의심 항목"),
-            "次": MeasureForms("회", "회"),
-            "次操作": MeasureForms("회 작업", "회 작업"),
-            "套": MeasureForms("개 스킨", "개 스킨"),
-            "个多余副本": MeasureForms("개 중복 사본", "개 중복 사본"),
-            "个条目": MeasureForms("개 항목", "개 항목"),
-            "个环境": MeasureForms("개 환경", "개 환경"),
-            "处": MeasureForms("개 위치", "개 위치"),
+            "items": MeasureForms("개 항목", "개 항목"),
+            "files": MeasureForms("개 파일", "개 파일"),
+            "folders": MeasureForms("개 폴더", "개 폴더"),
+            "copies": MeasureForms("개 사본", "개 사본"),
+            "leftovers": MeasureForms("개 잔여 항목", "개 잔여 항목"),
+            "projects": MeasureForms("개 프로젝트", "개 프로젝트"),
+            "groups": MeasureForms("개 그룹", "개 그룹"),
+            "shares": MeasureForms("개 사본", "개 사본"),
+            "days": MeasureForms("일", "일"),
+            "minutes": MeasureForms("분", "분"),
+            "duplicate groups": MeasureForms("개 중복 그룹", "개 중복 그룹"),
+            "apps": MeasureForms("개 앱", "개 앱"),
+            "packages": MeasureForms("개 패키지", "개 패키지"),
+            "node_modules folders": MeasureForms("개 node_modules", "개 node_modules"),
+            "cleanable items": MeasureForms("개 정리 항목", "개 정리 항목"),
+            "suspicious spots": MeasureForms("개 의심 항목", "개 의심 항목"),
+            "times": MeasureForms("회", "회"),
+            "operations": MeasureForms("회 작업", "회 작업"),
+            "skins": MeasureForms("개 스킨", "개 스킨"),
+            "extra copies": MeasureForms("개 중복 사본", "개 중복 사본"),
+            "entries": MeasureForms("개 항목", "개 항목"),
+            "environments": MeasureForms("개 환경", "개 환경"),
+            "spots": MeasureForms("개 위치", "개 위치"),
         ]
     case .de:
         return [
-            "项": MeasureForms("Eintrag", "Einträge"),
-            "个文件": MeasureForms("Datei", "Dateien"),
-            "个文件夹": MeasureForms("Ordner", "Ordner"),
-            "个副本": MeasureForms("Kopie", "Kopien"),
-            "处残留": MeasureForms("Überrest", "Überreste"),
-            "个项目": MeasureForms("Projekt", "Projekte"),
-            "组": MeasureForms("Gruppe", "Gruppen"),
-            "份": MeasureForms("Kopie", "Kopien"),
-            "天": MeasureForms("Tag", "Tage"),
-            "分钟": MeasureForms("Minute", "Minuten"),
-            "组重复": MeasureForms("Duplikatgruppe", "Duplikatgruppen"),
-            "个应用": MeasureForms("App", "Apps"),
-            "个包": MeasureForms("Paket", "Pakete"),
-            "个 node_modules": MeasureForms("node_modules-Ordner", "node_modules-Ordner"),
-            "个可清理项": MeasureForms("löschbarer Eintrag", "löschbare Einträge"),
-            "处可疑": MeasureForms("verdächtige Stelle", "verdächtige Stellen"),
-            "次": MeasureForms("Mal", "Mal"),
-            "次操作": MeasureForms("Aktion", "Aktionen"),
-            "套": MeasureForms("Skin", "Skins"),
-            "个多余副本": MeasureForms("überzählige Kopie", "überzählige Kopien"),
-            "个条目": MeasureForms("Eintrag", "Einträge"),
-            "个环境": MeasureForms("Umgebung", "Umgebungen"),
-            "处": MeasureForms("Stelle", "Stellen"),
+            "items": MeasureForms("Eintrag", "Einträge"),
+            "files": MeasureForms("Datei", "Dateien"),
+            "folders": MeasureForms("Ordner", "Ordner"),
+            "copies": MeasureForms("Kopie", "Kopien"),
+            "leftovers": MeasureForms("Überrest", "Überreste"),
+            "projects": MeasureForms("Projekt", "Projekte"),
+            "groups": MeasureForms("Gruppe", "Gruppen"),
+            "shares": MeasureForms("Kopie", "Kopien"),
+            "days": MeasureForms("Tag", "Tage"),
+            "minutes": MeasureForms("Minute", "Minuten"),
+            "duplicate groups": MeasureForms("Duplikatgruppe", "Duplikatgruppen"),
+            "apps": MeasureForms("App", "Apps"),
+            "packages": MeasureForms("Paket", "Pakete"),
+            "node_modules folders": MeasureForms("node_modules-Ordner", "node_modules-Ordner"),
+            "cleanable items": MeasureForms("löschbarer Eintrag", "löschbare Einträge"),
+            "suspicious spots": MeasureForms("verdächtige Stelle", "verdächtige Stellen"),
+            "times": MeasureForms("Mal", "Mal"),
+            "operations": MeasureForms("Aktion", "Aktionen"),
+            "skins": MeasureForms("Skin", "Skins"),
+            "extra copies": MeasureForms("überzählige Kopie", "überzählige Kopien"),
+            "entries": MeasureForms("Eintrag", "Einträge"),
+            "environments": MeasureForms("Umgebung", "Umgebungen"),
+            "spots": MeasureForms("Stelle", "Stellen"),
         ]
     case .es:
         return [
-            "项": MeasureForms("elemento", "elementos"),
-            "个文件": MeasureForms("archivo", "archivos"),
-            "个文件夹": MeasureForms("carpeta", "carpetas"),
-            "个副本": MeasureForms("copia", "copias"),
-            "处残留": MeasureForms("residuo", "residuos"),
-            "个项目": MeasureForms("proyecto", "proyectos"),
-            "组": MeasureForms("grupo", "grupos"),
-            "份": MeasureForms("copia", "copias"),
-            "天": MeasureForms("día", "días"),
-            "分钟": MeasureForms("minuto", "minutos"),
-            "组重复": MeasureForms("grupo duplicado", "grupos duplicados"),
-            "个应用": MeasureForms("app", "apps"),
-            "个包": MeasureForms("paquete", "paquetes"),
-            "个 node_modules": MeasureForms("carpeta node_modules", "carpetas node_modules"),
-            "个可清理项": MeasureForms("elemento limpiable", "elementos limpiables"),
-            "处可疑": MeasureForms("punto sospechoso", "puntos sospechosos"),
-            "次": MeasureForms("vez", "veces"),
-            "次操作": MeasureForms("operación", "operaciones"),
-            "套": MeasureForms("aspecto", "aspectos"),
-            "个多余副本": MeasureForms("copia extra", "copias extra"),
-            "个条目": MeasureForms("entrada", "entradas"),
-            "个环境": MeasureForms("entorno", "entornos"),
-            "处": MeasureForms("punto", "puntos"),
+            "items": MeasureForms("elemento", "elementos"),
+            "files": MeasureForms("archivo", "archivos"),
+            "folders": MeasureForms("carpeta", "carpetas"),
+            "copies": MeasureForms("copia", "copias"),
+            "leftovers": MeasureForms("residuo", "residuos"),
+            "projects": MeasureForms("proyecto", "proyectos"),
+            "groups": MeasureForms("grupo", "grupos"),
+            "shares": MeasureForms("copia", "copias"),
+            "days": MeasureForms("día", "días"),
+            "minutes": MeasureForms("minuto", "minutos"),
+            "duplicate groups": MeasureForms("grupo duplicado", "grupos duplicados"),
+            "apps": MeasureForms("app", "apps"),
+            "packages": MeasureForms("paquete", "paquetes"),
+            "node_modules folders": MeasureForms("carpeta node_modules", "carpetas node_modules"),
+            "cleanable items": MeasureForms("elemento limpiable", "elementos limpiables"),
+            "suspicious spots": MeasureForms("punto sospechoso", "puntos sospechosos"),
+            "times": MeasureForms("vez", "veces"),
+            "operations": MeasureForms("operación", "operaciones"),
+            "skins": MeasureForms("aspecto", "aspectos"),
+            "extra copies": MeasureForms("copia extra", "copias extra"),
+            "entries": MeasureForms("entrada", "entradas"),
+            "environments": MeasureForms("entorno", "entornos"),
+            "spots": MeasureForms("punto", "puntos"),
         ]
     case .fr:
         return [
-            "项": MeasureForms("élément", "éléments"),
-            "个文件": MeasureForms("fichier", "fichiers"),
-            "个文件夹": MeasureForms("dossier", "dossiers"),
-            "个副本": MeasureForms("copie", "copies"),
-            "处残留": MeasureForms("résidu", "résidus"),
-            "个项目": MeasureForms("projet", "projets"),
-            "组": MeasureForms("groupe", "groupes"),
-            "份": MeasureForms("copie", "copies"),
-            "天": MeasureForms("jour", "jours"),
-            "分钟": MeasureForms("minute", "minutes"),
-            "组重复": MeasureForms("groupe de doublons", "groupes de doublons"),
-            "个应用": MeasureForms("app", "apps"),
-            "个包": MeasureForms("paquet", "paquets"),
-            "个 node_modules": MeasureForms("dossier node_modules", "dossiers node_modules"),
-            "个可清理项": MeasureForms("élément nettoyable", "éléments nettoyables"),
-            "处可疑": MeasureForms("emplacement suspect", "emplacements suspects"),
-            "次": MeasureForms("fois", "fois"),
-            "次操作": MeasureForms("opération", "opérations"),
-            "套": MeasureForms("apparence", "apparences"),
-            "个多余副本": MeasureForms("copie en trop", "copies en trop"),
-            "个条目": MeasureForms("entrée", "entrées"),
-            "个环境": MeasureForms("environnement", "environnements"),
-            "处": MeasureForms("emplacement", "emplacements"),
+            "items": MeasureForms("élément", "éléments"),
+            "files": MeasureForms("fichier", "fichiers"),
+            "folders": MeasureForms("dossier", "dossiers"),
+            "copies": MeasureForms("copie", "copies"),
+            "leftovers": MeasureForms("résidu", "résidus"),
+            "projects": MeasureForms("projet", "projets"),
+            "groups": MeasureForms("groupe", "groupes"),
+            "shares": MeasureForms("copie", "copies"),
+            "days": MeasureForms("jour", "jours"),
+            "minutes": MeasureForms("minute", "minutes"),
+            "duplicate groups": MeasureForms("groupe de doublons", "groupes de doublons"),
+            "apps": MeasureForms("app", "apps"),
+            "packages": MeasureForms("paquet", "paquets"),
+            "node_modules folders": MeasureForms("dossier node_modules", "dossiers node_modules"),
+            "cleanable items": MeasureForms("élément nettoyable", "éléments nettoyables"),
+            "suspicious spots": MeasureForms("emplacement suspect", "emplacements suspects"),
+            "times": MeasureForms("fois", "fois"),
+            "operations": MeasureForms("opération", "opérations"),
+            "skins": MeasureForms("apparence", "apparences"),
+            "extra copies": MeasureForms("copie en trop", "copies en trop"),
+            "entries": MeasureForms("entrée", "entrées"),
+            "environments": MeasureForms("environnement", "environnements"),
+            "spots": MeasureForms("emplacement", "emplacements"),
         ]
     case .ru:
         return [
-            "项": MeasureForms("элемент", "элемента", "элементов"),
-            "个文件": MeasureForms("файл", "файла", "файлов"),
-            "个文件夹": MeasureForms("папка", "папки", "папок"),
-            "个副本": MeasureForms("копия", "копии", "копий"),
-            "处残留": MeasureForms("остаток", "остатка", "остатков"),
-            "个项目": MeasureForms("проект", "проекта", "проектов"),
-            "组": MeasureForms("группа", "группы", "групп"),
-            "份": MeasureForms("копия", "копии", "копий"),
-            "天": MeasureForms("день", "дня", "дней"),
-            "分钟": MeasureForms("минуту", "минуты", "минут"),
-            "组重复": MeasureForms("группа дубликатов", "группы дубликатов", "групп дубликатов"),
-            "个应用": MeasureForms("приложение", "приложения", "приложений"),
-            "个包": MeasureForms("пакет", "пакета", "пакетов"),
-            "个 node_modules": MeasureForms("папка node_modules", "папки node_modules", "папок node_modules"),
-            "个可清理项": MeasureForms("объект для очистки", "объекта для очистки", "объектов для очистки"),
-            "处可疑": MeasureForms("подозрительное место", "подозрительных места", "подозрительных мест"),
-            "次": MeasureForms("раз", "раза", "раз"),
-            "次操作": MeasureForms("действие", "действия", "действий"),
-            "套": MeasureForms("оформление", "оформления", "оформлений"),
-            "个多余副本": MeasureForms("лишняя копия", "лишние копии", "лишних копий"),
-            "个条目": MeasureForms("запись", "записи", "записей"),
-            "个环境": MeasureForms("окружение", "окружения", "окружений"),
-            "处": MeasureForms("место", "места", "мест"),
+            "items": MeasureForms("элемент", "элемента", "элементов"),
+            "files": MeasureForms("файл", "файла", "файлов"),
+            "folders": MeasureForms("папка", "папки", "папок"),
+            "copies": MeasureForms("копия", "копии", "копий"),
+            "leftovers": MeasureForms("остаток", "остатка", "остатков"),
+            "projects": MeasureForms("проект", "проекта", "проектов"),
+            "groups": MeasureForms("группа", "группы", "групп"),
+            "shares": MeasureForms("копия", "копии", "копий"),
+            "days": MeasureForms("день", "дня", "дней"),
+            "minutes": MeasureForms("минуту", "минуты", "минут"),
+            "duplicate groups": MeasureForms("группа дубликатов", "группы дубликатов", "групп дубликатов"),
+            "apps": MeasureForms("приложение", "приложения", "приложений"),
+            "packages": MeasureForms("пакет", "пакета", "пакетов"),
+            "node_modules folders": MeasureForms("папка node_modules", "папки node_modules", "папок node_modules"),
+            "cleanable items": MeasureForms("объект для очистки", "объекта для очистки", "объектов для очистки"),
+            "suspicious spots": MeasureForms("подозрительное место", "подозрительных места", "подозрительных мест"),
+            "times": MeasureForms("раз", "раза", "раз"),
+            "operations": MeasureForms("действие", "действия", "действий"),
+            "skins": MeasureForms("оформление", "оформления", "оформлений"),
+            "extra copies": MeasureForms("лишняя копия", "лишние копии", "лишних копий"),
+            "entries": MeasureForms("запись", "записи", "записей"),
+            "environments": MeasureForms("окружение", "окружения", "окружений"),
+            "spots": MeasureForms("место", "места", "мест"),
         ]
     case .ptBR:
         return [
-            "项": MeasureForms("item", "itens"),
-            "个文件": MeasureForms("arquivo", "arquivos"),
-            "个文件夹": MeasureForms("pasta", "pastas"),
-            "个副本": MeasureForms("cópia", "cópias"),
-            "处残留": MeasureForms("resíduo", "resíduos"),
-            "个项目": MeasureForms("projeto", "projetos"),
-            "组": MeasureForms("grupo", "grupos"),
-            "份": MeasureForms("cópia", "cópias"),
-            "天": MeasureForms("dia", "dias"),
-            "分钟": MeasureForms("minuto", "minutos"),
-            "组重复": MeasureForms("grupo de duplicados", "grupos de duplicados"),
-            "个应用": MeasureForms("app", "apps"),
-            "个包": MeasureForms("pacote", "pacotes"),
-            "个 node_modules": MeasureForms("pasta node_modules", "pastas node_modules"),
-            "个可清理项": MeasureForms("item limpável", "itens limpáveis"),
-            "处可疑": MeasureForms("ponto suspeito", "pontos suspeitos"),
-            "次": MeasureForms("vez", "vezes"),
-            "次操作": MeasureForms("operação", "operações"),
-            "套": MeasureForms("tema", "temas"),
-            "个多余副本": MeasureForms("cópia extra", "cópias extras"),
-            "个条目": MeasureForms("entrada", "entradas"),
-            "个环境": MeasureForms("ambiente", "ambientes"),
-            "处": MeasureForms("ponto", "pontos"),
+            "items": MeasureForms("item", "itens"),
+            "files": MeasureForms("arquivo", "arquivos"),
+            "folders": MeasureForms("pasta", "pastas"),
+            "copies": MeasureForms("cópia", "cópias"),
+            "leftovers": MeasureForms("resíduo", "resíduos"),
+            "projects": MeasureForms("projeto", "projetos"),
+            "groups": MeasureForms("grupo", "grupos"),
+            "shares": MeasureForms("cópia", "cópias"),
+            "days": MeasureForms("dia", "dias"),
+            "minutes": MeasureForms("minuto", "minutos"),
+            "duplicate groups": MeasureForms("grupo de duplicados", "grupos de duplicados"),
+            "apps": MeasureForms("app", "apps"),
+            "packages": MeasureForms("pacote", "pacotes"),
+            "node_modules folders": MeasureForms("pasta node_modules", "pastas node_modules"),
+            "cleanable items": MeasureForms("item limpável", "itens limpáveis"),
+            "suspicious spots": MeasureForms("ponto suspeito", "pontos suspeitos"),
+            "times": MeasureForms("vez", "vezes"),
+            "operations": MeasureForms("operação", "operações"),
+            "skins": MeasureForms("tema", "temas"),
+            "extra copies": MeasureForms("cópia extra", "cópias extras"),
+            "entries": MeasureForms("entrada", "entradas"),
+            "environments": MeasureForms("ambiente", "ambientes"),
+            "spots": MeasureForms("ponto", "pontos"),
         ]
     default:
         // en，同时也是兜底：认不出的语言退回英文量词，总比拼中文强。
         return [
-            "项": MeasureForms("item", "items"),
-            "个文件": MeasureForms("file", "files"),
-            "个文件夹": MeasureForms("folder", "folders"),
-            "个副本": MeasureForms("copy", "copies"),
-            "处残留": MeasureForms("leftover", "leftovers"),
-            "个项目": MeasureForms("project", "projects"),
-            "组": MeasureForms("group", "groups"),
-            "份": MeasureForms("copy", "copies"),
-            "天": MeasureForms("day", "days"),
-            "分钟": MeasureForms("minute", "minutes"),
-            "组重复": MeasureForms("duplicate group", "duplicate groups"),
-            "个应用": MeasureForms("app", "apps"),
-            "个包": MeasureForms("package", "packages"),
-            "个 node_modules": MeasureForms("node_modules folder", "node_modules folders"),
-            "个可清理项": MeasureForms("cleanable item", "cleanable items"),
-            "处可疑": MeasureForms("suspicious spot", "suspicious spots"),
-            "次": MeasureForms("time", "times"),
-            "次操作": MeasureForms("operation", "operations"),
-            "套": MeasureForms("skin", "skins"),
-            "个多余副本": MeasureForms("extra copy", "extra copies"),
-            "个条目": MeasureForms("entry", "entries"),
-            "个环境": MeasureForms("environment", "environments"),
-            "处": MeasureForms("spot", "spots"),
+            "items": MeasureForms("item", "items"),
+            "files": MeasureForms("file", "files"),
+            "folders": MeasureForms("folder", "folders"),
+            "copies": MeasureForms("copy", "copies"),
+            "leftovers": MeasureForms("leftover", "leftovers"),
+            "projects": MeasureForms("project", "projects"),
+            "groups": MeasureForms("group", "groups"),
+            "shares": MeasureForms("copy", "copies"),
+            "days": MeasureForms("day", "days"),
+            "minutes": MeasureForms("minute", "minutes"),
+            "duplicate groups": MeasureForms("duplicate group", "duplicate groups"),
+            "apps": MeasureForms("app", "apps"),
+            "packages": MeasureForms("package", "packages"),
+            "node_modules folders": MeasureForms("node_modules folder", "node_modules folders"),
+            "cleanable items": MeasureForms("cleanable item", "cleanable items"),
+            "suspicious spots": MeasureForms("suspicious spot", "suspicious spots"),
+            "times": MeasureForms("time", "times"),
+            "operations": MeasureForms("operation", "operations"),
+            "skins": MeasureForms("skin", "skins"),
+            "extra copies": MeasureForms("extra copy", "extra copies"),
+            "entries": MeasureForms("entry", "entries"),
+            "environments": MeasureForms("environment", "environments"),
+            "spots": MeasureForms("spot", "spots"),
         ]
     }
     // l10n-scan: on
@@ -516,5 +482,5 @@ private func measureWords(_ lang: AppLanguage) -> [String: MeasureForms] {
 
 /// 拼接多条失败原因。汉字用全角分号，其余语言照各自的正字法来。
 func errList(_ msgs: [String]) -> String {
-    msgs.joined(separator: L10n.isHanScript ? "；" : "; ")
+    msgs.joined(separator: "; ")
 }

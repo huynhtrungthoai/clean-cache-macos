@@ -146,6 +146,10 @@ public struct VerdictIndex {
 /// 且回退路径是构建机的绝对路径，等于只有开发者自己的机器能打开这一页。
 public func safetyDBFileURL() -> URL? {
     if let u = Bundle.main.url(forResource: "safety_db", withExtension: "json") { return u }
+    // The CWD-relative dev fallback must not exist in a release: an MCP client launched with
+    // CWD inside a hostile repo could plant a knowledge base that marks ~/Documents "safe".
+    // No DB in a release = every path is unknown = the agent may trash nothing (fails closed).
+    guard devHooksEnabled else { return nil }
     let dev = "Sources/DiskCleaner/Resources/safety_db.json"
     return FileManager.default.fileExists(atPath: dev) ? URL(fileURLWithPath: dev) : nil
 }

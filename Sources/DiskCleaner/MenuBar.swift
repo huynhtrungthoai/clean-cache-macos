@@ -1,16 +1,16 @@
 import AppKit
 import DiskCleanerCore
 
-// ── 菜单栏那颗容量读数（稿子③）──────────────────────────────────────────────
+// ── Menu bar capacity readout (mockup 3) ──────────────────────────────────────────
 //
-// 取数沿用窗口标题栏那颗 `VolumeChip` 走的同一条路：`volumeUsage()` 问一次、
-// 每 5 秒问一次，不另开口径——稿子的判据是「菜单栏与窗口在同一秒读出来一致」，
-// 两条取数路迟早对不齐，而这类工具卖的就是数字可信。
+// Data comes the same way as the window title bar's `VolumeChip`: one `volumeUsage()` call,
+// then every 5 seconds; no separate source. The mockup's criterion is "menu bar and window read the same in the same second" -
+// two data paths drift apart sooner or later, and a tool like this sells trustworthy numbers.
 //
-// 不做常驻：状态项跟着进程活，App 没开就没有这一条。稿子①那一屏的第二格
-// （开机时启动）才是把它带到开机之后的唯一途径。
-// 量不到时只留图标不留数：写 0 是谎报「这盘空了」，写「未知」是给一桩还没发生的
-// 事占一格——与侧栏那列容量同一套口径。
+// Not persistent: the status item lives with the process; if the app isn't open, it isn't there. The second toggle on mockup 1's screen
+// (launch at login) is the only way to carry it past a reboot.
+// When usage can't be measured, show only the icon, no number: writing 0 falsely claims "this disk is empty", and writing "unknown" spends a slot
+// on something that hasn't happened - same policy as the sidebar's capacity column.
 
 @MainActor
 final class MenuBar: NSObject {
@@ -30,7 +30,7 @@ final class MenuBar: NSObject {
         let status = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = status.button {
             button.image = NSImage(systemSymbolName: "internaldrive",
-                                   accessibilityDescription: L("可用"))
+                                   accessibilityDescription: L("Available"))
             button.imagePosition = .imageLeading
             button.font = NSFont.menuFont(ofSize: 0)
         }
@@ -59,8 +59,8 @@ final class MenuBar: NSObject {
         item.button?.title = usage.map { " " + human($0.available) } ?? ""
         menu.removeAllItems()
         if let u = usage {
-            menu.addItem(Self.info(LF("整块盘 %1$@ · 已用 %2$@", human(u.total), human(u.used))))
-            menu.addItem(Self.info(LF("可用 %@", human(u.available))))
+            menu.addItem(Self.info(LF("Disk %1$@ · %2$@ used", human(u.total), human(u.used))))
+            menu.addItem(Self.info(LF("%@ free", human(u.available))))
         }
         menu.addItem(.separator())
         let open = NSMenuItem(title: Product.name, action: #selector(focusMain), keyEquivalent: "")
@@ -75,8 +75,8 @@ final class MenuBar: NSObject {
         return item
     }
 
-    /// 已有窗口就带到前面；一个都没有时只把 App 激活，
-    /// 剩下的交给系统在点击 Dock 图标时补——这里不自己造窗口，也不硬调私有选择器。
+    /// If a window exists, bring it to the front; if none exists, just activate the app
+    /// and let the system fill in on Dock-icon click - we don't build a window here or call private selectors.
     @objc private func focusMain() {
         NSApp.activate(ignoringOtherApps: true)
         if let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {

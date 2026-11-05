@@ -150,18 +150,18 @@ struct UninstallView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: AppPanel.uninstall.symbol, title: L("卸载 App"),
-                           subtitle: L("应用和它留下的数据一起搬走——只动你的家目录"),
+                PageHeader(symbol: AppPanel.uninstall.symbol, title: L("Uninstall Apps"),
+                           subtitle: L("Move an app along with what it left behind — home folder only"),
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: L("正在盘点已装应用…"), progress: model.progress)
+                        LoadingRow(text: L("Taking stock of installed apps…"), progress: model.progress)
                     } else {
-                        Text(LF("盘点了 %1$@，其中 %2$@ 可以卸载",
-                                cnt(model.scanned, "个应用"),
-                                cnt(model.uninstallableCount, "个应用")))
+                        Text(LF("Found %1$@ — %2$@ can be uninstalled",
+                                cnt(model.scanned, "apps"),
+                                cnt(model.uninstallableCount, "apps")))
                     }
-                    ThemeBadge(text: L("只动家目录"), tone: .neutral)
+                    ThemeBadge(text: L("Home folder only"), tone: .neutral)
                 } trailing: {
                     ScanControl(scanning: model.scanning,
                                 rescan: { model.scan() }, stop: { model.stop() })
@@ -174,8 +174,8 @@ struct UninstallView: View {
             if model.scanning && model.apps.isEmpty {
                 ScanChecklist(progress: model.progress)
             } else if !model.scanning && model.apps.isEmpty {
-                EmptyState(symbol: "trash.slash", title: L("没有可卸载的应用"),
-                           hint: L("系统目录里的 App 和以链接形式出现的 App 不列出来——它们要么搬不动，要么搬走的只是一个链接"))
+                EmptyState(symbol: "trash.slash", title: L("Nothing here can be uninstalled"),
+                           hint: L("Apps in system folders and apps that only appear as a link are left out — they cannot move, or only a link would move"))
                     .frame(maxHeight: .infinity)
             } else {
                 HStack(alignment: .top, spacing: 14) {
@@ -199,9 +199,9 @@ struct UninstallView: View {
         }
         // 盘完那一瞬才有人可选：进来时 `apps` 还是空的，光靠 `onAppear` 会早退。
         .onChange(of: model.apps.count) { _ in pickSnapshotAppIfAsked() }
-        .alert(LF("确认卸载「%@」？", model.current?.name ?? ""), isPresented: $confirm) {
-            Button(L("取消"), role: .cancel) {}
-            Button(L("卸载并移进废纸篓"), role: .destructive) { run() }
+        .alert(LF("Uninstall “%@”?", model.current?.name ?? ""), isPresented: $confirm) {
+            Button(L("Cancel"), role: .cancel) {}
+            Button(L("Uninstall to Trash"), role: .destructive) { run() }
         } message: {
             Text(confirmText)
         }
@@ -224,7 +224,7 @@ struct UninstallView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(theme.palette.inkTertiary)
-                TextField(L("搜索应用"), text: $model.query)
+                TextField(L("Search apps"), text: $model.query)
                     .textFieldStyle(.plain)
                     .font(theme.bodyFont(.callout))
                     .foregroundStyle(theme.palette.ink)
@@ -237,7 +237,7 @@ struct UninstallView: View {
                             .foregroundStyle(theme.palette.inkTertiary)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(L("清空搜索"))
+                    .accessibilityLabel(L("Clear search"))
                 }
             }
             .padding(.horizontal, 9)
@@ -253,7 +253,7 @@ struct UninstallView: View {
                         appRow(app)
                     }
                     if model.shown.isEmpty && !model.scanning {
-                        Text(L("没有匹配的应用"))
+                        Text(L("No apps match"))
                             .font(theme.bodyFont(.caption))
                             .foregroundStyle(theme.palette.inkTertiary)
                             .padding(.top, 18)
@@ -284,7 +284,7 @@ struct UninstallView: View {
                     // 置灰那一行不留包名，改说「为什么点不动」——灰着不解释，
                     // 读起来像是这一行坏了。
                     Text(selfRow
-                         ? L("就是本工具自己 · 要卸载请在访达里拖进废纸篓")
+                         ? L("This is CleanPilot itself · to remove it, drag it to the Trash in the Finder")
                          : (app.bundleID.isEmpty ? app.path.path : app.bundleID))
                         .font(theme.bodyFont(.caption2))
                         .foregroundStyle(theme.palette.inkTertiary)
@@ -296,7 +296,7 @@ struct UninstallView: View {
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 10))
                         .foregroundStyle(theme.palette.inkTertiary)
-                        .help(L("从 App Store 安装"))
+                        .help(L("Installed from the App Store"))
                 }
             }
             .padding(.horizontal, 8)
@@ -309,7 +309,7 @@ struct UninstallView: View {
         .buttonStyle(.plain)
         // 置灰不是「淡一点的可点」：禁用之后连悬停高亮都不该有，否则手伸过去才发现按不动。
         .disabled(selfRow)
-        .help(selfRow ? L("就是本工具自己 · 要卸载请在访达里拖进废纸篓") : "")
+        .help(selfRow ? L("This is CleanPilot itself · to remove it, drag it to the Trash in the Finder") : "")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -321,7 +321,7 @@ struct UninstallView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     appCard(app)
                     if model.planning {
-                        LoadingRow(text: LF("正在量「%@」的本体和数据…", app.name),
+                        LoadingRow(text: LF("Measuring “%@” and its data…", app.name),
                                    progress: model.planProgress, fillsRow: true)
                             .panelCard()
                     } else {
@@ -332,8 +332,8 @@ struct UninstallView: View {
                 .padding(.bottom, 8)
             }
         } else {
-            EmptyState(symbol: "square.split.2x1", title: L("选左边一个应用"),
-                       hint: L("它名下的本体和数据会列在这里，勾哪几处就搬哪几处"))
+            EmptyState(symbol: "square.split.2x1", title: L("Pick an app on the left"),
+                       hint: L("Its bundle and data show up here; tick the ones you want to move"))
                 .frame(maxHeight: .infinity)
         }
     }
@@ -346,7 +346,7 @@ struct UninstallView: View {
                     .font(theme.display(.title3))
                     .foregroundStyle(theme.palette.ink)
                 HStack(spacing: 8) {
-                    Text(app.bundleID.isEmpty ? L("没有包名") : app.bundleID)
+                    Text(app.bundleID.isEmpty ? L("No bundle ID") : app.bundleID)
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkSecondary)
                         .lineLimit(1)
@@ -362,7 +362,7 @@ struct UninstallView: View {
             }
             Spacer(minLength: 10)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(L("本体加勾选的数据"))
+                Text(L("App plus ticked data"))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                 SizeNumber(shown: human(model.totalBytes), size: 26)
@@ -379,14 +379,14 @@ struct UninstallView: View {
             ItemRow(selected: .constant(false),
                     icon: .path(app.path),
                     name: app.name,
-                    sub: L("应用本体 · 一定会搬走"),
+                    sub: L("App bundle · always moved"),
                     sizeText: human(model.bundleBytes ?? 0),
                     fraction: fraction(model.bundleBytes ?? 0),
                     selectable: false,
                     lit: true,
                     showRule: false) {
-                ExplainLine(key: L("这是什么"), value: L("这个 App 的程序本体（.app 那个包）"))
-                ExplainLine(key: L("删了会怎样"), value: L("App 从「应用程序」里消失；从废纸篓拖回来就装回去了"))
+                ExplainLine(key: L("What it is"), value: L("The app program itself (the .app bundle)"))
+                ExplainLine(key: L("What breaks"), value: L("The app leaves Applications; drag it back out of the Trash to reinstall"))
             }
             .themedRow()
 
@@ -399,11 +399,11 @@ struct UninstallView: View {
                         fraction: fraction(it.size ?? 0),
                         badge: verdictBadge(it.level == "warn" ? .risky : .safe),
                         lit: it.level != "warn") {
-                    ExplainLine(key: L("这是什么"), value: LF("%1$@ 留在 %2$@ 里的数据", app.name, it.loc))
-                    ExplainLine(key: L("删了会怎样"), value: riskLine(it))
-                    ExplainLine(key: L("怎么恢复"), value: L("从废纸篓还原，或重装该应用"))
+                    ExplainLine(key: L("What it is"), value: LF("Data that %1$@ left in %2$@", app.name, it.loc))
+                    ExplainLine(key: L("What breaks"), value: riskLine(it))
+                    ExplainLine(key: L("How to recover"), value: L("Put it back from the Trash, or reinstall the app"))
                     if let what = contentsLine(it.files, it.newest) {
-                        ExplainLine(key: L("内容"), value: what)
+                        ExplainLine(key: L("Contents"), value: what)
                     }
                     PathLine(path: it.path.path)
                 }
@@ -415,16 +415,16 @@ struct UninstallView: View {
 
     @ViewBuilder private func notes(_ app: InstalledApp) -> some View {
         if !model.sharedPaths.isEmpty {
-            ListNote(text: LF("另有 %1$@（%2$@）同时属于另一个已装应用，不列在这里，也不删。",
-                              cnt(model.sharedPaths.count, "处"),
+            ListNote(text: LF("%1$@ (%2$@) also belong to another installed app, so they are neither listed nor deleted.",
+                              cnt(model.sharedPaths.count, "spots"),
                               model.sharedPaths.prefix(3).map(\.lastPathComponent)
                                   .joined(separator: "、")))
         }
         if let b = model.bundleBytes, b > 0, model.items.isEmpty, !model.planning {
-            ListNote(text: L("它名下没找到别的数据，这一趟只搬走本体。"))
+            ListNote(text: L("No other data found under this app — only the app itself will move."))
         }
         if app.isAppStore {
-            ListNote(text: L("这是 App Store 装的应用：删了之后，需要时可以在 App Store 免费装回来。"))
+            ListNote(text: L("Installed from the App Store — reinstall it there for free whenever you need it."))
         }
     }
 
@@ -453,18 +453,18 @@ struct UninstallView: View {
             }
             HStack(spacing: 13) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(model.current == nil ? L("还没挑应用") : LF("要搬走 %@",
-                                                                  cnt(model.moveCount, "项")))
+                    Text(model.current == nil ? L("No app picked yet") : LF("Moving %@",
+                                                                  cnt(model.moveCount, "items")))
                         .font(theme.bodyFont(.caption2))
                         .foregroundStyle(theme.palette.inkTertiary)
                     SizeNumber(shown: human(model.totalBytes), size: 21)
                 }
                 Spacer(minLength: 10)
-                Text(L("只进废纸篓，可撤销"))
+                Text(L("Trash only, reversible"))
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkTertiary)
                 ThemeButton(kind: .primary, symbol: "trash",
-                            title: L("卸载并移进废纸篓"),
+                            title: L("Uninstall to Trash"),
                             isDisabled: model.current == nil || model.planning) {
                     confirm = true
                 }
@@ -484,9 +484,9 @@ struct UninstallView: View {
 
     private var confirmText: String {
         let name = model.current?.name ?? ""
-        let base = LF("「%1$@」的本体和勾选的 %2$@（共 %3$@）会一起进废纸篓，随时可撤销。",
-                      name, cnt(model.items.filter(\.selected).count, "处"), human(model.totalBytes))
-        return base + L("它要是正在运行，先退出再卸载，否则可能删不干净。")
+        let base = LF("The app %1$@ itself plus the %2$@ you ticked (%3$@) will move to the Trash — undo anytime.",
+                      name, cnt(model.items.filter(\.selected).count, "spots"), human(model.totalBytes))
+        return base + L("If it is running, quit it first — otherwise the cleanup may be incomplete.")
     }
 
     /// 量过的最大值。本体可能比所有数据加起来都大，条子按两者里最大的那个归一。
@@ -497,11 +497,11 @@ struct UninstallView: View {
 
     private func riskLine(_ it: AppDataItem) -> String {
         if it.loc == "Preferences" {
-            return L("不勾：设置和登录状态留着；勾上：下次启动回到初始状态，可能要重新登录或重新输入许可。")
+            return L("Unticked: settings and sign-in stay. Ticked: the app starts fresh next time and may ask you to sign in or enter a licence again.")
         }
         return it.level == "warn"
-            ? L("重装这个应用时不会带回到这些配置；其他应用不受影响")
-            : L("应用下次需要时会自己重建")
+            ? L("Reinstalling the app won't bring these settings back; other apps are unaffected")
+            : L("The app rebuilds it when needed")
     }
 
     private func run() {
@@ -537,7 +537,7 @@ struct UninstallView: View {
         }
         model.drop(app)
         if !errs.isEmpty { err = errList(errs) }
-        store.notice = trashedNotice(ok, "项", failed: errs.count)
+        store.notice = trashedNotice(ok, "items", failed: errs.count)
     }
 }
 

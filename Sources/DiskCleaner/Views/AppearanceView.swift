@@ -25,10 +25,10 @@ struct AppearanceView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 16) {
-                PageHeader(symbol: "paintpalette", title: L("外观皮肤"),
+                PageHeader(symbol: "paintpalette", title: L("Skins"),
                            subtitle: Channel.showsPricing
-                             ? L("免费三套随便穿；付费三套连骨架都不一样")
-                             : L("六套皮肤，连骨架都不一样"),
+                             ? L("Three free skins; three premium ones rebuild the skeleton")
+                             : L("Six skins, each one a different skeleton"),
                            variant: .display) {
                     SchemePicker()
                     LanguagePicker()
@@ -41,11 +41,11 @@ struct AppearanceView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 22) {
                         if Channel.showsPricing {
-                            skinSection(L("免费"), themes: freeSkins)
-                            skinSection(L("付费精选"), themes: premiumSkins)
+                            skinSection(L("Free of charge"), themes: freeSkins)
+                            skinSection(L("Premium picks"), themes: premiumSkins)
                             footnote
                         } else {
-                            skinSection(L("全部皮肤"), themes: SkinCatalog.all)
+                            skinSection(L("All skins"), themes: SkinCatalog.all)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -71,15 +71,15 @@ struct AppearanceView: View {
                 .font(.system(size: 13))
                 .foregroundStyle(theme.palette.tint)
             Text(skin.isPaid
-                 ? LF("正在试穿「%@」——不满意随时还原，不会自动扣费", L(skin.name))
-                 : LF("正在试穿「%@」——不满意随时还原", L(skin.name)))
+                 ? LF("Trying on “%@” — revert any time, nothing is charged", L(skin.name))
+                 : LF("Trying on “%@” — revert any time", L(skin.name)))
                 .font(theme.bodyFont(.callout))
                 .foregroundStyle(theme.palette.ink)
             Spacer()
-            ThemeButton(kind: .compact, title: L("还原")) { themeManager.stopTrying() }
+            ThemeButton(kind: .compact, title: L("Revert")) { themeManager.stopTrying() }
             if skin.isPaid {
                 ThemeButton(kind: .primary, symbol: "lock.open",
-                            title: L("解锁")) { paywallSkin = skin }
+                            title: L("Unlock")) { paywallSkin = skin }
             }
         }
         .padding(.horizontal, 13)
@@ -93,7 +93,7 @@ struct AppearanceView: View {
 
     private func skinSection(_ titleKey: String, themes: [Theme]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionLabel(text: L(titleKey), detail: cnt(themes.count, "套"))
+            SectionLabel(text: L(titleKey), detail: cnt(themes.count, "skins"))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 268, maximum: 360), spacing: 16)],
                       alignment: .leading, spacing: 16) {
                 ForEach(themes, id: \.id) { skin in
@@ -117,10 +117,10 @@ struct AppearanceView: View {
 
     private var footnote: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(L("付费皮肤是买断制，一次解锁永久可用。"))
+            Text(L("Premium skins are a one-time purchase, unlocked forever."))
                 .font(theme.bodyFont(.caption))
                 .foregroundStyle(theme.palette.inkSecondary)
-            Text(L("内购尚未接入：现在点「解锁」会直接放行，方便先看效果；接上 StoreKit 后这里换成真实交易。"))
+            Text(L("In-app purchase isn't wired up yet: Unlock just grants access for now, so you can see the effect. This becomes a real transaction once StoreKit lands."))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkTertiary)
         }
@@ -145,19 +145,19 @@ private struct SkinCard: View {
 
     /// 商品状态标签；开关关闭时不贴任何状态
     private var statusText: String? {
-        if isSelected { return L("使用中") }
-        if isTrying { return L("试穿中") }
-        if locked { return L("付费皮肤") }
+        if isSelected { return L("In use") }
+        if isTrying { return L("Trying on") }
+        if locked { return L("Premium skin") }
         guard Channel.showsPricing else { return nil }
-        if skin.tier == .premium && isUnlocked { return L("已解锁") }
-        return L("免费")
+        if skin.tier == .premium && isUnlocked { return L("Unlocked") }
+        return L("Free of charge")
     }
 
     private var a11yLabel: String {
         if let status = statusText {
-            return LF("%1$@，%2$@，%3$@", L(skin.name), L(skin.tagline), status)
+            return LF("%1$@, %2$@, %3$@", L(skin.name), L(skin.tagline), status)
         }
-        return LF("%1$@，%2$@", L(skin.name), L(skin.tagline))
+        return LF("%1$@, %2$@", L(skin.name), L(skin.tagline))
     }
 
     var body: some View {
@@ -176,7 +176,7 @@ private struct SkinCard: View {
                 )
                 .overlay(alignment: .topTrailing) {
                     if locked {
-                        ThemeBadge(text: L("付费"), tone: .neutral, symbol: "lock.fill")
+                        ThemeBadge(text: L("Premium"), tone: .neutral, symbol: "lock.fill")
                             .padding(7)
                     }
                 }
@@ -191,13 +191,13 @@ private struct SkinCard: View {
                     .truncationMode(.tail)
                 Spacer()
                 if isSelected {
-                    ThemeBadge(text: L("使用中"), tone: .safe)
+                    ThemeBadge(text: L("In use"), tone: .safe)
                 } else if isTrying {
-                    ThemeBadge(text: L("试穿中"), tone: .tint)
+                    ThemeBadge(text: L("Trying on"), tone: .tint)
                 } else if locked {
-                    ThemeBadge(text: L("付费"), tone: .warn)
+                    ThemeBadge(text: L("Premium"), tone: .warn)
                 } else if Channel.showsPricing {
-                    ThemeBadge(text: (skin.tier == .premium && isUnlocked) ? L("已解锁") : L("免费"),
+                    ThemeBadge(text: (skin.tier == .premium && isUnlocked) ? L("Unlocked") : L("Free of charge"),
                                tone: .neutral)
                 }
             }
@@ -214,13 +214,13 @@ private struct SkinCard: View {
                 Spacer()
                 if locked {
                     ThemeButton(kind: .compact, symbol: "wand.and.stars",
-                                title: L("试穿"), action: onTry)
+                                title: L("Try on"), action: onTry)
                     ThemeButton(kind: .primary, symbol: "lock.open",
-                                title: L("解锁"), action: onTap)
+                                title: L("Unlock"), action: onTap)
                 } else if !isSelected {
                     // 正在用的那张卡不给按钮：上一屏同时挂着「使用中」徽章和一颗禁用的「当前」，
                     // 同一个状态说两遍，而禁用按钮看起来像坏了。状态归徽章，动作归按钮。
-                    ThemeButton(kind: .compact, title: L("使用"), action: onTap)
+                    ThemeButton(kind: .compact, title: L("Use"), action: onTap)
                 }
             }
             .padding(.top, 10)
@@ -367,7 +367,7 @@ private struct SchemePicker: View {
 
     private let symbols = ["circle.lefthalf", "sun.max", "moon"]
     // 存成 let 就等于在初始化那一刻把词表冻住：切语言后这一排还是旧文案
-    private var labels: [String] { [L("跟随"), L("浅色"), L("深色")] }
+    private var labels: [String] { [L("Auto"), L("Light"), L("Dark")] }
     private let schemes: [ColorScheme?] = [nil, .light, .dark]
 
     var body: some View {
@@ -378,7 +378,7 @@ private struct SchemePicker: View {
                                themeManager.forcedScheme = schemes[i]
                            }
                        },
-                       a11yPrefix: L("明暗模式"))
+                       a11yPrefix: L("Light or dark"))
     }
 }
 
@@ -425,7 +425,7 @@ struct LanguagePicker: View {
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .accessibilityLabel(LF("%1$@：%2$@", L("界面语言"), current.menuLabel))
+        .accessibilityLabel(LF("%1$@: %2$@", L("Interface language"), current.menuLabel))
     }
 }
 
@@ -456,7 +456,7 @@ struct SegmentedStrip: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(LF("%1$@：%2$@", a11yPrefix, labels[i]))
+                .accessibilityLabel(LF("%1$@: %2$@", a11yPrefix, labels[i]))
             }
         }
         .fixedSize()
@@ -495,40 +495,40 @@ private struct PaywallSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 9) {
-                feature(L("材质与分层"),
-                        skin.elevation == .glass ? L("真实玻璃材质 + 高光描边")
-                                                 : L("独立分层语言，不是换个色"))
-                feature(L("字体"),
-                        skin.face == .serif ? L("衬线标题，字距单独调过") : L("独立字体设计与字重"))
-                feature(L("图表"), L("环形图配色单独配过，深色下同样清楚"))
-                feature(L("动效"),
-                        skin.motion == .still ? L("静：几乎不动，越克制越贵") : L("独立动效签名"))
-                feature(L("明暗"),
-                        skin.scheme == .dark ? L("自带深色，不受系统拉扯") : L("浅色优先，深色可控"))
-                feature(L("语言"), L("中英文各调过一版字距，换语言不串味"))
+                feature(L("Material & layering"),
+                        skin.elevation == .glass ? L("Real glass material with a highlight edge")
+                                                 : L("Its own layering language, not a recolor"))
+                feature(L("Type"),
+                        skin.face == .serif ? L("Serif headings with their own tracking") : L("Its own type design and weights"))
+                feature(L("Charts"), L("The ring palette is tuned per skin and stays legible in dark"))
+                feature(L("Motion"),
+                        skin.motion == .still ? L("Still: barely moves — restraint reads as expensive") : L("Its own motion signature"))
+                feature(L("Appearance"),
+                        skin.scheme == .dark ? L("Its own dark mode, immune to system switches") : L("Light-first, dark on demand"))
+                feature(L("Language"), L("Letter-spacing tuned for Chinese and English separately"))
             }
 
             Divider().overlay(theme.palette.separator)
 
             HStack(spacing: 12) {
                 ThemeButton(kind: .primary, symbol: "lock.open",
-                            title: L("解锁")) {
+                            title: L("Unlock")) {
                     themeManager.unlock(skin)
                     dismiss()
                 }
-                ThemeButton(kind: .secondary, title: L("再试穿一下")) {
+                ThemeButton(kind: .secondary, title: L("Try it on again")) {
                     themeManager.startTrying(skin)
                     dismiss()
                 }
                 Spacer(minLength: 8)
-                ThemeButton(kind: .ghost, title: L("恢复购买")) {
+                ThemeButton(kind: .ghost, title: L("Restore Purchases")) {
                     themeManager.unlock(skin)
                     dismiss()
                 }
             }
             .fixedSize()
 
-            Text(L("买断制，一次解锁永久可用。价格以内购面板为准；StoreKit 尚未接入，点解锁会直接放行。"))
+            Text(L("One-time purchase, unlocked forever. The price comes from the store panel; StoreKit isn't wired up yet, so Unlock just lets you through."))
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkTertiary)
         }

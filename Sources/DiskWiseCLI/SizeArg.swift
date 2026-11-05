@@ -1,8 +1,8 @@
 import Foundation
 
-// 大小参数解析：500MB / 2GB / 1.5GB / 纯字节数。
-// 十进制（1 GB = 10^9），与 App、访达「显示简介」同一口径——同一台机器上
-// 两种进制会让「100MB 阈值」悄悄变成 104.9MB，没人对得出来。
+// Size argument parsing: 500MB / 2GB / 1.5GB / plain byte count.
+// Decimal (1 GB = 10^9), same convention as the app and Finder's Get Info. Mixing both bases on one machine
+// silently turns a "100MB threshold" into 104.9MB and nobody can reconcile it.
 
 enum SizeArgError: Error, CustomStringConvertible {
     case bad(String)

@@ -3,8 +3,8 @@ import PackageDescription
 
 let package = Package(
     name: "DiskWise",
-    // target 名保持 DiskCleaner / DiskCleanerCore：build.sh 的产物路径、
-    // L10n 与知识库的 dev-tree 兜底路径都按它拼，改名只会带来无谓的构建风险。
+    // Target names stay DiskCleaner / DiskCleanerCore: build.sh's output paths and the
+    // L10n / knowledge-base dev-tree fallback paths are built from them; renaming only adds needless build risk.
     platforms: [.macOS(.v13)],
     targets: [
         .target(
@@ -15,20 +15,20 @@ let package = Package(
             name: "DiskCleaner",
             dependencies: ["DiskCleanerCore"],
             path: "Sources/DiskCleaner",
-            // 故意不声明 resources：SPM 生成的 Bundle.module 会在找不到 .bundle 时
-            // fatalError，并把开发者本机的绝对构建路径烧进发布二进制。
-            // safety_db.json 由 build.sh 拷进 Contents/Resources，运行时走 Bundle.main。
+            // Deliberately no `resources`: SPM's generated Bundle.module calls fatalError when the
+            // .bundle is missing, and bakes the developer's absolute build path into the release binary.
+            // safety_db.json is copied into Contents/Resources by build.sh and loaded via Bundle.main at runtime.
             exclude: ["Resources"]
         ),
-        // 自检程序：无 XCTest 环境也能跑（纯命令行工具链），断言失败即非零退出。
-        // 用法：swift run SelfTest
+        // Self-test program: runs without XCTest (plain command-line toolchain); a failed assertion exits non-zero.
+        // Usage: swift run SelfTest
         .executableTarget(
             name: "SelfTest",
             dependencies: ["DiskCleanerCore"],
             path: "Sources/SelfTest"
         ),
-        // Agent 通道的命令行（diskwise）：CLI 子命令 + stdio MCP server 同体。
-        // 产物在 build.sh 拷进 .app 时改名为 diskwise；dev 下叫 DiskWiseCLI。
+        // Command line for the agent channel (diskwise): CLI subcommands + stdio MCP server in one binary.
+        // build.sh renames the product to diskwise when copying it into the .app; in dev it is DiskWiseCLI.
         .executableTarget(
             name: "DiskWiseCLI",
             dependencies: ["DiskCleanerCore"],

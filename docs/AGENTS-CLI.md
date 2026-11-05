@@ -1,87 +1,87 @@
-# DiskWise for AI agents — CLI 与 MCP 安全模型
+# DiskWise for AI agents: CLI and MCP safety model
 
-`diskwise` 是 DiskWise 的命令行形态（直装版随 App 附带；App Store 沙盒版不带）。
-它把 App 的清理能力开放给终端与 AI agent（Claude Code、Cursor、Codex……），
-但安全模型原封不动，且对 agent **更严**：
+`diskwise` is the command-line form of DiskWise (bundled with the direct-download app; not in the sandboxed App Store build).
+It exposes the app's cleanup abilities to terminals and AI agents (Claude Code, Cursor, Codex...),
+with the same safety model, and **stricter** for agents:
 
-> **它不能 `rm -rf`。** 唯一的删除路径是把东西移进废纸篓，且每次操作都可整单撤销。
+> **It cannot `rm -rf`.** The only deletion path is moving items to the Trash, and every operation can be undone as a whole.
 
-## 安全模型
+## Safety model
 
-**四档判词**（与 App 同一知识库，`safety_db.json`，现 80 条）：
+**Four verdict tiers** (same knowledge base as the app, `safety_db.json`, currently 80 entries):
 
-| tier | 含义 | agent 能动吗 | `--i-am-human` 能动吗 |
+| tier | Meaning | Agent may act? | With `--i-am-human`? |
 |---|---|---|---|
-| `safe` | 删了没影响，会自动重建（DerivedData、pip 缓存…） | ✅ | ✅ |
-| `redo` | 认得，删了要重新下载（模型权重、依赖仓库…） | ✅（须用户同意计划） | ✅ |
-| `risky` | 删了就真没了（模拟器设备、聊天记录…） | ❌ | ❌（谁都不行） |
-| `unknown` | 知识库不认识（没命中 ≠ 安全） | ❌ | ✅ |
+| `safe` | No impact; rebuilt automatically (DerivedData, pip cache...) | ✅ | ✅ |
+| `redo` | Known; must be re-downloaded after deletion (model weights, dependency repos...) | ✅ (user must approve the plan) | ✅ |
+| `risky` | Gone for good once deleted (simulator devices, chat history...) | ❌ | ❌ (nobody) |
+| `unknown` | Not in the knowledge base (no match != safe) | ❌ | ✅ |
 
-**agent 额外的三道闸**（人用 App 时没有的）：
+**Three extra gates for agents** (not applied to humans using the app):
 
-1. **只动认识的位置本体**：agent 点名的路径必须就是知识库条目（或其通配实例）。
-   缓存目录里用户自己建的子文件夹会拒（`not_a_known_location`）——人可以动它
-   （App 下钻页同款自由），agent 不行。
-2. **两步确认**：`plan` 生成计划文件（**10 分钟有效**、最多 **200 项 / 200 GB**），
-   `trash` 只认 plan_id、不收裸路径；执行时**逐项重跑判定管线并核对 inode**——
-   计划生成之后路径被换成软链（`symlink`）或原地换过内容（`changed_since_plan`）
-   都会被当场拦下。
-3. **持久留痕**：每次执行追加一行 `operations.jsonl`（只追加、永不改写），
-   `undo` 按日志整单恢复；废纸篓里已被清掉的项报 `gone_from_trash`，不影响其余。
+1. **Only the known location itself**: a path named by an agent must be a knowledge-base entry (or a wildcard instance of one).
+   User-created subfolders inside a cache directory are rejected (`not_a_known_location`). A human may touch them
+   (same freedom as the app's drill-down page); an agent may not.
+2. **Two-step confirmation**: `plan` writes a plan file (**valid 10 minutes**, at most **200 items / 200 GB**);
+   `trash` accepts only a plan_id, never raw paths. At execution, **each item re-runs the verdict pipeline and the inode is checked**:
+   a path replaced by a symlink (`symlink`) or with contents swapped in place (`changed_since_plan`) after planning
+   is blocked on the spot.
+3. **Persistent audit trail**: each execution appends one line to `operations.jsonl` (append-only, never rewritten);
+   `undo` restores a whole operation from the log. Items already emptied from the Trash report `gone_from_trash` without affecting the rest.
 
-判定管线（所有入口共用，顺序固定）：路径展开 → 保护路径（`~/Documents`、`/`…）
-→ 范围（家目录、`/Applications`、`/tmp`、`/var/tmp` 之外不动）→ lstat（不存在 /
-软链拒绝）→ 知识库判词 → 放行。MCP 模式下**不存在** `--i-am-human`。
+Verdict pipeline (shared by all entry points, fixed order): path expansion -> protected paths (`~/Documents`, `/`...)
+-> scope (nothing outside home, `/Applications`, `/tmp`, `/var/tmp`) -> lstat (missing /
+symlink rejected) -> knowledge-base verdict -> allow. `--i-am-human` **does not exist** in MCP mode.
 
-## 命令
+## Commands
 
 ```
 diskwise scan [--category all|dev|ai_models|apps] [--min 100MB] [--json]
 diskwise explain <path> [--json]
 diskwise plan <path>... [--i-am-human] [--json]
-diskwise trash --plan <plan_id> [--json]     # 只认 plan_id
+diskwise trash --plan <plan_id> [--json]     # plan_id only
 diskwise undo [<operation_id>] [--json]
 diskwise history [--limit 20] [--json]
 diskwise mcp                                 # stdio MCP server
 diskwise --version
 ```
 
-- stdout 只放结果（agent 解析它），日志走 stderr；`--json` 键为 snake_case、时间 ISO8601；
-- 退出码：`0` 成功 · `1` 参数错误 · `2` 有项被拒（部分成功也是 2，明细在输出里）· `3` 计划过期或不存在；
-- 大小参数十进制（`500MB`、`2GB`、纯字节），与 App 同口径。
+- stdout carries only results (agents parse it); logs go to stderr. `--json` keys are snake_case, times ISO8601.
+- Exit codes: `0` success · `1` bad arguments · `2` some items rejected (partial success is also 2; details in output) · `3` plan expired or missing.
+- Size arguments are decimal (`500MB`, `2GB`, plain bytes), same as the app.
 
-`scan` 的结果由两路合并：**知识库词条**（人写的安全知识）加**签名发现**（引擎自管缓存按
-布局认：HuggingFace 布局的模型仓、散装模型权重、更新器下载缓存——不管它长在家目录还是某个
-项目的 var 里，`HF_HOME` 挪走的也算）。每项带 `source` 字段（`knowledge_base` |
-`signature`）。签名项 tier 封顶 redo、`agent_may_trash` 恒 false——agent 契约不变，
-`--i-am-human` 可以带走。
+`scan` merges two sources: **knowledge-base entries** (human-written safety knowledge) plus **signature discovery** (engine-managed caches recognized by
+layout: HuggingFace-layout model repos, loose model weights, updater download caches, whether in home or in some
+project's var, including a relocated `HF_HOME`). Each item has a `source` field (`knowledge_base` |
+`signature`). Signature items are capped at tier redo and `agent_may_trash` is always false; the agent contract is unchanged,
+and `--i-am-human` can remove them.
 
-状态目录：`~/Library/Application Support/DiskWise/agent/`（`plans/` 计划文件、
-`operations.jsonl` 操作日志）。每行操作记录**来源客户端**——MCP 按 initialize 里
-自报的 `clientInfo.name`（如 claude-code），终端默认 `diskwise-cli`；不带该字段的
-旧日志行视为未知来源。CLI 单写者假设：同一时刻只跑一个写操作。
+State directory: `~/Library/Application Support/DiskWise/agent/` (`plans/` plan files,
+`operations.jsonl` operation log). Each operation line records the **source client**: for MCP, the `clientInfo.name`
+self-reported in initialize (e.g. claude-code); for the terminal, `diskwise-cli` by default. Older log lines without the field
+are treated as unknown source. The CLI assumes a single writer: only one write operation at a time.
 
-## 接入你的 AI 工具
+## Connecting your AI tool
 
-`diskwise mcp` 是标准的 stdio MCP server——任何能挂**本地 stdio 服务**的客户端都接得动。
-各家不变的只有两件事：这个二进制的**绝对路径**，和参数 **`mcp`**；变的是方言。所以下面按客户端
-分列，别把一家的写法粘进另一家。路径按 App 实际安装位置写，装在别处就把那一处路径整段换掉。
+`diskwise mcp` is a standard stdio MCP server; any client that can attach a **local stdio server** works.
+Only two things are constant: the binary's **absolute path** and the argument **`mcp`**; the config dialect varies. So the sections below are per client;
+don't paste one client's syntax into another. Paths assume the default install location; if installed elsewhere, replace the whole path.
 
-下表之外的客户端同样在支持范围内：本地 stdio 这一段走的是 MCP 标准协议，服务端这边按协议逐条
-实测过（`initialize` / `tools/list` / `tools/call`，换行分隔的 JSON）。所以**接不上按客户端那边的
-实现问题处理**——欢迎开 issue 或提 PR，附上客户端名与版本、你写进去的那段配置原文，以及直接跑
-`"<路径>" mcp` 时它收到的输出。
+Clients not listed are also supported: the local stdio transport follows the MCP standard, and the server side has been tested
+message by message (`initialize` / `tools/list` / `tools/call`, newline-delimited JSON). So **connection failures are treated as client-side
+issues**. Issues and PRs are welcome; include the client name and version, the exact config you wrote, and the output from running
+`"<path>" mcp` directly.
 
-| 客户端 | 放在哪儿 | 本机实测（2026-10-10） |
+| Client | Where | Tested locally (2026-10-10) |
 |---|---|---|
-| Claude Code | 终端一条命令 | ✔ Connected |
-| Qoder | CLI 一条命令，或 IDE 设置里粘 JSON | ✓ Connected |
+| Claude Code | One terminal command | ✔ Connected |
+| Qoder | One CLI command, or paste JSON in IDE settings | ✓ Connected |
 | OpenCode | `opencode.json` | ✓ connected |
-| Codex CLI | 终端一条命令，或 `~/.codex/config.toml` | 登记成功（它 list 时不握手） |
-| Cursor | `~/.cursor/mcp.json` | 本机未装，按官方文档写 |
-| Zed | `~/.config/zed/settings.json` 的 `context_servers` | 本机未装，按官方文档写 |
-| ZCode | `~/.zcode/cli/config.json` 的 `mcp.servers` | 本机未装，按官方文档写 |
-| Claude 桌面版 | `~/Library/Application Support/Claude/claude_desktop_config.json` | 本机未装，按官方文档写 |
+| Codex CLI | One terminal command, or `~/.codex/config.toml` | Registered (list does not handshake) |
+| Cursor | `~/.cursor/mcp.json` | Not installed; per official docs |
+| Zed | `context_servers` in `~/.config/zed/settings.json` | Not installed; per official docs |
+| ZCode | `mcp.servers` in `~/.zcode/cli/config.json` | Not installed; per official docs |
+| Claude Desktop | `~/Library/Application Support/Claude/claude_desktop_config.json` | Not installed; per official docs |
 
 ### Claude Code
 
@@ -89,8 +89,8 @@ diskwise --version
 claude mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp
 ```
 
-加到项目里（`--scope project`）时，还要在那个目录里进一次 `claude` 批准，服务才真启动——
-实测新目录 add 完 `claude mcp list` 回的是「⏸ Pending approval」。
+When added at project scope (`--scope project`), you must also run `claude` once in that directory to approve it before the server actually starts.
+In testing, right after add in a new directory, `claude mcp list` reports "⏸ Pending approval".
 
 ### Codex CLI
 
@@ -98,7 +98,7 @@ claude mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" 
 codex mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp
 ```
 
-或直接写 `~/.codex/config.toml`：
+Or edit `~/.codex/config.toml` directly:
 
 ```toml
 [mcp_servers.diskwise]
@@ -106,17 +106,17 @@ command = "/Applications/DiskWise.app/Contents/MacOS/diskwise"
 args = ["mcp"]
 ```
 
-`codex mcp list` 只报登记状态、不发起握手，所以那里看不到「连上了没」，跑一次会话才算。
+`codex mcp list` reports registration only and does not handshake, so it can't tell you whether it connects; run a session to check.
 
 ### Qoder
 
-命令行（默认只作用于当前目录；`--scope project` 才写进项目的 `.mcp.json`）：
+CLI (applies to the current directory by default; `--scope project` writes to the project's `.mcp.json`):
 
 ```sh
 qoder mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" mcp
 ```
 
-或在 IDE 里：`⌘⇧,` → Qoder 设置 → MCP → 我的服务 → ＋ 添加，粘这段：
+Or in the IDE: `⌘⇧,` -> Qoder Settings -> MCP -> My Servers -> + Add, and paste:
 
 ```json
 {
@@ -131,7 +131,7 @@ qoder mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" m
 
 ### Cursor
 
-`~/.cursor/mcp.json`（或项目里的 `.cursor/mcp.json`）：
+`~/.cursor/mcp.json` (or `.cursor/mcp.json` in the project):
 
 ```json
 {
@@ -145,12 +145,12 @@ qoder mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" m
 }
 ```
 
-官方字段表要求写 `type`，它自己的示例片段里却省着——照这里写全就不会错。`command` 必须是
-完整路径或系统 PATH 上有的程序。
+The official field table requires `type`, though its own example snippet omits it; writing it out as above is safe. `command` must be
+a full path or a program on the system PATH.
 
 ### OpenCode
 
-`~/.config/opencode/opencode.json`（或项目根目录的 `opencode.json`）：
+`~/.config/opencode/opencode.json` (or `opencode.json` at the project root):
 
 ```json
 {
@@ -165,12 +165,12 @@ qoder mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" m
 }
 ```
 
-三处和别家不一样，照抄别家的写法起不来：`type` 必须是 `"local"`、`command` 是**数组**
-（程序和参数在同一个方括号里）、环境变量那个键叫 `environment` 而不是 `env`。
+Three differences from other clients, and copying their syntax won't start: `type` must be `"local"`, `command` is an **array**
+(program and arguments in one bracket), and the environment key is `environment`, not `env`.
 
 ### Zed
 
-`~/.config/zed/settings.json`：
+`~/.config/zed/settings.json`:
 
 ```json
 {
@@ -183,11 +183,11 @@ qoder mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" m
 }
 ```
 
-是 `context_servers`，不是 `agent_servers`——后者用来挂外部编码 agent，挂 MCP 服务进去不会生效。
+It is `context_servers`, not `agent_servers`; the latter is for external coding agents, and MCP servers placed there won't work.
 
 ### ZCode
 
-`~/.zcode/cli/config.json`（项目级是 `<项目根>/.zcode/config.json`，两处的目录深度不一样）：
+`~/.zcode/cli/config.json` (project level is `<project root>/.zcode/config.json`; the directory depths differ):
 
 ```json
 {
@@ -202,12 +202,12 @@ qoder mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" m
 }
 ```
 
-它的设置里也能直接从 Claude Code / Codex / OpenCode 的现有配置导入；另外它默认不吃系统的
-`HTTP_PROXY`，走代理的机器上注意这点。
+Its settings can also import existing Claude Code / Codex / OpenCode configs. Note that by default it ignores the system
+`HTTP_PROXY`; keep that in mind on machines behind a proxy.
 
-### Claude 桌面版
+### Claude Desktop
 
-`~/Library/Application Support/Claude/claude_desktop_config.json`：
+`~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -220,61 +220,61 @@ qoder mcp add diskwise -- "/Applications/DiskWise.app/Contents/MacOS/diskwise" m
 }
 ```
 
-改完要**完全退出**再打开（不是关窗口）。新版官方更推 `.mcpb` 扩展包那条路，手写配置仍然支持。
+After editing, **fully quit** and reopen (not just close the window). Newer versions prefer `.mcpb` extension bundles; hand-written config is still supported.
 
-Homebrew 用户：cask 提供 `diskwise` 命令（发新版起加入 `binary` 一行后），
-上述所有配置里的路径都可以换成 `/opt/homebrew/bin/diskwise`。
+Homebrew users: the cask provides the `diskwise` command (once a release adds the `binary` line);
+all paths above can then be replaced with `/opt/homebrew/bin/diskwise`.
 
-## MCP 工具
+## MCP tools
 
-| 工具 | 说明 |
+| Tool | Description |
 |---|---|
-| `scan_disk(category?, min_bytes?)` | 只读：扫知识库认识的位置并量体积 |
-| `explain_path(path)` | 只读：一个路径的完整画像与拒绝原因 |
-| `plan_cleanup(paths[])` | 只读：生成计划。**description 要求模型把摘要给用户看、取得同意后再执行** |
-| `execute_cleanup(plan_id)` | 按计划移入废纸篓（可撤销，`destructiveHint: false`） |
-| `undo_cleanup(operation_id?)` | 整单恢复 |
-| `cleanup_history(limit?)` | 只读：最近操作 |
-| `diag_coverage()` | 只读：诊断转储的定向发现——命中清单 + 动不了的观察位置（原因码与拒绝词同源） |
-| `diag_velocity()` | 只读：每个崩溃转储条目「本次 vs 上一轮」的增长差；`tier: fast`（突发）/ `growth`（长间隔累积） |
-| `diag_probe(path)` | 只读：一个崩溃转储目录的内容归属（读样本文件头 64 KB，指纹永远脱敏输出）。本地「内容探针」开关关闭时拒绝 |
+| `scan_disk(category?, min_bytes?)` | Read-only: scan known locations and measure sizes |
+| `explain_path(path)` | Read-only: full profile of a path and rejection reasons |
+| `plan_cleanup(paths[])` | Read-only: build a plan. **The description requires the model to show the summary to the user and get consent before executing** |
+| `execute_cleanup(plan_id)` | Move to Trash per plan (undoable, `destructiveHint: false`) |
+| `undo_cleanup(operation_id?)` | Restore a whole operation |
+| `cleanup_history(limit?)` | Read-only: recent operations |
+| `diag_coverage()` | Read-only: targeted discovery of diagnostic dumps: hit list + observed locations that can't be touched (reason codes share the rejection vocabulary) |
+| `diag_velocity()` | Read-only: per crash-dump entry growth "this run vs previous"; `tier: fast` (burst) / `growth` (long-term accumulation) |
+| `diag_probe(path)` | Read-only: content attribution of a crash-dump directory (reads the first 64 KB of sample files; fingerprints always redacted). Refused when the local "content probe" toggle is off |
 
-业务错误（被拒、过期、超限）以 `isError: true` 的结果返回并附下一步指引
-（例如 `plan_expired` → 重新 `plan_cleanup`）。
+Business errors (rejected, expired, over limit) return as results with `isError: true` plus a next-step hint
+(e.g. `plan_expired` -> run `plan_cleanup` again).
 
-诊断三工具的边界：**只读，不提供删除或修剪**。一次性清理仍走 `plan_cleanup` / `execute_cleanup`
-那条两步确认的链路；「按保留策略修剪」是 App 内的人工动作，不进 agent 通道——
-agent 看见增长可以报告，动手的是人。
+Scope of the three diag tools: **read-only, no deletion or pruning**. One-off cleanup still goes through the two-step `plan_cleanup` / `execute_cleanup`
+chain; "prune by retention policy" is a manual action in the app and is not exposed to agents.
+An agent can report growth; a human does the acting.
 
-## 一段真实对话（Claude Code + diskwise MCP）
+## A real conversation (Claude Code + diskwise MCP)
 
-> **我**：看看我的 Mac 哪里能清
+> **Me**: See what can be cleaned on my Mac
 >
-> **assistant**（调 `scan_disk`）：
-> 扫描结果（category=dev，min_bytes=100000000）：
-> - 总共 30 处；agent 能动 23 处，合计约 57.7 GB；
-> - 最大三项：OrbStack 虚拟机磁盘 19.7 GB（`may_lose_data`，不能动）、
->   Ollama 模型 17.7 GB（`redo`，能动能撤销）、iOS 模拟器运行时 16.6 GB
->   （系统区，`outside_allowed`）。
-> 要清哪些？
+> **assistant** (calls `scan_disk`):
+> Scan results (category=dev, min_bytes=100000000):
+> - 30 locations total; the agent may act on 23, about 57.7 GB combined;
+> - Top three: OrbStack VM disk 19.7 GB (`may_lose_data`, off limits),
+>   Ollama models 17.7 GB (`redo`, removable and undoable), iOS simulator runtimes 16.6 GB
+>   (system area, `outside_allowed`).
+> Which ones should I clean?
 >
-> **我**：把 Ollama 和 oMLX 的模型清了吧
+> **Me**: Clear the Ollama and oMLX models
 >
-> **assistant**（调 `plan_cleanup`）：
-> 计划已生成，两项合计 31.4 GB，进废纸篓（可随时撤销）：
-> `~/.ollama/models` 17.7 GB · `~/.omlx/models` 13.7 GB。确认执行吗？
+> **assistant** (calls `plan_cleanup`):
+> Plan ready: two items, 31.4 GB total, going to the Trash (undoable anytime):
+> `~/.ollama/models` 17.7 GB · `~/.omlx/models` 13.7 GB. Proceed?
 >
-> **我**：可以
+> **Me**: Yes
 >
-> **assistant**（调 `execute_cleanup`）：
-> 已移入废纸篓，腾出 31.4 GB。后悔的话说一声，我用 undo_cleanup 原样放回。
+> **assistant** (calls `execute_cleanup`):
+> Moved to Trash, 31.4 GB freed. If you change your mind, say so and I'll restore them with undo_cleanup.
 
-## 维护备注
+## Maintenance notes
 
-- 直装版打包：`build_app/build.sh` 会把 CLI 编进 `Contents/MacOS/diskwise`，
-  **先单独签嵌套二进制、再签整包**（两个签名分支都如此），并在签名后冒烟
-  `diskwise --version`；App Store 分支不拷贝 CLI。
-- 发新版时 cask 需加一行：`binary "#{appdir}/DiskWise.app/Contents/MacOS/diskwise"`
-  （连同 version / sha256 一起更新；当前未加，因为线上最后一个 DMG 里还没有这个二进制）。
-- 词表：CLI/MCP 面向 agent 的解释字段走 `en.lproj/Localizable.strings` 查表，
-  查不到回落中文原文；`DISKWISE_RESOURCES` 环境变量可覆盖资源目录（测试用）。
+- Direct-download packaging: `build_app/build.sh` builds the CLI into `Contents/MacOS/diskwise`,
+  **signs the nested binary first, then the whole bundle** (in both signing branches), and smoke-tests
+  `diskwise --version` after signing; the App Store branch does not copy the CLI.
+- On the next release the cask needs one line: `binary "#{appdir}/DiskWise.app/Contents/MacOS/diskwise"`
+  (update version / sha256 together; not added yet because the last published DMG lacks this binary).
+- Vocabulary: agent-facing explanation fields in CLI/MCP are looked up in `en.lproj/Localizable.strings`,
+  falling back to the source text if missing; the `DISKWISE_RESOURCES` env var overrides the resource directory (for tests).

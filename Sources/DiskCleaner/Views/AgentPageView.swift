@@ -49,7 +49,7 @@ struct AgentPageView: View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 16) {
                 PageHeader(symbol: AppPanel.agent.symbol, title: AppPanel.agent.title,
-                           subtitle: L("让 AI 帮你清 Mac —— 它不能 rm -rf，只能把认得的东西移进废纸篓"),
+                           subtitle: L("Let an AI clean your Mac — it can't rm -rf, it can only move things it recognizes into the Trash"),
                            variant: .display) {
                     ThemeBadge(text: cli.badgeText, tone: cli.badgeTone)
                 }
@@ -92,7 +92,7 @@ struct AgentPageView: View {
     }
 
     @ViewBuilder private var connectCard: some View {
-        AgentCard(title: L("怎么接"), hint: L("把 diskwise 挂进你的 AI 工具，它就能读你的磁盘账")) {
+        AgentCard(title: L("How to connect"), hint: L("Hand diskwise to your AI tool and it reads the same disk accounts this app shows")) {
             switch cli {
             case .present(let path, let stable):
                 // 只有真给得出可粘的东西，才画这一排胶囊：CLI 缺的那一档没有路径可填，
@@ -104,20 +104,20 @@ struct AgentPageView: View {
                                  path: path, stable: stable)
                 }
                 if !stable {
-                    AgentFlag(text: L("这个路径随当前这份副本失效：它一旦被搬走、改名或删掉，你的 AI 工具就再也起不来 diskwise。先把 App 拖进「应用程序」再从那儿打开一次，这行命令才会换成稳定路径。"))
+                    AgentFlag(text: L("This path only lives as long as this copy of the app: move it, rename it or delete it and your AI tool can no longer start diskwise. Drag the app into Applications, open it from there once, and this command will get a stable path."))
                 }
                 if let flag = clientFlag(client) {
                     AgentFlag(text: flag)
                 }
                 demoBlock
-                AgentNote(text: L("上面那几段里的路径都按 App 的实际安装位置现拼；切换只换外面那层方言，路径和参数 `mcp` 八家共用同一个值。用 Homebrew 装的，把它换成 `/opt/homebrew/bin/diskwise`。"),
+                AgentNote(text: L("Every path above is built from where the app is actually installed; switching clients only swaps the outer dialect — the path and the `mcp` argument are the same value for all eight. Installed via Homebrew? Replace it with `/opt/homebrew/bin/diskwise`."),
                           top: true)
             case .missing:
-                AgentInertCommand(text: L("这一版包里没有 diskwise —— 升级后这行才会出现"))
-                AgentNote(text: L("装 v1.8 的直装包，或用 Homebrew：brew install --cask dreamofxm/diskwise/diskwise。1.8 起 cask 带 binary，装完才有 /opt/homebrew/bin/diskwise。"),
+                AgentInertCommand(text: L("diskwise isn't in this build — that line shows up after you upgrade"))
+                AgentNote(text: L("Install the direct build from v1.8 on, or use Homebrew: brew install --cask huynhtrungthoai/cleanpilot/cleanpilot. The cask only ships the binary from 1.8, which is what puts /opt/homebrew/bin/diskwise there."),
                           top: true)
             }
-            AgentNote(text: L("八家之外也能接：任何支持本地 stdio MCP 的客户端都吃这两个值——命令填这个路径，参数填 `mcp`。接不上是客户端那边的问题，欢迎开 issue 或提 PR。两步确认跑在前面：没有 plan_id 一步都动不了，执行前逐项重跑判定。"),
+            AgentNote(text: L("Beyond these eight, anything that supports a local stdio MCP server takes the same two values — command: this path, argument: `mcp`. If it won't connect, that's a client-side bug; issues and PRs are welcome. Two confirmations always run first: nothing moves without a plan_id, and every item is re-checked before execution."),
                       top: true)
         }
     }
@@ -145,7 +145,7 @@ struct AgentPageView: View {
     /// 胶囊上的名字。专名不进词表（翻成「克劳德代码」只会让人认不出自己在用啥），
     /// 只有「桌面版」那家是中文写法，得能跟着界面语言换。
     private func clientName(_ c: AgentClient) -> String {
-        c == .claudeDesktop ? L("Claude 桌面版") : c.title
+        c == .claudeDesktop ? L("Claude Desktop") : c.title
     }
 
     /// 一段可粘的东西：上面一行说它粘到哪儿，下面那块才是复制的目标。
@@ -170,19 +170,19 @@ struct AgentPageView: View {
     /// 这一家这段粘到哪儿。文案出自 10-09 样稿第⑥屏，逐家抄的它们自己的官方文档。
     private func whereText(_ c: AgentClient, _ index: Int, _ total: Int) -> String {
         switch c {
-        case .claudeCode: return L("在终端里跑这一条，跑完重开一次会话")
+        case .claudeCode: return L("Run this one line in Terminal, then start a new session")
         case .codex:
-            return index == 0 ? L("在终端里跑这一条")
-                              : L("或直接写进 `~/.codex/config.toml`")
+            return index == 0 ? L("Run this one line in Terminal")
+                              : L("Or write it into `~/.codex/config.toml`")
         case .qoder:
             return index == 0
-                ? L("命令行：`qoder mcp add`（默认只作用于当前目录，加 `--scope project` 才写进项目的 `.mcp.json`）")
-                : L("或在 IDE 里加：`⌘⇧,` → Qoder 设置 → MCP → 我的服务 → ＋ 添加，粘这段")
-        case .cursor: return L("写进 `~/.cursor/mcp.json`，或项目根的 `.cursor/mcp.json`")
-        case .openCode: return L("写进 `~/.config/opencode/opencode.json`，或项目根目录的 `opencode.json`")
-        case .zed: return L("写进 `~/.config/zed/settings.json` 里的 `context_servers`")
-        case .zcode: return L("写进 `~/.zcode/cli/config.json` 里的 `mcp.servers`（项目级是 `<项目>/.zcode/config.json`）")
-        case .claudeDesktop: return L("写进 `~/Library/Application Support/Claude/claude_desktop_config.json` 的 `mcpServers`")
+                ? L("Command line: `qoder mcp add` (applies to the current directory only by default; add `--scope project` to write it into the project's `.mcp.json`)")
+                : L("Or add it in the IDE: `⌘⇧,` → Qoder Settings → MCP → My Servers → ＋ Add, then paste this")
+        case .cursor: return L("Put it in `~/.cursor/mcp.json`, or `.cursor/mcp.json` in the project root")
+        case .openCode: return L("Put it in `~/.config/opencode/opencode.json`, or `opencode.json` in the project root")
+        case .zed: return L("Put it under `context_servers` in `~/.config/zed/settings.json`")
+        case .zcode: return L("Put it under `mcp.servers` in `~/.zcode/cli/config.json` (per project: `<project>/.zcode/config.json`)")
+        case .claudeDesktop: return L("Put it under `mcpServers` in `~/Library/Application Support/Claude/claude_desktop_config.json`")
         }
     }
 
@@ -190,45 +190,45 @@ struct AgentPageView: View {
     private func clientFlag(_ c: AgentClient) -> String? {
         switch c {
         case .claudeCode:
-            return L("加到项目里（`--scope project`）时，要在那个目录里进一次 `claude` 批准，服务才会真启动——10-10 实测：新目录里 add 完 `claude mcp list` 回的是「Pending approval」。")
+            return L("Added with `--scope project`, it has to be approved once by running `claude` inside that directory before the server actually starts — measured 10-10: in a fresh directory, right after adding, `claude mcp list` returns 「Pending approval」.")
         case .codex:
-            return L("`codex mcp list` 只登记不握手，真连接要跑一次会话才看得出成不成——10-10 本机测的就是这两档。")
+            return L("`codex mcp list` only registers the server — it never handshakes. Whether the connection really works shows once a session runs; that two-step split is what we measured locally on 10-10.")
         case .qoder: return nil
         case .cursor:
-            return L("官方字段表要求写 `type: stdio`，它自己的示例却省着——我们写全。")
+            return L("The official field table says to write `type: stdio`; their own example leaves it out — we spell it out.")
         case .openCode:
-            return L("`command` 是数组（程序和参数写在同一个方括号里），环境变量那个键叫 `environment` 不叫 `env`，`type` 得是 `local`。这三处照别家的写法抄就起不来。")
+            return L("`command` is an array (program and arguments inside the same square brackets), the environment-variable key is called `environment`, not `env`, and `type` has to be `local`. Copy any of these three from another client's style and it won't start.")
         case .zed:
-            return L("是 `context_servers` 不是 `agent_servers`（后者是挂外部 agent 的）。")
+            return L("It's `context_servers`, not `agent_servers` (that one is for plugging in external agents).")
         case .zcode:
-            return L("设置里能直接从 Claude Code / Codex / OpenCode 的配置导入；它默认不吃系统 HTTP_PROXY。")
+            return L("Its settings can import directly from Claude Code / Codex / OpenCode configs; by default it ignores the system HTTP_PROXY.")
         case .claudeDesktop:
-            return L("改完要完全退出再打开，不是关窗口。")
+            return L("After editing, quit the app completely and open it again — closing the window isn't enough.")
         }
     }
 
     private func copyButton(_ text: String) -> some View {
-        ThemeButton(kind: .compact, symbol: "doc.on.doc", title: L("复制")) { copy(text) }
+        ThemeButton(kind: .compact, symbol: "doc.on.doc", title: L("Copy")) { copy(text) }
     }
 
     /// 一段真跑过的对话（数字与 `docs/AGENTS-CLI.md` 里那次实录一致）。
     /// 顶上明写「示例」：这些数是他人的机器上的，不是眼前这台盘的账。
     private var demoBlock: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(L("示例对话 · 接上之后就是这个样子"))
+            Text(L("Example conversation — this is what it looks like once it's connected"))
                 .font(theme.bodyFont(.caption2).weight(.semibold))
                 .foregroundStyle(theme.palette.inkTertiary)
                 .padding(.bottom, 6)
             VStack(alignment: .leading, spacing: 2) {
-                termLine(L("看看我的 Mac 哪里能清"))
+                termLine(L("Show me what I can clean up on my Mac"))
                 termTool("diskwise · scan_disk", tail: "(category: \"all\")")
-                termDim(L("总共 30 处 · agent 能动 23 处，合计约 57.7 GB"))
-                termNo(L("iOS 模拟器运行时 16.6 GB 在系统区，outside_allowed，我不会动"))
-                termLine(L("把 Ollama 和 oMLX 的模型清了吧"))
-                termTool("plan_cleanup", tail: L("计划已生成，2 项合计 31.4 GB，进废纸篓。确认执行吗？"))
-                termLine(L("可以"))
+                termDim(L("30 spots in total · the agent can act on 23 of them, about 57.7 GB"))
+                termNo(L("The iOS Simulator runtime, 16.6 GB, sits in the system area: outside_allowed, so I won't touch it"))
+                termLine(L("Clean out the Ollama and oMLX models"))
+                termTool("plan_cleanup", tail: L("Plan ready: 2 items, 31.4 GB in total, headed for the Trash. Run it?"))
+                termLine(L("Go ahead"))
                 termTool("execute_cleanup")
-                termOk(L("31.4 GB 已移入废纸篓，可整单撤销"))
+                termOk(L("31.4 GB moved to the Trash — undo brings the whole run back"))
             }
             .padding(.horizontal, 13)
             .padding(.vertical, 11)
@@ -326,13 +326,13 @@ struct AgentPageView: View {
     // MARK: Agent 操作记录
 
     @ViewBuilder private var recordCard: some View {
-        AgentCard(title: L("Agent 操作记录")) {
+        AgentCard(title: L("Agent activity")) {
             if rows.isEmpty {
                 // 空账只留空态那两句：「撤销按整单」「被拦下的不记账」都是在讲一行
                 // 不存在的账怎么办，摊在一块空白底下，卡片下半截全是政策说明。
                 // 只有「这一页读的是哪本账」在零行时仍然要回答——那正是人会问的一句。
                 emptyBlock
-                AgentNote(text: L("这一页只读 agent 留下的操作日志，你在 App 里手动清掉的东西不记在这儿。"),
+                AgentNote(text: L("This page reads only the log the agent writes. What you clear by hand in the app isn't in it."),
                           top: true)
             } else {
                 // 空账不渲染这一行：写「0 次操作」是给一个没发生过的事占一格
@@ -341,9 +341,9 @@ struct AgentPageView: View {
                     if index > 0 { Divider().overlay(theme.palette.separator) }
                     operationRow(op)
                 }
-                AgentNote(text: L("撤销按整单：一次执行的所有项一起放回，没有单项恢复，界面上也就不给单项按钮。这和终端里 diskwise undo 是同一条实现——日志只追加、不涂改，所以放回过的行还留在账上，只是再也点不动。"),
+                AgentNote(text: L("Undo works on the whole run: everything one execution moved comes back together, there is no single-item restore, so there is no single-item button either. It is the same code behind diskwise undo in Terminal — the log only ever appends, it is never edited, so a restored line stays on the books. It just can't be pressed again."),
                           top: true)
-                AgentNote(text: L("这一页只读 agent 留下的操作日志，你在 App 里手动清掉的东西不记在这儿；被拦下的尝试也不记账，一次都没搬成的操作不留行。清空废纸篓之后日志仍在，那时撤销会逐项告诉你哪几项已经撤不回来，不会静默跳过。"),
+                AgentNote(text: L("This page reads only the log the agent writes. What you clear by hand in the app isn't in it, and neither are attempts that got refused: a run that moved nothing leaves no line. Emptying the Trash doesn't clear the log — undo then tells you item by item which ones can't come back, instead of skipping them quietly."),
                           top: false)
             }
         }
@@ -351,15 +351,15 @@ struct AgentPageView: View {
 
     private var aggregateRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Text(cnt(totals.operations, "次操作"))
-                + Text(" · ") + Text(cnt(totals.items, "项"))
-                + Text(" · ") + Text(LF("共 %@ 移入废纸篓", human(totals.bytes)))
+            Text(cnt(totals.operations, "operations"))
+                + Text(" · ") + Text(cnt(totals.items, "items"))
+                + Text(" · ") + Text(LF("%@ moved to the Trash in total", human(totals.bytes)))
             if totals.restoredBytes > 0 {
                 Text("|").foregroundStyle(theme.palette.separator)
-                Text(LF("其中 %@ 已放回", human(totals.restoredBytes)))
+                Text(LF("%@ of it restored", human(totals.restoredBytes)))
             }
             Spacer(minLength: 8)
-            ThemeButton(kind: .ghost, symbol: "arrow.clockwise", title: L("刷新")) { reload() }
+            ThemeButton(kind: .ghost, symbol: "arrow.clockwise", title: L("Refresh")) { reload() }
         }
         .font(theme.bodyFont(.caption))
         .foregroundStyle(theme.palette.inkSecondary)
@@ -369,7 +369,7 @@ struct AgentPageView: View {
 
     private func operationRow(_ op: AgentOperation) -> some View {
         let open = expanded.contains(op.id)
-        let name = agentClientLabel(op.client) ?? L("未知来源")
+        let name = agentClientLabel(op.client) ?? L("Unknown source")
         let tally = tallies[op.id]
         let presence = agentTrashPresence(op) { FileManager.default.fileExists(atPath: $0) }
         let undone = op.undoneAt != nil || tally != nil
@@ -383,7 +383,7 @@ struct AgentPageView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(open ? L("收起") : L("展开"))
+                .accessibilityLabel(open ? L("Collapse") : L("Expand"))
 
                 AgentClientTile(name: name)
 
@@ -393,7 +393,7 @@ struct AgentPageView: View {
                             Text(name)
                                 .font(theme.bodyFont(.caption).weight(.semibold))
                                 .foregroundStyle(theme.palette.ink)
-                            Text("· " + cnt(op.items.count, "项"))
+                            Text("· " + cnt(op.items.count, "items"))
                                 .font(theme.bodyFont(.caption))
                                 .foregroundStyle(theme.palette.inkSecondary)
                             undoPills(op, tally: tally, hopeless: hopeless, undone: undone)
@@ -414,7 +414,7 @@ struct AgentPageView: View {
                                                             : theme.palette.ink)
                     undoButton(op, undone: undone, hopeless: hopeless)
                     if hopeless || (tally?.gone ?? 0) > 0 {
-                        ThemeButton(kind: .ghost, symbol: "trash", title: L("打开废纸篓")) {
+                        ThemeButton(kind: .ghost, symbol: "trash", title: L("Open Trash")) {
                             openTrashInFinder()
                         }
                     }
@@ -454,28 +454,28 @@ struct AgentPageView: View {
             // 三档同一个形状「N 项 + 结论」，别一行一个语序：译文里数词的位置
             // 要能对齐，混着写九门语言各要绕一遍。
             if tally.restored > 0 {
-                ThemeBadge(text: LF("%@ 已放回", cnt(tally.restored, "项")), tone: .safe)
+                ThemeBadge(text: LF("%@ restored", cnt(tally.restored, "items")), tone: .safe)
             }
             if tally.gone > 0 {
-                ThemeBadge(text: LF("%@ 撤不回", cnt(tally.gone, "项")), tone: .danger)
+                ThemeBadge(text: LF("%@ can't come back", cnt(tally.gone, "items")), tone: .danger)
             }
             if tally.failed > 0 {
-                ThemeBadge(text: LF("%@ 放回失败", cnt(tally.failed, "项")), tone: .warn)
+                ThemeBadge(text: LF("%@ failed to restore", cnt(tally.failed, "items")), tone: .warn)
             }
         } else if undone {
-            ThemeBadge(text: L("已撤销"), tone: .neutral)
+            ThemeBadge(text: L("Undone"), tone: .neutral)
         } else if hopeless {
-            ThemeBadge(text: L("撤不回来"), tone: .danger)
+            ThemeBadge(text: L("Can't come back"), tone: .danger)
         }
     }
 
     @ViewBuilder private func undoButton(_ op: AgentOperation, undone: Bool, hopeless: Bool) -> some View {
         if undone {
-            ThemeButton(kind: .ghost, title: L("已放回"), isDisabled: true) {}
+            ThemeButton(kind: .ghost, title: L("Restored"), isDisabled: true) {}
         } else if hopeless {
-            ThemeButton(kind: .ghost, title: L("撤销"), isDisabled: true) {}
+            ThemeButton(kind: .ghost, title: L("Undo"), isDisabled: true) {}
         } else {
-            ThemeButton(kind: .compact, title: undoing == op.id ? L("撤销中…") : L("整单撤销"),
+            ThemeButton(kind: .compact, title: undoing == op.id ? L("Restoring…") : L("Undo whole run"),
                         isDisabled: undoing != nil) {
                 undo(op)
             }
@@ -494,7 +494,7 @@ struct AgentPageView: View {
                 .fixedSize()
             agentDot()
             if open {
-                Text(L("展开中"))
+                Text(L("Expanded"))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .fixedSize()
@@ -510,14 +510,14 @@ struct AgentPageView: View {
                     // 实拍出来「等 3 项」被推到行尾，正落在「16.2 GB」下面，
                     // 读起来像体积的一列而不是路径的尾巴。现在让路径按内容收，
                     // 剩的宽度全给末尾那颗 Spacer，两颗附属信息就贴在路径后面。
-                    Text(LF("等 %@", cnt(hidden, "项")))
+                    Text(LF("+ %@", cnt(hidden, "items")))
                         .font(theme.bodyFont(.caption2))
                         .foregroundStyle(theme.palette.inkTertiary)
                         .fixedSize()
                 }
             }
             if let when = op.undoneAt {
-                Text(LF("放回时间 %@", agentWhen(when)))
+                Text(LF("Restored %@", agentWhen(when)))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .fixedSize()
@@ -541,10 +541,10 @@ struct AgentPageView: View {
             IconTile(symbol: AppPanel.agent.symbol, side: 44,
                      fill: theme.palette.inkTertiary, muted: true)
                 .padding(.bottom, 7)
-            Text(L("还没有 agent 操作过"))
+            Text(L("No agent has touched this Mac yet"))
                 .font(theme.bodyFont(.headline))
                 .foregroundStyle(theme.palette.ink)
-            Text(L("接上之后每次执行都会在这里留一行，能整单撤销。"))
+            Text(L("Once it's connected, every run leaves a line here, and you can undo the whole run."))
                 .font(theme.bodyFont(.caption))
                 .foregroundStyle(theme.palette.inkSecondary)
         }
@@ -588,11 +588,11 @@ struct AgentPageView: View {
     private func undoFailText(_ error: Error) -> String {
         if let e = error as? AgentAPIError {
             switch e {
-            case .noUndoableOperation: return L("这一行已经放回过了，不能重复撤")
-            case .planExpired: return L("计划已过期，回终端重新 plan 一次")
-            case .planNotFound: return L("找不到那次执行的计划")
-            case .planTooLarge: return L("那一次动得太多，回终端逐段撤")
-            case .invalidPath: return L("记录里的路径已经不能照着放回")
+            case .noUndoableOperation: return L("That line has already been undone — it can't be undone twice")
+            case .planExpired: return L("The plan expired — run plan again in Terminal")
+            case .planNotFound: return L("The plan for that run is gone")
+            case .planTooLarge: return L("That run moved too much — undo it in pieces from Terminal")
+            case .invalidPath: return L("The paths in that record can't be restored the way they are written")
             }
         }
         return failReason(error)
@@ -601,22 +601,22 @@ struct AgentPageView: View {
     /// 三种结果三种读法，不合并成一句「好了」。
     private func undoNotice(_ t: AgentUndoTally) -> String {
         if t.restored == 0 {
-            if t.gone > 0 { return LF("%@ 不在废纸篓里了，撤不回来", cnt(t.gone, "项")) }
-            return L("什么都没放回")
+            if t.gone > 0 { return LF("%@ are no longer in the Trash, so there's nothing to undo", cnt(t.gone, "items")) }
+            return L("Nothing came back")
         }
         if t.gone + t.failed == 0 {
-            return LF("%@ 已放回原处 · %@", human(t.restoredBytes), cnt(t.restored, "项"))
+            return LF("%@ back where they came from · %@", human(t.restoredBytes), cnt(t.restored, "items"))
         }
-        return LF("%@ 已放回 · %@ 撤不回来",
-                  cnt(t.restored, "项"), cnt(t.gone + t.failed, "项"))
+        return LF("%@ restored · %@ can't come back",
+                  cnt(t.restored, "items"), cnt(t.gone + t.failed, "items"))
     }
 
     private func copy(_ text: String) {
         let pb = NSPasteboard.general
         pb.clearContents()
         store.notice = pb.setString(text, forType: .string)
-            ? LF("已复制到剪贴板：%@", text)
-            : L("复制失败，请手动选中复制")
+            ? LF("Copied: %@", text)
+            : L("Copy failed — select the text and copy it by hand")
     }
 
     /// 同一台机器上「今天 / 昨天 / 本月」这套读法交给系统，不自己拼中文日期：
@@ -638,8 +638,8 @@ private extension AgentCLILocation {
     /// 徽章说的是「这个包里带了什么」，不是「有没有人真接上了」——后者 App 不可能知道。
     var badgeText: String {
         switch self {
-        case .present: return L("本包已带 CLI")
-        case .missing: return L("本包不含 CLI")
+        case .present: return L("CLI in this build")
+        case .missing: return L("No CLI in this build")
         }
     }
     var badgeTone: ThemeBadge.Tone {
@@ -798,7 +798,7 @@ struct AgentClientTile: View {
 
     var body: some View {
         let isDark = (theme.scheme ?? colorScheme) == .dark
-        let color = name == L("未知来源") ? theme.palette.inkTertiary : theme.palette.tint
+        let color = name == L("Unknown source") ? theme.palette.inkTertiary : theme.palette.tint
         ZStack {
             theme.tileShape(26).fill(color.opacity(theme.tileWash(dark: isDark)))
             Text(String(name.prefix(1)).uppercased())

@@ -26,14 +26,14 @@ private func fileVerdictNote(_ rows: [FileRow], ruler: Int64) -> String? {
     }
     var parts: [String] = []
     if safe > 0 {
-        parts.append(LF("删了没影响的 %1$@合计 %2$@",
-                        cnt(safe, "项"), human(safeBytes, inRulerOf: ruler)))
+        parts.append(LF("%1$@ with no impact, %2$@ in total",
+                        cnt(safe, "items"), human(safeBytes, inRulerOf: ruler)))
     }
-    if redo > 0 { parts.append(LF("%1$@删了要重新下载", cnt(redo, "项"))) }
-    if risky > 0 { parts.append(LF("%1$@删了会丢数据", cnt(risky, "项"))) }
+    if redo > 0 { parts.append(LF("%1$@ need re-downloading", cnt(redo, "items"))) }
+    if risky > 0 { parts.append(LF("%1$@ would lose data if deleted", cnt(risky, "items"))) }
     if unknown > 0 {
-        parts.append(LF("另有 %1$@不在这本知识库里：不在不等于能删，勾之前先看路径",
-                        cnt(unknown, "项")))
+        parts.append(LF("Another %1$@ aren't in the knowledge base: not listed doesn't mean safe to delete, so check the path before ticking it",
+                        cnt(unknown, "items")))
     }
     return parts.isEmpty ? nil : parts.joined(separator: " · ") + "。"
 }
@@ -142,35 +142,35 @@ struct BigFilesView: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 14) {
-                PageHeader(symbol: "doc.on.doc", title: L("大文件"),
-                           subtitle: L("按个头排好队，大的在上面"),
+                PageHeader(symbol: "doc.on.doc", title: L("Large Files"),
+                           subtitle: L("Sorted by size, largest first"),
                            variant: .display)
                 ControlStrip {
                     if model.scanning {
-                        LoadingRow(text: L("正在翻你的文件夹…"), progress: model.progress)
+                        LoadingRow(text: L("Going through your folders…"), progress: model.progress)
                     } else {
-                        Text(LF("共扫到 %@", cnt(model.count, "个文件")))
+                        Text(LF("Found %@", cnt(model.count, "files")))
                     }
                     if let note = model.scopeNote {
                         // 这里原先钉着一颗「返回空间总览」——深挖那条链上没人记「上一页」，
                         // 删空之后这一屏就成了死胡同，只能把退路写死在工具条最左。
                         // 现在退路归窗口顶上那颗全局「返回」管，它按的是同一本历史、
                         // 落在哪儿就写哪儿，所以这里不再单摆一颗：两个返回入口会打架。
-                        ThemeBadge(text: LF("只看 %@", note), tone: .tint, symbol: "scope")
-                        ThemeButton(kind: .compact, title: L("不限这个目录")) {
+                        ThemeBadge(text: LF("Only %@", note), tone: .tint, symbol: "scope")
+                        ThemeButton(kind: .compact, title: L("Show all folders")) {
                             model.scan(scope: store.scope)
                         }
                     } else {
-                        ThemeBadge(text: LF("范围：%@", model.scope.uiName),
+                        ThemeBadge(text: LF("Scope: %@", model.scope.uiName),
                                    tone: .neutral, symbol: "scope")
                     }
                 } trailing: {
                     // 筛选控件放工具条右侧，不放页头：页头那一条要留给标题和副标题，
                     // 英文副标题一长就被控件挤到换行，控件自己也会顶出窗口边。
-                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) {
+                    ThemeSwitch(label: L("Skip dev folders"), isOn: $model.skipDev) {
                         model.rescan(scope: store.scope)
                     }
-                    ThemeStepper(label: L("前"), value: $model.limit, range: 10...200, step: 10) {
+                    ThemeStepper(label: L("Top"), value: $model.limit, range: 10...200, step: 10) {
                         model.applyLimit()
                     }
                     ScanControl(scanning: model.scanning,
@@ -185,8 +185,8 @@ struct BigFilesView: View {
             if model.scanning && model.rows.isEmpty {
                 ScanChecklist(progress: model.progress, scope: model.scope.uiName)
             } else if !model.scanning && model.rows.isEmpty {
-                EmptyState(symbol: "doc", title: L("还没扫到大文件"),
-                           hint: L("点右上角重新扫描，或回总览换个目录深挖"))
+                EmptyState(symbol: "doc", title: L("No large files yet"),
+                           hint: L("Hit Rescan in the top right, or dig into another folder from the overview"))
                     .frame(maxHeight: .infinity)
             } else {
                 PageLedger(tiers: tiers, rows: model.rows.count, note: ledgerNote)
@@ -200,7 +200,7 @@ struct BigFilesView: View {
                             hint: verdictHint(for: r.url.path),
                             sizeText: shown[r.id] ?? human(r.size),
                             fraction: Double(r.size) / Double(maxSize),
-                            badge: r.deletable ? nil : ItemBadge(text: L("本工具不碰"), tone: .neutral),
+                            badge: r.deletable ? nil : ItemBadge(text: L("Not ours to touch"), tone: .neutral),
                             // 第二枚徽章走**另一条轴**：上面那枚说本工具动不动这一行，这枚说甩掉它
                             // 要付什么代价。这两页原先只有前一枚，于是恰好漏掉
                             // 最该提醒的那一类——**本工具能清、但删了会丢数据**的（模拟器数据、
@@ -215,7 +215,7 @@ struct BigFilesView: View {
                             // 「这个文件到底在哪个文件夹」是这一页最常被追问的一句。
                             // 摊开这一行顺手给个入口，省得自己去访达里一层层翻。
                             ThemeButton(kind: .compact, symbol: "folder",
-                                        title: L("查看所在文件夹")) {
+                                        title: L("Open containing folder")) {
                                 store.drill(into: r.url.deletingLastPathComponent().path)
                             }
                         }
@@ -253,8 +253,8 @@ struct BigFilesView: View {
             }
         }
         .confirmTrash(isPresented: $confirm,
-                      text: LF("将 %1$@（%2$@）移入废纸篓。",
-                               cnt(model.selected.count, "个文件"),
+                      text: LF("Move %1$@ (%2$@) to the Trash.",
+                               cnt(model.selected.count, "files"),
                                human(model.selectedBytes, inRulerOf: listedTotal))) {
             doClean()
         }
@@ -273,15 +273,15 @@ struct BigFilesView: View {
     /// 这一页两笔账：本工具不碰的位置只摆上列表不入账，所以分「本工具能清 / 本工具不碰」两档。
     private var tiers: [LedgerTier] {
         let sp = listedSplitOf(model.rows, bytes: { $0.size }, lit: { $0.deletable })
-        return [LedgerTier(label: L("本工具能清"), bytes: sp.reclaimable, tone: .hot),
-                LedgerTier(label: L("本工具不碰"), bytes: sp.viewOnly, tone: .cold)]
+        return [LedgerTier(label: L("Ours to clean"), bytes: sp.reclaimable, tone: .hot),
+                LedgerTier(label: L("Not ours to touch"), bytes: sp.viewOnly, tone: .cold)]
     }
 
     /// 「共扫到 152 个」和这一列加起来是两回事：这一屏只画了前 30 个。
     /// 不写这句，用户会把 30 行的和去对页头那句话，对不上就以为数字是编的。
     private var ledgerNote: String? {
         model.count > model.rows.count
-            ? LF("扫到的 %1$@ 个里只列最大的 %2$d 个，剩下的比这一列最小那行还小。",
+            ? LF(" Showing the %2$d largest of the %1$@ found — the rest are smaller than the smallest row here.",
                  String(model.count), model.rows.count)
             : nil
     }
@@ -322,7 +322,7 @@ struct BigFilesView: View {
         // 行会被剔掉，筹码已经在 `launch` 那一下量好了起点，从它原来的位置上起飞。
         model.pruneMissing()
         if !errs.isEmpty { err = errList(errs) }
-        store.notice = trashedNotice(ok, "个文件", failed: errs.count)
+        store.notice = trashedNotice(ok, "files", failed: errs.count)
     }
 }
 
@@ -404,16 +404,16 @@ struct OldFilesView: View {
                 // 筛选控件挂在页头右端，跟标题并列。这一条窄语言放得下（中文 692 pt / 内容区 774 pt），
                 // 长译文由 `wrapsControls` 那一档把控件退到第二行右对齐——所以它不会顶出窗口边，
                 // 也不会把副标题挤断。控件离开控制条之后，下面那行只剩读数自己。
-                PageHeader(symbol: "clock", title: L("很久没动"),
-                           subtitle: L("扫过的地方里，好久没碰的东西"),
+                PageHeader(symbol: "clock", title: L("Long Untouched"),
+                           subtitle: L("Long-untouched files, wherever the scan reached"),
                            variant: .display,
                            wrapsControls: true) {
-                    ThemeBadge(text: LF("范围：%@", model.scope.uiName),
+                    ThemeBadge(text: LF("Scope: %@", model.scope.uiName),
                                tone: .neutral, symbol: "scope")
-                    ThemeSwitch(label: L("跳过开发目录"), isOn: $model.skipDev) {
+                    ThemeSwitch(label: L("Skip dev folders"), isOn: $model.skipDev) {
                         model.scan(scope: store.scope)
                     }
-                    ThemeStepper(label: L("超过"), unit: L("天"),
+                    ThemeStepper(label: L("Older than"), unit: L("days"),
                                  value: $model.days, range: 30...365, step: 30) {
                         model.scan(scope: store.scope)
                     }
@@ -425,10 +425,10 @@ struct OldFilesView: View {
                 // 右缘才跟上面的页头、下面的账卡落在同一条竖线上。
                 Group {
                     if model.scanning {
-                        LoadingRow(text: L("正在看哪些文件落灰…"), progress: model.progress,
+                        LoadingRow(text: L("Looking for files that gathered dust…"), progress: model.progress,
                                    fillsRow: true)
                     } else {
-                        Text(LF("%1$@，共 %2$@", cnt(model.rows.count, "个文件"),
+                        Text(LF("%1$@, %2$@ in total", cnt(model.rows.count, "files"),
                                 human(model.totalBytes)))
                     }
                 }
@@ -443,8 +443,8 @@ struct OldFilesView: View {
             if model.scanning && model.rows.isEmpty {
                 ScanChecklist(progress: model.progress, scope: model.scope.uiName)
             } else if !model.scanning && model.rows.isEmpty {
-                EmptyState(symbol: "sparkle", title: L("没有落灰的文件"),
-                           hint: L("扫过的地方很干净，保持住"))
+                EmptyState(symbol: "sparkle", title: L("Nothing gathering dust"),
+                           hint: L("Nothing dusty where we looked — keep it up"))
                     .frame(maxHeight: .infinity)
             } else {
                 PageLedger(tiers: tiers, rows: model.rows.count, note: ledgerNote)
@@ -458,7 +458,7 @@ struct OldFilesView: View {
                             hint: verdictHint(for: r.url.path),
                             sizeText: shown[r.id] ?? human(r.size),
                             fraction: Double(r.size) / Double(maxSize),
-                            badge: r.deletable ? nil : ItemBadge(text: L("本工具不碰"), tone: .neutral),
+                            badge: r.deletable ? nil : ItemBadge(text: L("Not ours to touch"), tone: .neutral),
                             // 第二枚徽章走**另一条轴**：上面那枚说本工具动不动这一行，这枚说甩掉它
                             // 要付什么代价。这两页原先只有前一枚，于是恰好漏掉
                             // 最该提醒的那一类——**本工具能清、但删了会丢数据**的（模拟器数据、
@@ -473,7 +473,7 @@ struct OldFilesView: View {
                             // 「这个文件到底在哪个文件夹」是这一页最常被追问的一句。
                             // 摊开这一行顺手给个入口，省得自己去访达里一层层翻。
                             ThemeButton(kind: .compact, symbol: "folder",
-                                        title: L("查看所在文件夹")) {
+                                        title: L("Open containing folder")) {
                                 store.drill(into: r.url.deletingLastPathComponent().path)
                             }
                         }
@@ -503,8 +503,8 @@ struct OldFilesView: View {
         .onChange(of: model.rows.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
         .confirmTrash(isPresented: $confirm,
-                      text: LF("将 %1$@（%2$@）移入废纸篓。",
-                               cnt(model.selected.count, "个文件"),
+                      text: LF("Move %1$@ (%2$@) to the Trash.",
+                               cnt(model.selected.count, "files"),
                                human(model.selectedBytes, inRulerOf: model.totalBytes))) {
             doClean()
         }
@@ -519,16 +519,16 @@ struct OldFilesView: View {
 
     private var tiers: [LedgerTier] {
         let sp = listedSplitOf(model.rows, bytes: { $0.size }, lit: { $0.deletable })
-        return [LedgerTier(label: L("本工具能清"), bytes: sp.reclaimable, tone: .hot),
-                LedgerTier(label: L("本工具不碰"), bytes: sp.viewOnly, tone: .cold)]
+        return [LedgerTier(label: L("Ours to clean"), bytes: sp.reclaimable, tone: .hot),
+                LedgerTier(label: L("Not ours to touch"), bytes: sp.viewOnly, tone: .cold)]
     }
 
     private var ledgerNote: String? {
         if model.count > model.rows.count {
-            return LF("扫到的 %1$@ 个里只列最大的 %2$d 个，剩下的比这一列最小那行还小。",
+            return LF(" Showing the %2$d largest of the %1$@ found — the rest are smaller than the smallest row here.",
                       String(model.count), model.rows.count)
         }
-        return L("这一页的行全在屏幕上，当场就能把这一列加到页头那句。")
+        return L(" Every row on this page is on screen: add this column and you land on the header's number.")
     }
 
     private var verdictNote: String? { fileVerdictNote(model.rows, ruler: model.totalBytes) }
@@ -567,6 +567,6 @@ struct OldFilesView: View {
         model.lose(before - model.rows.count)
         for i in model.rows.indices { model.rows[i].selected = false }
         if !errs.isEmpty { err = errList(errs) }
-        store.notice = trashedNotice(ok, "个文件", failed: errs.count)
+        store.notice = trashedNotice(ok, "files", failed: errs.count)
     }
 }
