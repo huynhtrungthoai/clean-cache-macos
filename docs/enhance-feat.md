@@ -346,7 +346,7 @@ Các đặc tả CleanPilot, lựa chọn kỹ thuật, mức ưu tiên và tiê
 
 Ranh giới sở hữu: xem `CLAUDE.md` và `AGENTS.md`. Claude cung cấp model/API dưới đây; Codex chỉ dùng chúng trong View. Muốn đổi chữ ký API thì sửa mục này trước (qua PR), rồi mới sửa code. Trạng thái: `draft` → `agreed` (chủ dự án duyệt) → `merged` (đã vào `main`).
 
-### C0 — Tách model khỏi file View · P0 · Claude · `draft`
+### C0 — Tách model khỏi file View · P0 · Claude · `ready` (nhánh `feat/claude-p0`, chờ merge)
 
 - Di chuyển nguyên trạng các lớp `ObservableObject` từ `Views/*.swift` sang `Sources/DiskCleaner/Models/`: `CachesModel`, `BigFilesModel`, `OldFilesModel`, `FolderDrillModel`, `DupModel`, `OrphansModel`, `UninstallModel`, `NMModel`, `DockerModel`, `OverviewModel`.
 - Chỉ di chuyển, không đổi hành vi hay tên. Merge sớm nhất có thể; Codex rebase lên trước khi sửa View tương ứng.
