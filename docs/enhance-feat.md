@@ -341,3 +341,84 @@ Tất cả được truy cập ngày 05/11/2026:
 - [Cloud Cleanup](https://cleanmymac.com/mac-cloud-cleanup): cloud và công cụ email được giới thiệu.
 
 Các đặc tả CleanPilot, lựa chọn kỹ thuật, mức ưu tiên và tiêu chí nghiệm thu trong tài liệu là đề xuất dựa trên đối chiếu mã nguồn, không phải mô tả hành vi nội bộ đã kiểm chứng của CleanMyMac.
+
+## 11. Contract — giao diện giữa phần lõi (Claude) và UI (Codex)
+
+Ranh giới sở hữu: xem `CLAUDE.md` và `AGENTS.md`. Claude cung cấp model/API dưới đây; Codex chỉ dùng chúng trong View. Muốn đổi chữ ký API thì sửa mục này trước (qua PR), rồi mới sửa code. Trạng thái: `draft` → `agreed` (chủ dự án duyệt) → `merged` (đã vào `main`).
+
+### C0 — Tách model khỏi file View · P0 · Claude · `draft`
+
+- Di chuyển nguyên trạng các lớp `ObservableObject` từ `Views/*.swift` sang `Sources/DiskCleaner/Models/`: `CachesModel`, `BigFilesModel`, `OldFilesModel`, `FolderDrillModel`, `DupModel`, `OrphansModel`, `UninstallModel`, `NMModel`, `DockerModel`, `OverviewModel`.
+- Chỉ di chuyển, không đổi hành vi hay tên. Merge sớm nhất có thể; Codex rebase lên trước khi sửa View tương ứng.
+
+### C1 — Lịch sử theo lô và hoàn tác · P0/F06 · Claude · `draft`
+
+```swift
+struct TrashBatch: Identifiable, Codable {
+    let id: UUID
+    let createdAt: Date
+    let source: String            // module: "caches", "duplicates", "uninstall", ...
+    var items: [TrashedItem]      // các mục đã chuyển thành công
+    var failures: [TrashFailure]  // mục không chuyển được + lý do (đã dịch qua L())
+    var undoneAt: Date?
+}
+struct TrashedItem: Codable { original: String; inTrash: String; bytes: Int64; name: String; dev: UInt64; ino: UInt64 }
+enum RestoreStatus { case restored, restoredRenamed(String), goneFromTrash, changedInTrash, failed(String) }
+
+// AppStore (Claude)
+@Published private(set) var batches: [TrashBatch]   // mới nhất trước; lưu bền vững, quyền 0600, ghi atomic
+func runTrash(_ urls: [URL], source: String, sizes: [URL: Int64]) -> TrashBatch
+func undo(batch id: UUID) -> [(item: TrashedItem, status: RestoreStatus)]
+func canUndo(batch id: UUID) -> Bool               // false khi không còn mục nào trong Thùng rác
+```
+
+- `trashHistory` / `undoLast` / `undoBatch` hiện tại giữ tạm để không vỡ View cũ, đánh dấu deprecated; Codex chuyển dần sang `batches`.
+- Khôi phục chỉ đi từ `~/.Trash` (hoặc `/.Trashes/<uid>`) về vị trí qua được `deletionGate`; dev/ino không khớp → `changedInTrash`.
+
+### C2 — Kiểm tra lại trước thao tác và kết quả quét cũ · P0 · Claude · `draft`
+
+```swift
+enum PreflightIssue { case missing, changedSinceScan, keptCopyMissing, keptCopyChanged, protected, outsideAllowed }
+func preflight(_ items: [ScannedItem]) -> [URL: PreflightIssue]   // chạy ngoài main thread
+var scannedAt: Date? { get }          // trên mỗi model quét
+var isStale: Bool { get }             // quá ngưỡng (đề xuất 10 phút) hoặc đã có thao tác xoá từ trang khác
+```
+
+- `runTrash` tự gọi `preflight`; mục có issue không bị chuyển, xuất hiện trong `failures` của batch.
+- View hiển thị `isStale` và nút Quét lại; không tự quét lại.
+
+### C3 — Kế toán dung lượng trang Cache · P0 · Claude · `draft`
+
+- `CachesModel` đo đúng từng path (`pathSizes`), không đếm trùng cha/con khi chọn, và đo lại các path còn lại sau thao tác một phần (không còn kẹt trạng thái "đang thống kê").
+- API View dùng: `selectedBytes` (đã loại trùng), `rowState(id) -> .measuring | .measured(Int64) | .unmeasurable`.
+
+### C4 — App đang chạy khi gỡ · P0/F05 · Claude · `draft` (chờ quyết định §9 câu 4)
+
+```swift
+enum AppRunState { case notRunning, running(pids: [pid_t]) }
+func runState(of app: InstalledApp) -> AppRunState
+func requestQuit(_ app: InstalledApp) async -> Bool   // chỉ khi chủ dự án chọn "đề nghị thoát"
+```
+
+- `UninstallModel` từ chối gỡ app đang chạy cho tới khi có quyết định khác.
+
+### C5 — Vấn đề khi quét (thiếu quyền, lỗi) · P0/F01 · Claude · `draft`
+
+```swift
+struct ScanIssue: Identifiable { let id: UUID; let root: String; let kind: Kind; enum Kind { case noPermission, notFound, error(String) } }
+var issues: [ScanIssue] { get }        // trên mỗi model quét
+```
+
+### C6 — Phiên quét tổng hợp · F01 · Claude · `later`
+
+Phác thảo: `ScanSession` trong `ScanStore`, `modules: [ModuleState]` (waiting/scanning/done/cancelled/noPermission/partial/failed), `found/suggested/selected` bytes đã loại trùng. Chốt sau khi trả lời §9 câu 1.
+
+### C7 — Dữ liệu treemap · F04 · Claude · `later`
+
+Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in: CGRect) -> [(id, CGRect)]` có SelfTest; dữ liệu lấy từ `FolderDrillModel`. Codex vẽ bằng Canvas.
+
+### Requests — yêu cầu từ UI
+
+Codex ghi yêu cầu API còn thiếu ở đây (một dòng mỗi yêu cầu: màn hình, dữ liệu/hành động cần, ưu tiên).
+
+- _(chưa có)_
