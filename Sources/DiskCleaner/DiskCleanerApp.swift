@@ -467,9 +467,9 @@ struct ContentView: View {
                 inTitlebar {
                     HStack(spacing: 14) {
 
-                        if selection != .smart { GaugeFreshness() }
+                        if selection == .overview { GaugeFreshness() }
 
-                        if selection != .smart {
+                        if selection == .overview {
                         ScanControl(scanning: scans.overview.scanning,
                                     kind: .compact,
                                     showsShortcut: (selection ?? .overview) == .overview,
@@ -601,6 +601,7 @@ struct ContentView: View {
 
     private func sideHeader(_ text: String) -> some View {
         Text(text)
+            .accessibilityAddTraits(.isHeader)
             .font(sidebarTheme.bodyFont(.caption2).weight(.semibold))
             .tracking(0.6)
             .foregroundStyle(sidebarTheme.palette.inkSecondary)

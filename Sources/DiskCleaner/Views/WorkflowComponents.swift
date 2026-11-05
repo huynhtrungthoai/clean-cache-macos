@@ -15,27 +15,33 @@ struct SummaryCards: View {
     var metrics: [SummaryMetric]
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
-            ForEach(Array(metrics.enumerated()), id: \.element.id) { index, metric in
-                ThemedCard(padding: 12, alt: index > 0) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label(metric.title, systemImage: metric.symbol)
-                            .font(theme.bodyFont(.caption))
-                            .foregroundStyle(theme.palette.inkSecondary)
-                        Text(metric.value)
-                            .font(theme.prose(size: index == 0 ? 32 : 24, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(theme.palette.ink)
-                            .lineLimit(1).minimumScaleFactor(0.7)
-                        Text(metric.detail)
-                            .font(theme.bodyFont(.caption2))
-                            .foregroundStyle(theme.palette.inkSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .combine)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 12) { cards }
+            VStack(spacing: 12) { cards }
+        }
+    }
+
+    private var cards: some View {
+        ForEach(Array(metrics.enumerated()), id: \.element.id) { index, metric in
+            ThemedCard(padding: 12, alt: index > 0) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(metric.title, systemImage: metric.symbol)
+                        .font(theme.bodyFont(.caption))
+                        .foregroundStyle(theme.palette.inkSecondary)
+                    Text(metric.value)
+                        .font(theme.prose(size: index == 0 ? 32 : 24, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(theme.palette.ink)
+                        .lineLimit(1).minimumScaleFactor(0.7)
+                    Text(metric.detail)
+                        .font(theme.bodyFont(.caption2))
+                        .foregroundStyle(theme.palette.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
+            .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -131,7 +137,7 @@ struct TrashReviewSheet: View {
                 .font(theme.bodyFont(.callout))
                 .foregroundStyle(theme.palette.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            List(items) { item in
+            List(Array(items.enumerated()), id: \.offset) { _, item in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(item.name).fontWeight(.medium)
