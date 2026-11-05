@@ -230,6 +230,9 @@ public struct CacheItem: Identifiable {
     public var files: Int = 0
     public var newest: Date? = nil
     public var selected = false
+    /// Directories under this entry that could not be read (missing Full Disk Access / admin only).
+    /// With `size == 0` this means "could not measure", which must never be shown as 0 B (C3).
+    public var unreadablePaths: [String] = []
 
     public init(entry: SafetyEntry, resolvedPaths: [URL] = [], size: Int64? = nil, selected: Bool = false) {
         self.entry = entry
@@ -241,6 +244,54 @@ public struct CacheItem: Identifiable {
     /// Group identifier, not copy: sorting uses it; the table is consulted only before display
     public var groupKey: String { entry.grp ?? "general" }
     public var isSafe: Bool { entry.level != "warn" }
+}
+
+// ── C3: cache-page accounting (pure functions, covered by SelfTest) ──
+
+/// What a cache row can honestly show.
+public enum CacheRowState: Equatable {
+    case measuring
+    case measured(Int64)
+    /// Nothing could be read (permissions). Never render this as "0 B".
+    case unmeasurable
+}
+
+public func cacheRowState(_ item: CacheItem) -> CacheRowState {
+    guard let size = item.size else { return .measuring }
+    if size == 0 && !item.unreadablePaths.isEmpty { return .unmeasurable }
+    return .measured(size)
+}
+
+/// The exact list of paths a "move selected caches to Trash" action touches, with the bytes each
+/// one accounts for. Paths nested inside another selected path are dropped (trashing the parent
+/// already takes them), so nothing is trashed or counted twice, and every path carries its own
+/// measured size instead of a re-stat of the directory inode.
+public func cacheTrashPlan(_ selected: [CacheItem]) -> [(url: URL, bytes: Int64)] {
+    var byPath: [String: (url: URL, bytes: Int64)] = [:]
+    var order: [String] = []
+    for item in selected {
+        for url in item.resolvedPaths {
+            let key = url.standardizedFileURL.path
+            guard byPath[key] == nil else { continue }
+            byPath[key] = (url, item.pathSizes[url.path] ?? item.pathSizes[key] ?? 0)
+            order.append(key)
+        }
+    }
+    let outer = Set(dropNested(order))
+    return order.filter(outer.contains).compactMap { byPath[$0] }
+}
+
+/// Indices of items whose paths were affected by trashing `paths` (equal, inside, or containing),
+/// so their sizes can be re-measured instead of staying stale or stuck in "measuring".
+public func cacheItemsTouched(_ items: [CacheItem], by paths: [String]) -> [Int] {
+    let touched = paths.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+    func related(_ a: String, _ b: String) -> Bool { a == b || a.hasPrefix(b + "/") || b.hasPrefix(a + "/") }
+    return items.indices.filter { i in
+        items[i].resolvedPaths.contains { url in
+            let p = url.standardizedFileURL.path
+            return touched.contains { related(p, $0) }
+        }
+    }
 }
 
 // ── Size formatting: decimal (1 GB = 10⁹ B), same basis as Finder "Get Info", "About This Mac", diskutil ──

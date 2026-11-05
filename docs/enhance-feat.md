@@ -387,10 +387,31 @@ var isStale: Bool { get }             // quá ngưỡng (đề xuất 10 phút) 
 - `runTrash` tự gọi `preflight`; mục có issue không bị chuyển, xuất hiện trong `failures` của batch.
 - View hiển thị `isStale` và nút Quét lại; không tự quét lại.
 
-### C3 — Kế toán dung lượng trang Cache · P0 · Claude · `draft`
+### C3 — Kế toán dung lượng trang Cache · P0 · Claude · `ready` (nhánh `feat/claude-p0`)
 
-- `CachesModel` đo đúng từng path (`pathSizes`), không đếm trùng cha/con khi chọn, và đo lại các path còn lại sau thao tác một phần (không còn kẹt trạng thái "đang thống kê").
-- API View dùng: `selectedBytes` (đã loại trùng), `rowState(id) -> .measuring | .measured(Int64) | .unmeasurable`.
+Đã có trong `CachesModel` (+ hàm thuần trong Core, có SelfTest):
+
+```swift
+func rowState(_ id: UUID) -> CacheRowState      // .measuring | .measured(Int64) | .unmeasurable
+func trashSelected() -> CachesModel.TrashOutcome // records, failures [(name, error)], bytes
+var selectedBytes: Int64                          // đã loại trùng cha/con (có từ trước)
+```
+
+- `trashSelected()` chỉ chuyển đường dẫn ngoài cùng khi chọn cả cha lẫn con, ghi dung lượng đã đo của từng đường dẫn, rồi đo lại mọi hàng bị ảnh hưởng (kể cả hàng con không được chọn), nên không còn hàng kẹt ở "đang thống kê".
+- Hàng không đọc được (thiếu quyền) giờ được giữ lại với `.unmeasurable`, không còn bị coi là trống rồi bị xoá khỏi danh sách.
+
+**Việc của Codex trong `CachesView.swift`:**
+
+1. Thay vòng lặp trong `clean()` (đang gọi `trashItem` trực tiếp) bằng:
+
+   ```swift
+   let out = model.trashSelected()
+   out.records.forEach(store.record)
+   if !out.failures.isEmpty { errorText = errList(out.failures.map { failLine($0.name, $0.error) }) }
+   store.notice = trashedNotice(out.records.count, "items", failed: out.failures.count)
+   ```
+
+2. Ô dung lượng của hàng hiển thị theo `model.rowState(item.id)`: `.unmeasurable` → câu kiểu "Không đo được (cần quyền truy cập)"; không bao giờ hiển thị "0 B" cho trường hợp này.
 
 ### C4 — App đang chạy khi gỡ · P0/F05 · Claude · `agreed`
 

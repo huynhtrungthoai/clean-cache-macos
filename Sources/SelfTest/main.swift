@@ -9,6 +9,36 @@ var failures = 0
 // the fixtures below need DISKWISE_HOME_SHIM, so opt in explicitly (in-process only).
 enableDevHooksForSelfTest()
 
+// C3: cache-page accounting (docs/enhance-feat.md §11). Pure functions, no files touched.
+do {
+    func entry(_ n: String) -> SafetyEntry {
+        SafetyEntry(name: n, what: "", whatif: "", rec: "", path: "", level: "safe", cost: nil, grp: nil,
+                    docs: nil, app: nil, tags: nil, icon: nil)
+    }
+    let root = "/tmp/c3-fixture"
+    var parent = CacheItem(entry: entry("parent"), resolvedPaths: [URL(fileURLWithPath: root + "/Caches")])
+    parent.pathSizes = [root + "/Caches": 1000]
+    var child = CacheItem(entry: entry("child"), resolvedPaths: [URL(fileURLWithPath: root + "/Caches/Homebrew")])
+    child.pathSizes = [root + "/Caches/Homebrew": 400]
+    var multi = CacheItem(entry: entry("multi"), resolvedPaths: [URL(fileURLWithPath: root + "/A"),
+                                                                 URL(fileURLWithPath: root + "/B")])
+    multi.pathSizes = [root + "/A": 70, root + "/B": 30]
+    let plan = cacheTrashPlan([parent, child, multi])
+    check(plan.map(\.url.path) == [root + "/Caches", root + "/A", root + "/B"],
+          "C3: nested child is not trashed separately when its parent is selected")
+    check(plan.reduce(0) { $0 + $1.bytes } == 1100,
+          "C3: plan bytes count the parent once and use each path's measured size (1100)")
+    check(cacheTrashPlan([multi, multi]).count == 2, "C3: the same path is planned once")
+    let touched = cacheItemsTouched([parent, child, multi], by: [root + "/Caches"])
+    check(touched == [0, 1], "C3: trashing a parent marks its child entry for re-measurement")
+    check(cacheItemsTouched([parent, child, multi], by: [root + "/Caches/Homebrew"]) == [0, 1],
+          "C3: trashing a child marks the containing parent for re-measurement")
+    var unread = CacheItem(entry: entry("locked"), size: 0); unread.unreadablePaths = [root + "/Locked"]
+    check(cacheRowState(unread) == .unmeasurable, "C3: unreadable entry is 'could not measure', not 0 B")
+    check(cacheRowState(CacheItem(entry: entry("m"))) == .measuring, "C3: unmeasured entry stays 'measuring'")
+    check(cacheRowState(CacheItem(entry: entry("e"), size: 0)) == .measured(0), "C3: a readable empty entry is 0 B")
+}
+
 func check(_ cond: Bool, _ msg: String) {
     if cond {
         print("PASS  \(msg)")

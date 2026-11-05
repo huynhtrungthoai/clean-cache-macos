@@ -91,6 +91,7 @@ final class CachesModel: ObservableObject {
                         self.items[i].size = per.values.reduce(Int64(0)) { $0 + $1.bytes }
                         self.items[i].files = per.values.reduce(0) { $0 + $1.files }
                         self.items[i].newest = per.values.compactMap(\.newest).max()
+                        self.items[i].unreadablePaths = per.values.flatMap { $0.needFullDiskAccess + $0.needAdmin }
                     }
                 }
             }
@@ -103,7 +104,8 @@ final class CachesModel: ObservableObject {
             // 量到 0 字节的行不留：勾不动、也不进任何账，留着只会让页头那句「N 项可查」
             // 跟台账上的「· M 项」对不上（2026-09-28 本机实拍 16 vs 14，差的是空的 iOS
             // 备份目录和空的 AVD 目录）。size 为 nil = 还没量完，不删。
-            if !Task.isCancelled { self.items.removeAll { $0.size == 0 } }
+            // Rows that could not be read stay (C3: "could not measure" is not "empty").
+            if !Task.isCancelled { self.items.removeAll { $0.size == 0 && $0.unreadablePaths.isEmpty } }
             if !Task.isCancelled {
                 self.completed = true
                 self.scanning = false
@@ -114,6 +116,78 @@ final class CachesModel: ObservableObject {
     func stop() {
         task?.cancel()
         scanning = false
+    }
+
+    // MARK: - C3 API (docs/enhance-feat.md §11)
+
+    /// What the row may show: measuring / measured bytes / could not measure (never "0 B").
+    func rowState(_ id: UUID) -> CacheRowState {
+        guard let it = items.first(where: { $0.id == id }) else { return .unmeasurable }
+        return cacheRowState(it)
+    }
+
+    /// Outcome of `trashSelected()`. `records` go to `AppStore.record`; `failures` are shown with
+    /// `failLine(name, error)`. `bytes` is the measured size actually moved (no double counting).
+    struct TrashOutcome {
+        var records: [TrashRecord] = []
+        var failures: [(name: String, error: Error)] = []
+        var bytes: Int64 { records.reduce(0) { $0 + $1.size } }
+    }
+
+    /// Moves the selected cache rows to the Trash through `trashItem` (deletion gate included).
+    /// Nested selections are trashed once via the outermost path; each record carries the path's
+    /// measured size. Afterwards every affected row (selected or not, e.g. a child entry whose
+    /// parent was trashed) is re-measured, so no row is left stale or stuck in "measuring".
+    func trashSelected() -> TrashOutcome {
+        var out = TrashOutcome()
+        let plan = cacheTrashPlan(selected)
+        for step in plan {
+            do {
+                let inTrash = try trashItem(step.url)
+                out.records.append(TrashRecord(original: step.url, inTrash: inTrash, size: step.bytes,
+                                               displayName: step.url.lastPathComponent))
+            } catch {
+                out.failures.append((step.url.lastPathComponent, error))
+            }
+        }
+        for i in items.indices { items[i].selected = false }
+        refresh(after: plan.map { $0.url.path })
+        return out
+    }
+
+    private var remeasureTasks: [UUID: Task<Void, Never>] = [:]
+
+    /// Re-resolve and re-measure every row touched by trashing `paths`.
+    private func refresh(after paths: [String]) {
+        for i in cacheItemsTouched(items, by: paths) {
+            let left = items[i].resolvedPaths.filter { FileManager.default.fileExists(atPath: $0.path) }
+            items[i].resolvedPaths = left
+            items[i].unreadablePaths = []
+            if left.isEmpty {
+                items[i].size = 0
+                items[i].pathSizes = [:]
+                items[i].files = 0
+                continue
+            }
+            items[i].size = nil
+            let id = items[i].id
+            remeasureTasks[id]?.cancel()
+            remeasureTasks[id] = Task { [weak self] in
+                var per: [String: DirScan] = [:]
+                for p in left {
+                    if Task.isCancelled { return }
+                    per[p.path] = await pathStat(p)
+                }
+                guard let self, !Task.isCancelled,
+                      let j = self.items.firstIndex(where: { $0.id == id }) else { return }
+                self.items[j].pathSizes = per.mapValues(\.bytes)
+                self.items[j].size = per.values.reduce(Int64(0)) { $0 + $1.bytes }
+                self.items[j].files = per.values.reduce(0) { $0 + $1.files }
+                self.items[j].newest = per.values.compactMap(\.newest).max()
+                self.items[j].unreadablePaths = per.values.flatMap { $0.needFullDiskAccess + $0.needAdmin }
+                self.remeasureTasks[id] = nil
+            }
+        }
     }
 }
 

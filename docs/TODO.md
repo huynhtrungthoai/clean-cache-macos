@@ -168,10 +168,11 @@
   - Mục có nhiều đường dẫn ghi size bằng `fileSize(p)` (chỉ lấy `st_blocks` của chính thư mục) nên báo thiếu rất nhiều.
   - Chọn cả cha lẫn con thì bị đếm 2 lần hoặc báo lỗi "not found" giả.
   - Sau khi xoá một phần, `size = nil` và không đo lại, nên hàng kẹt ở "统计中…" (đang thống kê) và không chọn lại được.
+- **Đã sửa (C3, `feat/claude-p0`):** `CachesModel.trashSelected()` + `cacheTrashPlan`/`cacheItemsTouched`/`cacheRowState` trong Core; chờ Codex nối `CachesView.clean()` vào API.
 - **Sửa:**
-  - [ ] Dùng `it.pathSizes[p.path]`.
-  - [ ] Áp `dropNested` trước khi xoá.
-  - [ ] Đo lại các path còn lại.
+  - [x] Dùng `it.pathSizes[p.path]`.
+  - [x] Áp `dropNested` trước khi xoá.
+  - [x] Đo lại các path còn lại.
 
 ### 2.11 🟡 Kết quả quét cũ / TOCTOU giữa các trang
 - **File:** `Views/BigOldViews.swift:304-321, 549-562`, `FolderDrillView.swift:91-96, 469-485`, `OverviewView.swift:1772-1790`, `DiskCleanerApp.swift:92-114`
