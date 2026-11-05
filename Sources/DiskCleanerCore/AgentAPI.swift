@@ -711,6 +711,12 @@ public func agentUndo(operationId: String? = nil) throws -> [AgentUndoStatus] {
     guard let op = target else { throw AgentAPIError.noUndoableOperation }
     var out: [AgentUndoStatus] = []
     for it in op.items {
+        // operations.jsonl is a plain file anyone with the user's rights can edit: never let a
+        // record move an arbitrary file. Source must be inside a Trash, target inside the scope.
+        guard isInsideTrash(it.inTrash), deletionGate(URL(fileURLWithPath: it.original)) == nil else {
+            out.append(AgentUndoStatus(path: it.original, status: "refused", detail: "record failed validation"))
+            continue
+        }
         guard FileManager.default.fileExists(atPath: it.inTrash) else {
             out.append(AgentUndoStatus(path: it.original, status: "gone_from_trash", detail: nil))
             continue

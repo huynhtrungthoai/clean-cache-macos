@@ -111,6 +111,8 @@ final class ScanStore: ObservableObject {
     /// 诊断与转储三页共用一个数据源：一次定向遍历喂崩溃转储、诊断报告与观察区，
     /// 分三页各取各的。挂在 ScanStore 而不是各页自己的 @StateObject，理由同上。
     let diagnostics = DiagnosticsHub()
+    /// Trash page (C1 Request): measuring, open in Finder, empty after confirmation.
+    let trash = TrashModel()
 
     init() {
         // 总览那个「还能腾出多少」要报真数，而真数的来源是缓存知识库量出来的那些处。
@@ -125,6 +127,7 @@ final class ScanStore: ObservableObject {
         forward(folderDrill)
         forward(uninstall)
         forward(diagnostics)
+        forward(trash)
     }
 
     private var bag = Set<AnyCancellable>()
@@ -236,6 +239,72 @@ final class AppStore: ObservableObject {
 
     func record(_ r: TrashRecord) {
         trashHistory.append(r)
+    }
+
+    // MARK: - C1/C2: confirmed trash plans and batch history (docs/enhance-feat.md §11)
+
+    private let batchStore = TrashBatchStore()
+    /// Persisted batch history, newest first; survives relaunch.
+    @Published private(set) var batches: [TrashBatch] = TrashBatchStore().load()
+    /// True while a plan or a restore is running. UI disables trash/undo buttons meanwhile;
+    /// `runTrash` / `undo` also refuse to start a second run.
+    @Published private(set) var isTrashing = false
+    /// Last time anything was moved or restored. Scan models compare it with their `scannedAt`
+    /// to tell the user a result may be stale.
+    @Published private(set) var lastTrashAt: Date? = nil
+
+    /// Executes a confirmed plan off the main thread: every item is re-checked (`preflight`),
+    /// moved with `trashItem` and reported as moved / skipped / failed. The batch is persisted
+    /// and mirrored into `trashHistory` for the pages that still use it.
+    /// Returns nil when another run is in progress or the plan is empty.
+    func runTrash(_ items: [TrashPlanItem], source: String) async -> TrashBatch? {
+        guard !isTrashing, !items.isEmpty else { return nil }
+        isTrashing = true
+        defer { isTrashing = false }
+        let batch = await Task.detached(priority: .userInitiated) {
+            executeTrashPlan(items, source: source)
+        }.value
+        batches.insert(batch, at: 0)
+        for e in batch.moved {
+            if case let .moved(inTrash, _, _) = e.outcome {
+                trashHistory.append(TrashRecord(original: e.item.url, inTrash: URL(fileURLWithPath: inTrash),
+                                                size: e.item.bytes, displayName: e.item.name))
+            }
+        }
+        lastTrashAt = Date()
+        persistBatches()
+        return batch
+    }
+
+    /// Restores every moved, not yet restored item of a batch. Each record is validated
+    /// (inside a Trash, same inode, target in scope); results are per item in `entries[].restore`.
+    func undo(batchID: UUID) async -> TrashBatch? {
+        guard !isTrashing, let idx = batches.firstIndex(where: { $0.id == batchID }) else { return nil }
+        isTrashing = true
+        defer { isTrashing = false }
+        let original = batches[idx]
+        let updated = await Task.detached(priority: .userInitiated) { restoreBatch(original) }.value
+        if let i = batches.firstIndex(where: { $0.id == batchID }) { batches[i] = updated }
+        let restoredSources = Set(updated.entries.compactMap { e -> String? in
+            guard case .restored = e.restore, case let .moved(inTrash, _, _) = e.outcome else { return nil }
+            return inTrash
+        })
+        trashHistory.removeAll { restoredSources.contains($0.inTrash.path) }
+        lastTrashAt = Date()
+        persistBatches()
+        return updated
+    }
+
+    /// Whether the batch still has items that were moved and not restored. A cheap check that
+    /// does not touch the disk; `undo` reports per item if something is no longer in the Trash.
+    func canUndo(batchID: UUID) -> Bool {
+        !isTrashing && (batches.first { $0.id == batchID }?.restorable.isEmpty == false)
+    }
+
+    private func persistBatches() {
+        do { try batchStore.save(batches) } catch {
+            notice = LF("Could not save the history: %@", error.localizedDescription)
+        }
     }
 
     var canGoBack: Bool { nav.canGoBack }

@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "Проверьте содержимое и очистите Корзину в Finder. Очистку нельзя отменить.";
 "Items" = "Объекты";
 "History" = "История";
+"Could not save the history: %@" = "Не удалось сохранить историю: %@";
+"No longer exists" = "Больше не существует";
+"Changed since the scan; scan again" = "Изменено после сканирования; просканируйте снова";
+"The kept copy is missing or changed; scan again" = "Сохраняемая копия пропала или изменилась; просканируйте снова";
+"Protected location" = "Защищённое расположение";
+"Outside the locations this app may clean" = "Вне мест, которые может очищать приложение";
+"Already moved with its parent folder" = "Уже перемещено вместе с родительской папкой";
+"Not moved because the app itself was not moved" = "Не перемещено, так как само приложение не перемещено";
+"No longer in the Trash" = "Больше нет в Корзине";
+"The item in the Trash has changed" = "Объект в Корзине изменился";
+"This history entry can't be restored" = "Эту запись истории нельзя восстановить";
+"Restore failed" = "Не удалось восстановить";

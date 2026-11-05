@@ -1610,7 +1610,9 @@ func agentSelfTest() async throws {
           "Agent scan(apps) 不含 dev 条目")
 
     // 15.3 plan → execute → undo 全链路（trash 注入假实现）
-    let fakeTrashDir = aroot.appendingPathComponent("fake-trash")
+    // The injected "Trash" is the fake home's own ~/.Trash: undo now refuses to restore from
+    // anywhere that is not a Trash folder (operations.jsonl is not trusted, TODO 1.6).
+    let fakeTrashDir = ahome.appendingPathComponent(".Trash")
     func fakeTrash(_ u: URL) throws -> URL {
         try fm.createDirectory(at: fakeTrashDir, withIntermediateDirectories: true)
         let dst = fakeTrashDir.appendingPathComponent(u.lastPathComponent)
@@ -2366,6 +2368,101 @@ do {
           "修剪：废纸篓路径不存在时按缺失计，不谎报放回")
     try? fm.removeItem(at: root)
     try? fm.removeItem(at: dbPath)
+}
+
+
+// C1/C2: confirmed trash plans, preflight, batch history, safe restore. Runs in a fake home;
+// "moving to the Trash" is injected and goes to <fake home>/.Trash, the real Trash is untouched.
+do {
+    let fm = FileManager.default
+    let root = fm.temporaryDirectory.appendingPathComponent("dw-batches-\(UUID().uuidString)")
+    let home = root.appendingPathComponent("home")
+    let trashDir = home.appendingPathComponent(".Trash")
+    try? fm.createDirectory(at: trashDir, withIntermediateDirectories: true)
+    try? fm.createDirectory(at: home.appendingPathComponent("Documents"), withIntermediateDirectories: true)
+    setenv("DISKWISE_HOME_SHIM", home.path, 1)
+    func f(_ rel: String) -> URL { home.appendingPathComponent(rel) }
+    func make(_ rel: String, _ text: String) {
+        try? fm.createDirectory(at: f(rel).deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(text.utf8).write(to: f(rel))
+    }
+    func snap(_ rel: String) -> FileSnapshot {
+        var st = stat(); _ = lstat(f(rel).path, &st)
+        return FileSnapshot(allocatedBytes: Int64(st.st_blocks) * 512,
+                            mtime: Date(timeIntervalSince1970: Double(st.st_mtimespec.tv_sec)))
+    }
+    let fakeTrash: (URL) throws -> URL = { u in
+        let dst = nonClobberingDestination(for: trashDir.appendingPathComponent(u.lastPathComponent))
+        try fm.moveItem(at: u, to: dst); return dst
+    }
+    // fixtures
+    make("big/a.bin", "aaaa"); make("big/b.bin", "bbbb"); make("dir/inner.txt", "x")
+    make("dup/keep.bin", "same"); make("dup/extra.bin", "same")
+    make("changed.bin", "v1"); let changedSnap = snap("changed.bin")
+    make("changed.bin", "version two, longer"); _ = try? fm.setAttributes([.modificationDate: Date().addingTimeInterval(-86400)], ofItemAtPath: f("changed.bin").path)
+    // preflight
+    check(preflight(TrashPlanItem(url: f("nope.bin"), bytes: 1)) == .missing, "C2: missing file is skipped")
+    check(preflight(TrashPlanItem(url: f("changed.bin"), bytes: 1, expected: changedSnap)) == .changedSinceScan,
+          "C2: file changed since the scan is skipped")
+    check(preflight(TrashPlanItem(url: f("big/a.bin"), bytes: 1, expected: snap("big/a.bin"))) == nil,
+          "C2: unchanged file passes preflight")
+    check(preflight(TrashPlanItem(url: f("Documents"), bytes: 1)) == .protected, "C2: protected folder is skipped")
+    check(preflight(TrashPlanItem(url: f("dup/extra.bin"), bytes: 1, keptCopy: f("dup/missing.bin"))) == .keptCopyMissingOrChanged,
+          "C2: duplicate whose kept copy is gone is skipped")
+    // execute: moved / covered / skipped / critical abort
+    let plan = [TrashPlanItem(url: f("dir"), bytes: 10), TrashPlanItem(url: f("dir/inner.txt"), bytes: 1),
+                TrashPlanItem(url: f("big/a.bin"), bytes: 4, expected: snap("big/a.bin")),
+                TrashPlanItem(url: f("changed.bin"), bytes: 2, expected: changedSnap),
+                TrashPlanItem(url: f("dup/extra.bin"), bytes: 4, keptCopy: f("dup/keep.bin"))]
+    let batch = executeTrashPlan(plan, source: "selftest", trash: fakeTrash)
+    check(batch.moved.count == 3 && batch.skipped.count == 2 && batch.failed.isEmpty,
+          "C1: batch reports moved 3 / skipped 2 / failed 0 (got \(batch.moved.count)/\(batch.skipped.count)/\(batch.failed.count))")
+    check(batch.entries.first { $0.item.path == f("dir/inner.txt").path }?.outcome == .skipped(.coveredByEarlierItem),
+          "C1: child of a moved folder is reported as covered, not failed")
+    check(batch.movedBytes == 18, "C1: moved bytes add up only moved items (18)")
+    check(fm.fileExists(atPath: f("changed.bin").path) && fm.fileExists(atPath: f("dup/keep.bin").path),
+          "C1: skipped file and the kept duplicate stay in place")
+    let crit = executeTrashPlan([TrashPlanItem(url: f("gone.app"), bytes: 1, critical: true),
+                                 TrashPlanItem(url: f("big/b.bin"), bytes: 4)], source: "uninstall", trash: fakeTrash)
+    check(crit.entries.last?.outcome == .skipped(.prerequisiteFailed) && fm.fileExists(atPath: f("big/b.bin").path),
+          "C1: when the critical item (app bundle) is not moved, its data is left alone")
+    // persistence
+    let storeURL = root.appendingPathComponent("support/trash-batches.json")
+    let bs = TrashBatchStore(url: storeURL)
+    try? bs.save([batch])
+    let loaded = bs.load()
+    let perms = (try? fm.attributesOfItem(atPath: storeURL.path)[.posixPermissions] as? Int) ?? 0
+    check(loaded.first?.id == batch.id && loaded.first?.moved.count == 3, "C1: batch history round-trips through disk")
+    check(perms == 0o600, "C1: history file is owner-only (0600)")
+    try? Data("not json".utf8).write(to: storeURL)
+    check(bs.load().isEmpty, "C1: damaged history file is ignored, not fatal")
+    // restore
+    make("dir/inner.txt", "new file in the old place")   // conflict: something now sits at the original
+    let restored = restoreBatch(batch, move: { try fm.moveItem(at: $0, to: $1) })
+    let st = restored.entries.compactMap(\.restore)
+    check(st.count == 3 && st.allSatisfy { if case .restored = $0 { return true }; return false },
+          "C1: all moved items restored (\(st))")
+    check(fm.fileExists(atPath: f("big/a.bin").path) && fm.fileExists(atPath: f("dup/extra.bin").path),
+          "C1: restored files are back at their original paths")
+    check(restored.undoneAt != nil && restored.restorable.isEmpty, "C1: fully restored batch is marked undone")
+    // tampered / changed records
+    make("t/victim.txt", "secret")
+    var tampered = batch
+    tampered.entries = [TrashBatchEntry(item: TrashPlanItem(url: f("Documents/stolen.txt"), bytes: 1),
+                                        outcome: .moved(inTrash: f("t/victim.txt").path, dev: 0, ino: 0), restore: nil)]
+    check(restoreBatch(tampered).entries.first?.restore == .refused && fm.fileExists(atPath: f("t/victim.txt").path),
+          "C1: a history record pointing outside the Trash is refused")
+    make("again.bin", "1")
+    let b2 = executeTrashPlan([TrashPlanItem(url: f("again.bin"), bytes: 1)], source: "selftest", trash: fakeTrash)
+    if case let .moved(inTrash, _, _)? = b2.entries.first?.outcome {
+        try? fm.removeItem(atPath: inTrash); try? Data("other".utf8).write(to: URL(fileURLWithPath: inTrash))
+    }
+    check(restoreBatch(b2).entries.first?.restore == .changedInTrash, "C1: a different file in the Trash slot is not restored")
+    let b3 = executeTrashPlan([TrashPlanItem(url: f("big/b.bin"), bytes: 4)], source: "selftest", trash: fakeTrash)
+    if case let .moved(inTrash, _, _)? = b3.entries.first?.outcome { try? fm.removeItem(atPath: inTrash) }
+    check(restoreBatch(b3).entries.first?.restore == .goneFromTrash, "C1: emptied Trash reports gone, not failed")
+    unsetenv("DISKWISE_HOME_SHIM")
+    try? fm.removeItem(at: root)
 }
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")

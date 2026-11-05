@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "Videz la Corbeille dans le Finder après vérification de son contenu. Cette action est irréversible.";
 "Items" = "Éléments";
 "History" = "Historique";
+"Could not save the history: %@" = "Impossible d'enregistrer l'historique : %@";
+"No longer exists" = "N'existe plus";
+"Changed since the scan; scan again" = "Modifié depuis l'analyse ; relancez l'analyse";
+"The kept copy is missing or changed; scan again" = "La copie conservée a disparu ou a changé ; relancez l'analyse";
+"Protected location" = "Emplacement protégé";
+"Outside the locations this app may clean" = "En dehors des emplacements que l'app peut nettoyer";
+"Already moved with its parent folder" = "Déjà déplacé avec son dossier parent";
+"Not moved because the app itself was not moved" = "Non déplacé car l'app elle-même n'a pas été déplacée";
+"No longer in the Trash" = "N'est plus dans la Corbeille";
+"The item in the Trash has changed" = "L'élément dans la Corbeille a changé";
+"This history entry can't be restored" = "Cette entrée de l'historique ne peut pas être restaurée";
+"Restore failed" = "Échec de la restauration";

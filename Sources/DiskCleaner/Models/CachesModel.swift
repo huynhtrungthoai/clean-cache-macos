@@ -3,7 +3,7 @@ import DiskCleanerCore
 
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
-final class CachesModel: ObservableObject {
+final class CachesModel: ObservableObject, ScanStatusReporting {
     /// 这台只管知识库里的那几组（见 `CachesPage`）。
     let groupKeys: Set<String>
     init(groupKeys: Set<String> = ["general", "cn_app"]) { self.groupKeys = groupKeys }
@@ -12,6 +12,9 @@ final class CachesModel: ObservableObject {
     @Published var scanning = false
     @Published private(set) var started = false
     @Published private(set) var completed = false
+    @Published private(set) var scanState: ScanState = .idle
+    @Published private(set) var scannedAt: Date? = nil
+    @Published private(set) var issues: [ScanIssue] = []
     /// 现场读数：这一页慢在逐个缓存目录量体积，27 条能走一两分钟。
     private(set) var progress = ScanProgress()
     private var task: Task<Void, Never>? = nil
@@ -57,6 +60,8 @@ final class CachesModel: ObservableObject {
         started = true
         completed = false
         scanning = true
+        scanState = .scanning
+        issues = []
         progress = ScanProgress()
         task = Task {
             let entries = loadSafetyEntries(from: safetyDBFileURL())
@@ -109,12 +114,16 @@ final class CachesModel: ObservableObject {
             if !Task.isCancelled {
                 self.completed = true
                 self.scanning = false
+                self.scanState = .completed
+                self.scannedAt = Date()
+                self.issues = permissionIssues(self.items.flatMap(\.unreadablePaths))
             }
         }
     }
 
     func stop() {
         task?.cancel()
+        if scanning { scanState = .stopped; scannedAt = Date() }
         scanning = false
     }
 
@@ -126,33 +135,32 @@ final class CachesModel: ObservableObject {
         return cacheRowState(it)
     }
 
-    /// Outcome of `trashSelected()`. `records` go to `AppStore.record`; `failures` are shown with
-    /// `failLine(name, error)`. `bytes` is the measured size actually moved (no double counting).
-    struct TrashOutcome {
-        var records: [TrashRecord] = []
-        var failures: [(name: String, error: Error)] = []
-        var bytes: Int64 { records.reduce(0) { $0 + $1.size } }
-    }
-
-    /// Moves the selected cache rows to the Trash through `trashItem` (deletion gate included).
-    /// Nested selections are trashed once via the outermost path; each record carries the path's
-    /// measured size. Afterwards every affected row (selected or not, e.g. a child entry whose
-    /// parent was trashed) is re-measured, so no row is left stale or stuck in "measuring".
-    func trashSelected() -> TrashOutcome {
-        var out = TrashOutcome()
-        let plan = cacheTrashPlan(selected)
-        for step in plan {
-            do {
-                let inTrash = try trashItem(step.url)
-                out.records.append(TrashRecord(original: step.url, inTrash: inTrash, size: step.bytes,
-                                               displayName: step.url.lastPathComponent))
-            } catch {
-                out.failures.append((step.url.lastPathComponent, error))
+    /// The exact items a "Move to Trash" of the current selection executes (review sheet shows
+    /// this list). Nested selections collapse into the outermost path; sizes are measured ones.
+    func trashPlan() -> [TrashPlanItem] {
+        var names: [String: String] = [:]
+        for it in selected {
+            for u in it.resolvedPaths where names[u.standardizedFileURL.path] == nil {
+                names[u.standardizedFileURL.path] = L(it.entry.name)
             }
         }
+        return cacheTrashPlan(selected).map {
+            TrashPlanItem(url: $0.url, name: names[$0.url.standardizedFileURL.path], bytes: $0.bytes)
+        }
+    }
+
+    /// Runs the plan through `AppStore.runTrash` (preflight, off main thread, batch history),
+    /// then updates the rows. nil = another run in progress or nothing selected.
+    func trash(using store: AppStore) async -> TrashBatch? {
+        guard let batch = await store.runTrash(trashPlan(), source: "caches") else { return nil }
+        apply(batch)
+        return batch
+    }
+
+    /// Clears the selection and re-measures every row touched by the batch.
+    func apply(_ batch: TrashBatch) {
         for i in items.indices { items[i].selected = false }
-        refresh(after: plan.map { $0.url.path })
-        return out
+        refresh(after: batch.entries.map(\.item.path))
     }
 
     private var remeasureTasks: [UUID: Task<Void, Never>] = [:]

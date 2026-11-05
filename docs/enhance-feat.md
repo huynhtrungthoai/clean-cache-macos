@@ -351,41 +351,72 @@ Ranh giới sở hữu: xem `CLAUDE.md` và `AGENTS.md`. Claude cung cấp model
 - Di chuyển nguyên trạng các lớp `ObservableObject` từ `Views/*.swift` sang `Sources/DiskCleaner/Models/`: `CachesModel`, `BigFilesModel`, `OldFilesModel`, `FolderDrillModel`, `DupModel`, `OrphansModel`, `UninstallModel`, `NMModel`, `DockerModel`, `OverviewModel`.
 - Chỉ di chuyển, không đổi hành vi hay tên. Merge sớm nhất có thể; Codex rebase lên trước khi sửa View tương ứng.
 
-### C1 — Lịch sử theo lô và hoàn tác · P0/F06 · Claude · `draft`
+### C1 + C2 — Thực thi kế hoạch, kiểm tra lại, lịch sử theo lô, hoàn tác · P0 · Claude · `ready` (nhánh `feat/claude-p0`)
+
+Một đường thực thi chung cho mọi trang. Core: `Sources/DiskCleanerCore/TrashBatches.swift` (có SelfTest). App: `AppStore` + từng model.
+
+**Luồng chuẩn trong View:**
 
 ```swift
-struct TrashBatch: Identifiable, Codable {
-    let id: UUID
-    let createdAt: Date
-    let source: String            // module: "caches", "duplicates", "uninstall", ...
-    var items: [TrashedItem]      // các mục đã chuyển thành công
-    var failures: [TrashFailure]  // mục không chuyển được + lý do (đã dịch qua L())
-    var undoneAt: Date?
+let plan = model.trashPlan()                 // [TrashPlanItem]: path, name, bytes — sheet hiển thị đúng danh sách này
+// TrashReviewSheet(items: plan.map { TrashReviewItem(name: $0.name, path: $0.path, size: human($0.bytes)) }, …)
+// confirm:
+Task { if let batch = await model.trash(using: store) { /* OperationResultView từ batch */ } }
+```
+
+- `model.trash(using: store)` có ở `CachesModel`, `BigFilesModel`, `OldFilesModel`, `DupModel`, `OrphansModel`; trả `nil` khi đang có lượt khác chạy hoặc kế hoạch rỗng; tự cập nhật model (bỏ chọn, gỡ hàng đã chuyển, đo lại). Gỡ ứng dụng: `UninstallModel.uninstall(using:)` (C4).
+- Chạy ngoài main thread; `store.isTrashing == true` trong lúc chạy → View vô hiệu nút chuyển/hoàn tác.
+- Mỗi mục được kiểm tra lại ngay trước khi chuyển (`preflight`): không còn / file đổi size-mtime so với lúc quét / bản giữ của file trùng mất hoặc đổi nội dung / vị trí bảo vệ / nằm trong thư mục đã chuyển cùng lô → **bỏ qua** (không tính lỗi).
+
+**Kết quả (`TrashBatch`)** cho `OperationResultView`:
+
+```swift
+batch.moved / batch.skipped / batch.failed      // [TrashBatchEntry]: entry.item.name / .path / .bytes
+batch.movedBytes                                  // đã chuyển vào Thùng rác (KHÔNG phải "đã giải phóng")
+switch entry.outcome {                            // lý do hiển thị
+case .skipped(let r):              L(r.reasonKey)
+case .failed(let key, let detail): detail.isEmpty ? L(key) : LF("%@: %@", L(key), detail)
+case .moved:                       break
 }
-struct TrashedItem: Codable { original: String; inTrash: String; bytes: Int64; name: String; dev: UInt64; ino: UInt64 }
-enum RestoreStatus { case restored, restoredRenamed(String), goneFromTrash, changedInTrash, failed(String) }
-
-// AppStore (Claude)
-@Published private(set) var batches: [TrashBatch]   // mới nhất trước; lưu bền vững, quyền 0600, ghi atomic
-func runTrash(_ urls: [URL], source: String, sizes: [URL: Int64]) -> TrashBatch
-func undo(batch id: UUID) -> [(item: TrashedItem, status: RestoreStatus)]
-func canUndo(batch id: UUID) -> Bool               // false khi không còn mục nào trong Thùng rác
 ```
 
-- `trashHistory` / `undoLast` / `undoBatch` hiện tại giữ tạm để không vỡ View cũ, đánh dấu deprecated; Codex chuyển dần sang `batches`.
-- Khôi phục chỉ đi từ `~/.Trash` (hoặc `/.Trashes/<uid>`) về vị trí qua được `deletionGate`; dev/ino không khớp → `changedInTrash`.
-
-### C2 — Kiểm tra lại trước thao tác và kết quả quét cũ · P0 · Claude · `draft`
+**Lịch sử và hoàn tác** (lưu bền vững `~/Library/Application Support/CleanPilot/trash-batches.json`, quyền 0600, ghi atomic):
 
 ```swift
-enum PreflightIssue { case missing, changedSinceScan, keptCopyMissing, keptCopyChanged, protected, outsideAllowed }
-func preflight(_ items: [ScannedItem]) -> [URL: PreflightIssue]   // chạy ngoài main thread
-var scannedAt: Date? { get }          // trên mỗi model quét
-var isStale: Bool { get }             // quá ngưỡng (đề xuất 10 phút) hoặc đã có thao tác xoá từ trang khác
+store.batches                              // [TrashBatch], mới nhất trước; còn sau khi mở lại app
+store.canUndo(batchID:)                    // còn mục đã chuyển chưa khôi phục
+await store.undo(batchID:) -> TrashBatch?  // entry.restore: .restored(at:) | .goneFromTrash | .changedInTrash | .refused | .failed
+                                           // lý do: L(restore.reasonKey); .restored(at:) có thể là "tên (1)" — không ghi đè file mới
+store.lastTrashAt                          // cho isStale
 ```
 
-- `runTrash` tự gọi `preflight`; mục có issue không bị chuyển, xuất hiện trong `failures` của batch.
-- View hiển thị `isStale` và nút Quét lại; không tự quét lại.
+- Chỉ khôi phục từ thư mục Thùng rác, đúng inode đã chuyển, đích trong phạm vi cho phép — bản ghi lịch sử bị sửa không dùng để di chuyển file tùy ý được.
+- `store.trashHistory`, `undoLast()`, `undoBatch()` giữ cho các trang chưa chuyển (Tổng quan, Folder Drill, Chẩn đoán, node_modules); `runTrash` cũng ghi vào `trashHistory`.
+
+**Trạng thái quét (C2 + C5)** — mọi model quét tuân theo `ScanStatusReporting` (`Models/ScanStatus.swift`):
+
+```swift
+model.scanState      // .idle | .scanning | .completed | .stopped (người dùng dừng → kết quả chưa đầy đủ)
+model.scannedAt      // Date? — thời điểm của kết quả đang hiển thị
+model.issues         // [ScanIssue]: root + .noPermission | .notFound | .error(String)
+model.isPartial      // stopped, hoặc completed nhưng có issues
+model.isStale(lastTrashAt: store.lastTrashAt)   // có chuyển/khôi phục sau lần quét, hoặc quá 10 phút → hiện "Quét lại", không tự quét
+```
+
+- `issues` hiện có dữ liệu thật ở trang Cache; trang file lớn/cũ/trùng/còn sót trả `[]` cho tới khi bộ duyệt file báo được thư mục bị từ chối (việc tiếp theo của Claude).
+
+**Chính sách chọn:** hàng chọn được khi `isReclaimableWhole(url)`; `selectAll` của mọi model chỉ lấy `isBulkSelectable(url)`; `trashPlan()` tự lọc lại.
+
+**File trùng:** `DupModel.dates[path]` — ngày sửa từng bản; bản đầu mỗi nhóm là bản mới nhất, là bản được giữ.
+
+**Thùng rác:** `scanStore.trash: TrashModel`
+
+```swift
+trash.summary                       // Summary(items:, bytes:)? — nil: chưa đo / không đọc được (bản sandbox)
+trash.measuring; trash.refresh(); trash.openInFinder()
+trash.canAskFinderToEmpty           // false ở bản sandbox → chỉ mở Finder
+await trash.emptyInFinder() -> Bool // CHỈ gọi sau hộp xác nhận "không thể hoàn tác"; trash.emptying, trash.lastError
+```
 
 ### C3 — Kế toán dung lượng trang Cache · P0 · Claude · `merged` (6014fb9)
 
@@ -393,47 +424,38 @@ var isStale: Bool { get }             // quá ngưỡng (đề xuất 10 phút) 
 
 ```swift
 func rowState(_ id: UUID) -> CacheRowState      // .measuring | .measured(Int64) | .unmeasurable
-func trashSelected() -> CachesModel.TrashOutcome // records, failures [(name, error)], bytes
+func trash(using: AppStore) async -> TrashBatch?  // xem C1 + C2 (thay cho trashSelected())
 var selectedBytes: Int64                          // đã loại trùng cha/con (có từ trước)
 ```
 
-- `trashSelected()` chỉ chuyển đường dẫn ngoài cùng khi chọn cả cha lẫn con, ghi dung lượng đã đo của từng đường dẫn, rồi đo lại mọi hàng bị ảnh hưởng (kể cả hàng con không được chọn), nên không còn hàng kẹt ở "đang thống kê".
+- Kế hoạch (`trashPlan()` / `trash(using:)`) chỉ chuyển đường dẫn ngoài cùng khi chọn cả cha lẫn con, ghi dung lượng đã đo của từng đường dẫn, rồi đo lại mọi hàng bị ảnh hưởng (kể cả hàng con không được chọn), nên không còn hàng kẹt ở "đang thống kê".
 - Hàng không đọc được (thiếu quyền) giờ được giữ lại với `.unmeasurable`, không còn bị coi là trống rồi bị xoá khỏi danh sách.
 
-**Việc của Codex trong `CachesView.swift`:**
+**Việc của Codex trong `CachesView.swift`:** nối nút xác nhận theo luồng chuẩn ở C1 + C2 (`model.trash(using: store)`); ô dung lượng theo `model.rowState(item.id)` (`.unmeasurable` → "Không đo được (cần quyền truy cập)", không hiện 0 B).
 
-1. Thay vòng lặp trong `clean()` (đang gọi `trashItem` trực tiếp) bằng:
-
-   ```swift
-   let out = model.trashSelected()
-   out.records.forEach(store.record)
-   if !out.failures.isEmpty { errorText = errList(out.failures.map { failLine($0.name, $0.error) }) }
-   store.notice = trashedNotice(out.records.count, "items", failed: out.failures.count)
-   ```
-
-2. Ô dung lượng của hàng hiển thị theo `model.rowState(item.id)`: `.unmeasurable` → câu kiểu "Không đo được (cần quyền truy cập)"; không bao giờ hiển thị "0 B" cho trường hợp này.
-
-### C4 — App đang chạy khi gỡ · P0/F05 · Claude · `agreed`
-
-```swift
-enum AppRunState { case notRunning, running(pids: [pid_t]) }
-func runState(of app: InstalledApp) -> AppRunState
-func requestQuit(_ app: InstalledApp) async -> QuitResult   // gửi yêu cầu thoát bình thường (không force quit)
-enum QuitResult { case quit, refused, timedOut }   // refused: app/người dùng huỷ (ví dụ còn tài liệu chưa lưu)
-```
+### C4 — App đang chạy khi gỡ · P0/F05 · Claude · `ready` (nhánh `feat/claude-p0`)
 
 Quyết định của chủ dự án (05/11/2026): **đề nghị thoát app rồi gỡ tiếp; người dùng có thể từ chối.**
 
-- Khi app đang chạy, UI hỏi: "<App> đang chạy. Thoát app rồi gỡ?" với hai nút **Thoát và gỡ** / **Huỷ**. Chọn Huỷ thì không gỡ gì.
-- Chọn Thoát và gỡ → `requestQuit` (thoát bình thường, chờ tối đa ~10 s). Chỉ khi kết quả là `.quit` mới gỡ; `.refused` / `.timedOut` thì dừng và báo lý do, không force quit.
-- Không bao giờ gỡ chính CleanPilot.
-
-### C5 — Vấn đề khi quét (thiếu quyền, lỗi) · P0/F01 · Claude · `draft`
-
 ```swift
-struct ScanIssue: Identifiable { let id: UUID; let root: String; let kind: Kind; enum Kind { case noPermission, notFound, error(String) } }
-var issues: [ScanIssue] { get }        // trên mỗi model quét
+switch await uninstall.uninstall(using: store) {
+case .done(let batch):   // OperationResultView(batch); bundle đã chuyển → app biến khỏi danh sách
+case .appRunning:        // hỏi "<App> đang chạy. Thoát app rồi gỡ?"  [Thoát và gỡ] [Huỷ]
+    switch await uninstall.requestQuit(app) {   // thoát bình thường như Cmd-Q, chờ tối đa 10 s, không force quit
+    case .quit:     break  // gọi lại uninstall(using:)
+    case .refused:  break  // "App từ chối thoát" — không gỡ
+    case .timedOut: break  // "App chưa thoát (có thể đang hỏi lưu tài liệu)" — không gỡ
+    }
+case .busy:              // đang có lượt khác chạy
+case .nothingToDo:       // chưa chọn app / đang lập kế hoạch / chính CleanPilot
+}
+uninstall.runState(of: app)   // .notRunning | .running(pids:) — nhãn "Đang chạy" trước khi bấm
+uninstall.trashPlan()         // cho sheet xác nhận: bundle (critical) + dữ liệu đã chọn
 ```
+
+- Bundle là mục `critical`: không chuyển được bundle thì không chuyển dữ liệu của app ("Không chuyển vì bản thân ứng dụng chưa được chuyển"). Không bao giờ gỡ chính CleanPilot.
+
+### C5 — Vấn đề khi quét · Claude · `ready` — gộp vào phần "Trạng thái quét" của C1 + C2
 
 ### C6 — Phiên quét tổng hợp · F01 · Claude · `later`
 
@@ -447,8 +469,8 @@ Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in
 
 Codex ghi yêu cầu API còn thiếu ở đây (một dòng mỗi yêu cầu: màn hình, dữ liệu/hành động cần, ưu tiên).
 
-- Cache, File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót, Gỡ ứng dụng: cần API model/store thực hiện kế hoạch đã xác nhận, chạy ngoài main thread, chặn thao tác lặp, kiểm tra lại file/bản giữ, cập nhật model và trả kết quả từng mục (đã chuyển/bỏ qua/thất bại); P0, trước khi nối nút chuyển vào Thùng rác. C0 hiện chỉ tách model, các thao tác cũ vẫn nằm trong View.
-- Các trang quét: cần trạng thái kết thúc phân biệt hoàn tất/đã dừng/lỗi/một phần cùng `scannedAt` và `issues` (C2/C5), giữ trong model khi đổi trang; P1. UI hiện không tự suy ra thời điểm quét hoặc tình trạng thiếu quyền.
-- Thùng rác: cần model đo nội dung, làm mới, trạng thái đang thực hiện và kết quả khôi phục từng mục; P1. Lịch sử theo lô/khả năng hoàn tác tiếp tục chờ C1 `merged`.
-- File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót: cần model công bố rõ policy bulk-selectable dùng chung với `isBulkSelectable`/`isReclaimableWhole`; P0. UI P1 chỉ gọi `model.selectAll`, không tự nới quy tắc chọn.
-- File trùng: cần metadata ngày sửa từng bản từ model để hiển thị tiêu chí giữ bản mới nhất mà View không đọc filesystem; P1.
+- ✅ **Đã có (C1 + C2, C4)** — Cache, File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót, Gỡ ứng dụng: cần API model/store thực hiện kế hoạch đã xác nhận, chạy ngoài main thread, chặn thao tác lặp, kiểm tra lại file/bản giữ, cập nhật model và trả kết quả từng mục (đã chuyển/bỏ qua/thất bại); P0, trước khi nối nút chuyển vào Thùng rác. C0 hiện chỉ tách model, các thao tác cũ vẫn nằm trong View.
+- ✅ **Đã có (C2 + C5)** — Các trang quét: cần trạng thái kết thúc phân biệt hoàn tất/đã dừng/lỗi/một phần cùng `scannedAt` và `issues` (C2/C5), giữ trong model khi đổi trang; P1. UI hiện không tự suy ra thời điểm quét hoặc tình trạng thiếu quyền.
+- ✅ **Đã có (`ScanStore.trash`, `store.batches`/`undo`)** — Thùng rác: cần model đo nội dung, làm mới, trạng thái đang thực hiện và kết quả khôi phục từng mục; P1. Lịch sử theo lô/khả năng hoàn tác tiếp tục chờ C1 `merged`.
+- ✅ **Đã có (`selectAll` dùng `isBulkSelectable`)** — File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót: cần model công bố rõ policy bulk-selectable dùng chung với `isBulkSelectable`/`isReclaimableWhole`; P0. UI P1 chỉ gọi `model.selectAll`, không tự nới quy tắc chọn.
+- ✅ **Đã có (`DupModel.dates`)** — File trùng: cần metadata ngày sửa từng bản từ model để hiển thị tiêu chí giữ bản mới nhất mà View không đọc filesystem; P1.

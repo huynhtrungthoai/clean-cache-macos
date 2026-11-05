@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "内容を確認してからFinderでゴミ箱を空にしてください。この操作は取り消せません。";
 "Items" = "項目";
 "History" = "履歴";
+"Could not save the history: %@" = "履歴を保存できませんでした: %@";
+"No longer exists" = "もう存在しません";
+"Changed since the scan; scan again" = "スキャン後に変更されました。再スキャンしてください";
+"The kept copy is missing or changed; scan again" = "残すコピーが見つからないか変更されています。再スキャンしてください";
+"Protected location" = "保護された場所";
+"Outside the locations this app may clean" = "このアプリが整理できる場所の外です";
+"Already moved with its parent folder" = "親フォルダと一緒に移動済み";
+"Not moved because the app itself was not moved" = "アプリ本体を移動できなかったため移動していません";
+"No longer in the Trash" = "もうゴミ箱にありません";
+"The item in the Trash has changed" = "ゴミ箱内の項目が変わっています";
+"This history entry can't be restored" = "この履歴項目は復元できません";
+"Restore failed" = "復元に失敗しました";

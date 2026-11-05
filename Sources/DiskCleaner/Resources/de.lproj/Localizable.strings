@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "Den Papierkorb nach Prüfung des Inhalts im Finder leeren. Das Leeren kann nicht rückgängig gemacht werden.";
 "Items" = "Objekte";
 "History" = "Verlauf";
+"Could not save the history: %@" = "Verlauf konnte nicht gespeichert werden: %@";
+"No longer exists" = "Existiert nicht mehr";
+"Changed since the scan; scan again" = "Seit dem Scan geändert; bitte erneut scannen";
+"The kept copy is missing or changed; scan again" = "Die behaltene Kopie fehlt oder wurde geändert; bitte erneut scannen";
+"Protected location" = "Geschützter Ort";
+"Outside the locations this app may clean" = "Außerhalb der Orte, die diese App bereinigen darf";
+"Already moved with its parent folder" = "Bereits mit dem übergeordneten Ordner verschoben";
+"Not moved because the app itself was not moved" = "Nicht verschoben, weil die App selbst nicht verschoben wurde";
+"No longer in the Trash" = "Nicht mehr im Papierkorb";
+"The item in the Trash has changed" = "Das Objekt im Papierkorb hat sich geändert";
+"This history entry can't be restored" = "Dieser Verlaufseintrag kann nicht wiederhergestellt werden";
+"Restore failed" = "Wiederherstellung fehlgeschlagen";

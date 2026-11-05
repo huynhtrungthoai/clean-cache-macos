@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "Vacía la Papelera en Finder después de revisar su contenido. Esta acción no se puede deshacer.";
 "Items" = "Elementos";
 "History" = "Historial";
+"Could not save the history: %@" = "No se pudo guardar el historial: %@";
+"No longer exists" = "Ya no existe";
+"Changed since the scan; scan again" = "Cambió desde el análisis; vuelve a analizar";
+"The kept copy is missing or changed; scan again" = "La copia conservada falta o cambió; vuelve a analizar";
+"Protected location" = "Ubicación protegida";
+"Outside the locations this app may clean" = "Fuera de las ubicaciones que esta app puede limpiar";
+"Already moved with its parent folder" = "Ya se movió con su carpeta superior";
+"Not moved because the app itself was not moved" = "No se movió porque la app en sí no se movió";
+"No longer in the Trash" = "Ya no está en la Papelera";
+"The item in the Trash has changed" = "El elemento de la Papelera cambió";
+"This history entry can't be restored" = "Esta entrada del historial no se puede restaurar";
+"Restore failed" = "Error al restaurar";

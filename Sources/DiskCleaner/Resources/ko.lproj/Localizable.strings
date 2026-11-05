@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "내용을 확인한 후 Finder에서 휴지통을 비우세요. 비우기는 취소할 수 없습니다.";
 "Items" = "항목";
 "History" = "기록";
+"Could not save the history: %@" = "기록을 저장하지 못했습니다: %@";
+"No longer exists" = "더 이상 존재하지 않음";
+"Changed since the scan; scan again" = "스캔 이후 변경됨. 다시 스캔하세요";
+"The kept copy is missing or changed; scan again" = "보관할 사본이 없거나 변경됨. 다시 스캔하세요";
+"Protected location" = "보호된 위치";
+"Outside the locations this app may clean" = "이 앱이 정리할 수 있는 위치 밖";
+"Already moved with its parent folder" = "상위 폴더와 함께 이미 이동됨";
+"Not moved because the app itself was not moved" = "앱 자체가 이동되지 않아 이동하지 않음";
+"No longer in the Trash" = "더 이상 휴지통에 없음";
+"The item in the Trash has changed" = "휴지통의 항목이 변경됨";
+"This history entry can't be restored" = "이 기록 항목은 복원할 수 없음";
+"Restore failed" = "복원 실패";

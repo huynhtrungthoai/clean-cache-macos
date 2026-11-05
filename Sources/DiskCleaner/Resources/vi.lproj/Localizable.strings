@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "Hãy xem nội dung rồi làm rỗng Thùng rác trong Finder. Thao tác làm rỗng không thể hoàn tác.";
 "Items" = "Mục";
 "History" = "Lịch sử";
+"Could not save the history: %@" = "Không lưu được lịch sử: %@";
+"No longer exists" = "Không còn tồn tại";
+"Changed since the scan; scan again" = "Đã thay đổi sau khi quét; hãy quét lại";
+"The kept copy is missing or changed; scan again" = "Bản được giữ lại đã mất hoặc thay đổi; hãy quét lại";
+"Protected location" = "Vị trí được bảo vệ";
+"Outside the locations this app may clean" = "Nằm ngoài các vị trí ứng dụng được phép dọn";
+"Already moved with its parent folder" = "Đã được chuyển cùng thư mục cha";
+"Not moved because the app itself was not moved" = "Không chuyển vì bản thân ứng dụng chưa được chuyển";
+"No longer in the Trash" = "Không còn trong Thùng rác";
+"The item in the Trash has changed" = "Mục trong Thùng rác đã thay đổi";
+"This history entry can't be restored" = "Không thể khôi phục mục lịch sử này";
+"Restore failed" = "Khôi phục thất bại";

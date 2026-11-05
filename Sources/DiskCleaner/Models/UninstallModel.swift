@@ -1,8 +1,9 @@
 import SwiftUI
+import AppKit
 import DiskCleanerCore
 
 @MainActor
-final class UninstallModel: ObservableObject {
+final class UninstallModel: ObservableObject, ScanStatusReporting {
     /// 可卸载的那几份，按名字排好。系统目录里的与链接形态的不在这里。
     @Published private(set) var apps: [InstalledApp] = []
     /// 盘点到几份（含搬不动的），页头那句「对过 N 个应用」用它
@@ -10,6 +11,9 @@ final class UninstallModel: ObservableObject {
     @Published private(set) var scanning = false
     @Published private(set) var started = false
     @Published var query = ""
+    @Published private(set) var scanState: ScanState = .idle
+    @Published private(set) var scannedAt: Date? = nil
+    @Published private(set) var issues: [ScanIssue] = []
 
     /// 右边这一栏此刻说的是谁
     @Published private(set) var current: InstalledApp? = nil
@@ -56,6 +60,8 @@ final class UninstallModel: ObservableObject {
         planTask?.cancel()
         scanning = true
         started = true
+        scanState = .scanning
+        issues = []
         apps = []
         scanned = 0
         inventory = nil
@@ -76,12 +82,15 @@ final class UninstallModel: ObservableObject {
             // 包名不同的副本（旧 key 签的、复制的另一版）是另一件事，照常可卸。
             self.apps = inScope.filter(\.canUninstall)
             self.scanning = false
+            self.scanState = .completed
+            self.scannedAt = Date()
         }
     }
 
     func stop() {
         scanTask?.cancel()
         planTask?.cancel()
+        if scanning { scanState = .stopped; scannedAt = Date() }
         scanning = false
         planning = false
     }
@@ -114,6 +123,90 @@ final class UninstallModel: ObservableObject {
     func drop(_ app: InstalledApp) {
         apps.removeAll { $0.id == app.id }
         if current?.id == app.id { clearPlan() }
+    }
+
+    // MARK: - C4: running apps (docs/enhance-feat.md §11, owner decision 05/11/2026)
+
+    enum AppRunState: Equatable {
+        case notRunning
+        case running(pids: [pid_t])
+    }
+
+    enum QuitResult: Equatable {
+        case quit
+        /// The quit request could not be delivered or the app/user declined it.
+        case refused
+        /// Still running after the wait (often an unsaved-document dialog). Never force-quit.
+        case timedOut
+    }
+
+    func runState(of app: InstalledApp) -> AppRunState {
+        let pids = runningInstances(of: app).map(\.processIdentifier)
+        return pids.isEmpty ? .notRunning : .running(pids: pids)
+    }
+
+    /// Asks the app to quit normally (like Cmd-Q) and waits up to `timeout` seconds.
+    /// The view calls this only after the user chose "Quit and uninstall".
+    func requestQuit(_ app: InstalledApp, timeout: TimeInterval = 10) async -> QuitResult {
+        let running = runningInstances(of: app)
+        guard !running.isEmpty else { return .quit }
+        guard running.allSatisfy({ $0.terminate() }) else { return .refused }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if runningInstances(of: app).isEmpty { return .quit }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+        return runningInstances(of: app).isEmpty ? .quit : .timedOut
+    }
+
+    private func runningInstances(of app: InstalledApp) -> [NSRunningApplication] {
+        let target = app.path.standardizedFileURL.path
+        return NSWorkspace.shared.runningApplications.filter { r in
+            (!app.bundleID.isEmpty && r.bundleIdentifier?.lowercased() == app.bundleID.lowercased())
+                || r.bundleURL?.standardizedFileURL.path == target
+        }
+    }
+
+    // MARK: - C1/C2 trash API
+
+    /// The app bundle first (critical: if it is not moved, its data is left alone), then the
+    /// selected data locations. Empty for CleanPilot itself or when nothing is planned.
+    func trashPlan() -> [TrashPlanItem] {
+        guard let app = current, !isSelf(app) else { return [] }
+        var plan = [TrashPlanItem(url: app.path, name: app.name, bytes: bundleBytes ?? 0, critical: true)]
+        plan += items.filter { $0.selected && isReclaimableWhole($0.path) }
+            .map { TrashPlanItem(url: $0.path, name: $0.name, bytes: $0.size ?? 0) }
+        return plan
+    }
+
+    enum UninstallOutcome {
+        case done(TrashBatch)
+        /// Ask the user "Quit and uninstall / Cancel", then `requestQuit`, then call again.
+        case appRunning(AppRunState)
+        /// Another trash run is in progress.
+        case busy
+        /// No app chosen, plan still being prepared, or the app is CleanPilot itself.
+        case nothingToDo
+    }
+
+    /// Uninstalls the chosen app with its selected data. Refuses while the app is running.
+    func uninstall(using store: AppStore) async -> UninstallOutcome {
+        guard let app = current, !isSelf(app), !planning else { return .nothingToDo }
+        let state = runState(of: app)
+        if case .running = state { return .appRunning(state) }
+        guard let batch = await store.runTrash(trashPlan(), source: "uninstall") else { return .busy }
+        apply(batch, app: app)
+        return .done(batch)
+    }
+
+    /// Bundle moved → the app leaves the list. Otherwise only moved data rows disappear.
+    func apply(_ batch: TrashBatch, app: InstalledApp) {
+        let movedPaths = Set(batch.moved.map(\.item.path))
+        if movedPaths.contains(app.path.path) {
+            drop(app)
+        } else {
+            items.removeAll { movedPaths.contains($0.path.path) }
+        }
     }
 
     private func clearPlan() {

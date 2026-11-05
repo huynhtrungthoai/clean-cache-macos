@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone.";
 "Items" = "Items";
 "History" = "History";
+"Could not save the history: %@" = "Could not save the history: %@";
+"No longer exists" = "No longer exists";
+"Changed since the scan; scan again" = "Changed since the scan; scan again";
+"The kept copy is missing or changed; scan again" = "The kept copy is missing or changed; scan again";
+"Protected location" = "Protected location";
+"Outside the locations this app may clean" = "Outside the locations this app may clean";
+"Already moved with its parent folder" = "Already moved with its parent folder";
+"Not moved because the app itself was not moved" = "Not moved because the app itself was not moved";
+"No longer in the Trash" = "No longer in the Trash";
+"The item in the Trash has changed" = "The item in the Trash has changed";
+"This history entry can't be restored" = "This history entry can't be restored";
+"Restore failed" = "Restore failed";

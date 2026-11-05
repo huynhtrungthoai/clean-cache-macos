@@ -65,6 +65,7 @@
   - [ ] Cân nhắc: plan > N GB hoặc ngoài cache phải được xác nhận qua app GUI (notification/dialog).
 
 ### 1.6 🟡 Plan file & operations log không được bảo vệ toàn vẹn
+- **Tiến độ (feat/claude-p0):** khôi phục (app `TrashBatch` lẫn `diskwise undo`) giờ chỉ đi từ thư mục Thùng rác, đúng inode, đích qua `deletionGate`; lịch sử app lưu 0600 + atomic. Chưa làm: ký HMAC plan/operation.
 - **File:** `AgentAPI.swift:603-605` (ghi plan), `618-695` (`agentExecute`), `697-720` (`agentUndo`), `Scanner.swift:678-693` (`untrash`)
 - **Vấn đề:**
   - Plan JSON ở `~/Library/Application Support/DiskWise/agent/plans/` có thể bị sửa (đổi `human`, `expiresAt`, thêm item). Pipeline chạy lại giảm thiểu phần lớn, nhưng cờ `human` và hạn dùng thì tin tuyệt đối.
@@ -75,6 +76,7 @@
   - [ ] Ghi file với quyền `0600`, thư mục `0700`; ghi atomic (`.atomic`).
 
 ### 1.7 🟡 TOCTOU giữa kiểm tra và `trashItem`
+- **Tiến độ:** đường thực thi mới (`executeTrashPlan`) chạy `preflight` từng mục ngay trước khi chuyển (tồn tại, size/mtime so với lúc quét, gate). Cửa sổ race nhỏ giữa preflight và `trashItem` vẫn còn.
 - **File:** `AgentAPI.swift:641-668`, các View gọi `trashItem` sau khi quét xong (mục 2)
 - **Vấn đề:** Kiểm tra inode rồi mới `trashItem(url)` theo đường dẫn; cửa sổ race nhỏ (thay thư mục cha bằng symlink). Ở UI, danh sách quét có thể đã cũ nhiều phút.
 - **Sửa:**
@@ -126,6 +128,7 @@
   - [x] Hộp xác nhận liệt kê tên các mục; cảnh báo riêng khi có mục ẩn hoặc nhạy cảm (liên quan 1.4).
 
 ### 2.3 🟠 Xoá file trùng không kiểm tra lại bản được giữ
+- **Tiến độ:** đường thực thi mới gắn `keptCopy` cho từng bản dư, kiểm tra trong `preflight`.
 - **File:** `Views/DupOrphansViews.swift:250-258`
 - **Vấn đề:** Dựa vào hash lúc quét. Nếu bản giữ lại (`files[0]`) đã bị di chuyển, xoá hay sửa thì bản duy nhất của nội dung bị chuyển vào Thùng rác.
 - **Sửa:** [x] (`duplicateStillMatches`) Ngay trước khi xoá: kiểm tra bản giữ còn tồn tại, cùng size + mtime (tốt nhất hash lại); không khớp thì bỏ qua cả nhóm.
@@ -151,6 +154,7 @@
 - **Sửa:** [ ] Chạy trong task nền, báo tiến độ theo lô, hỗ trợ `Task.isCancelled`.
 
 ### 2.8 🟡 "Hoàn tác lần trước" chỉ khôi phục 1 mục; lịch sử mất khi thoát app
+- **Tiến độ:** API lô bền vững (`store.batches`, `undo(batchID:)`, kết quả từng mục) đã có; chờ UI chuyển từ `undoLast` sang lô.
 - **File:** `DiskCleanerApp.swift:311-343`, `Views/UninstallView.swift:516-537`
 - **Vấn đề:** Gỡ app ghi 1 + N bản ghi, nhưng undo chỉ trả lại 1 thư mục dữ liệu và để app nằm lại trong Thùng rác. Lịch sử chỉ lưu trong RAM, trái với câu "随时可撤销" (hoàn tác bất cứ lúc nào). Undo cũng không kiểm tra `inTrash` có còn là đúng file đó không (dev/ino).
 - **Sửa:**
@@ -159,6 +163,7 @@
   - [ ] Lưu dev/ino lúc xoá và so lại khi hoàn tác.
 
 ### 2.9 🟡 Gỡ app khi app đó đang chạy
+- **Tiến độ:** C4 — `runState`, `requestQuit` (thoát bình thường, ≤10 s), `uninstall(using:)` từ chối khi app đang chạy; bundle là mục critical. Chờ UI hộp thoại.
 - **File:** `Views/UninstallView.swift:509-541`
 - **Sửa:** [ ] Kiểm tra `NSRunningApplication` theo bundle ID; từ chối, hoặc đề nghị thoát app trước.
 
@@ -175,6 +180,7 @@
   - [x] Đo lại các path còn lại.
 
 ### 2.11 🟡 Kết quả quét cũ / TOCTOU giữa các trang
+- **Tiến độ:** `scanState`/`scannedAt`/`isStale(lastTrashAt:)` trên mọi model quét + `preflight` khi thực thi. Chờ UI hiện "Quét lại".
 - **File:** `Views/BigOldViews.swift:304-321, 549-562`, `FolderDrillView.swift:91-96, 469-485`, `OverviewView.swift:1772-1790`, `DiskCleanerApp.swift:92-114`
 - **Vấn đề:**
   - Xoá theo URL/size lúc quét mà không kiểm tra lại.

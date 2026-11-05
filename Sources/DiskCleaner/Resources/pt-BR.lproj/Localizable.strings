@@ -1217,3 +1217,15 @@
 "Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone." = "Esvazie o Lixo no Finder após revisar seu conteúdo. Não é possível desfazer o esvaziamento.";
 "Items" = "Itens";
 "History" = "Histórico";
+"Could not save the history: %@" = "Não foi possível salvar o histórico: %@";
+"No longer exists" = "Não existe mais";
+"Changed since the scan; scan again" = "Alterado desde a verificação; verifique novamente";
+"The kept copy is missing or changed; scan again" = "A cópia mantida sumiu ou mudou; verifique novamente";
+"Protected location" = "Local protegido";
+"Outside the locations this app may clean" = "Fora dos locais que o app pode limpar";
+"Already moved with its parent folder" = "Já movido com a pasta pai";
+"Not moved because the app itself was not moved" = "Não movido porque o próprio app não foi movido";
+"No longer in the Trash" = "Não está mais no Lixo";
+"The item in the Trash has changed" = "O item no Lixo mudou";
+"This history entry can't be restored" = "Esta entrada do histórico não pode ser restaurada";
+"Restore failed" = "Falha ao restaurar";
