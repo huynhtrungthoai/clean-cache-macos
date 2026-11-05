@@ -94,16 +94,19 @@ echo "==> [1/7] Localization coverage check"
 cd "$ROOT_DIR"
 swift "$ROOT_DIR/build_app/l10n_tool.swift" check | sed 's/^/    /'
 
-echo "==> [2/7] App icon (generated parametrically, no external assets)"
+echo "==> [2/7] App icon (approved dachshund artwork)"
 ICONSET="$BUILD_DIR/AppIcon.iconset"
 ICNS="$BUILD_DIR/AppIcon.icns"
-if [ ! -f "$ICNS" ] || [ "$BUILD_DIR/make_icon.swift" -nt "$ICNS" ]; then
+ICON_MASTER="$BUILD_DIR/AppIcon-master.png"
+[ -f "$ICON_MASTER" ] \
+	|| { echo "Error: app icon artwork missing: $ICON_MASTER" >&2; exit 1; }
+if [ ! -f "$ICNS" ] || [ "$BUILD_DIR/make_icon.swift" -nt "$ICNS" ] || [ "$ICON_MASTER" -nt "$ICNS" ]; then
 	rm -rf "$ICONSET"
 	swift "$BUILD_DIR/make_icon.swift" "$ICONSET" | sed 's/^/    /'
 	iconutil -c icns -o "$ICNS" "$ICONSET"
 	echo "    AppIcon.icns: $(du -h "$ICNS" | cut -f1)"
 else
-	echo "    Reusing existing AppIcon.icns (regenerated automatically when make_icon.swift changes)"
+	echo "    Reusing existing AppIcon.icns (regenerated when artwork or generator changes)"
 fi
 
 # Build one triple; stdout returns only the product dir (progress goes to stderr, else $(...) swallows it)
