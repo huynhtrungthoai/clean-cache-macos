@@ -664,8 +664,11 @@ public enum TrashError: Error {
 }
 
 public func trashItem(_ url: URL) throws -> URL {
-    guard !isProtected(url) else { throw TrashError.protected(url.path) }
-    guard isDeletable(url) else { throw TrashError.outsideAllowed(url.path) }
+    switch deletionGate(url) {
+    case .protected?: throw TrashError.protected(url.path)
+    case .outsideAllowed?: throw TrashError.outsideAllowed(url.path)
+    case nil: break
+    }
     var out: NSURL?
     do {
         try FileManager.default.trashItem(at: url, resultingItemURL: &out)

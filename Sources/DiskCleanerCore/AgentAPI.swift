@@ -310,13 +310,17 @@ struct AgentPathCheck {
 /// 词法折叠在这里完成：`~/.npm/../Documents` 进管线前就折叠成 `~/Documents`。
 func agentPipeline(_ raw: String, index: VerdictIndex) -> AgentPathCheck {
     let url = URL(fileURLWithPath: expandHome(raw)).standardizedFileURL
-    if isProtected(url) {
+    // deletionGate = lexical + canonical (case-folded, parent symlinks resolved) checks,
+    // the same gate trashItem enforces, so plan/explain never promise what trash refuses.
+    switch deletionGate(url) {
+    case .protected?:
         return .init(url: url, tier: .unknown, exact: false, entry: nil,
                      refusal: .protected, humanRefusal: .protected)
-    }
-    if !isDeletable(url) {
+    case .outsideAllowed?:
         return .init(url: url, tier: .unknown, exact: false, entry: nil,
                      refusal: .outsideAllowed, humanRefusal: .outsideAllowed)
+    case nil:
+        break
     }
     var st = stat()
     if lstat(url.path, &st) != 0 {

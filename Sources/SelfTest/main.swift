@@ -1441,6 +1441,95 @@ func agentSelfTest() async throws {
     check(lnk.refusal == .symlink, "Agent：指向 Documents 的软链拒 symlink")
     let dotdot = await agentExplain(path: "~/.cache/../Documents", index: aidx)
     check(dotdot.refusal == .protected, "Agent：.. 词法折叠后按真实位置判 protected")
+
+    // 15.1b P0-1 regression: case-insensitive APFS + symlinked parents must not bypass protection.
+    //       Runs inside the fake home: if the gate ever regresses, only the fixture is touched.
+    try fm.createSymbolicLink(atPath: afile("homelink").path, withDestinationPath: ahome.path)
+    for raw in ["~/DOCUMENTS", "~/documents", "~/LIBRARY", "~/.TRASH", "~/Library/../DOCUMENTS",
+                "~/homelink/Documents", "~/homelink/DOCUMENTS", "~/homelink"] {
+        let e = await agentExplain(path: raw, index: aidx)
+        let gated = e.refusal == .protected || e.refusal == .symlink
+        check(gated && !e.agentMayTrash && !e.humanMayTrash,
+              "P0-1：\(raw) is refused for agent and human (\(e.refusal?.rawValue ?? "ok"))")
+    }
+    check(deletionGate(afile("homelink/Documents")) == .protected,
+          "P0-1：deletionGate resolves a symlinked parent to the real ~/Documents")
+    check(deletionGate(afile("DOCUMENTS")) == .protected,
+          "P0-1：deletionGate folds case (~/DOCUMENTS == ~/Documents)")
+    check(deletionGate(URL(fileURLWithPath: "/APPLICATIONS")) == .protected,
+          "P0-1：/APPLICATIONS is protected like /Applications")
+    check(deletionGate(URL(fileURLWithPath: "/USR/local/x")) == .outsideAllowed,
+          "P0-1：/USR/local/x stays outside the allowed scope")
+    check(deletionGate(afile("my-stuff/model.bin")) == nil,
+          "P0-1：ordinary files under home are still allowed")
+    check(deletionGate(URL(fileURLWithPath: "/tmp/dw-junk-\(getpid())/x.bin")) == nil,
+          "P0-1：/tmp contents still allowed after canonicalisation (/tmp -> /private/tmp)")
+    for raw in [afile("DOCUMENTS"), afile("homelink/Documents")] {
+        do {
+            _ = try trashItem(raw)
+            check(false, "P0-1：trashItem must refuse \(raw.path)")
+        } catch let e as TrashError {
+            check(e.reasonKey == TrashError.protected("").reasonKey,
+                  "P0-1：trashItem refuses \(raw.lastPathComponent) via \(raw.deletingLastPathComponent().lastPathComponent)")
+        } catch {
+            check(false, "P0-1：trashItem refuses with TrashError: \(error)")
+        }
+    }
+    check(fm.fileExists(atPath: afile("Documents").path), "P0-1：fixture ~/Documents is still in place")
+    do {
+        _ = try await agentPlan(paths: ["~/DOCUMENTS", "~/homelink/Documents"], humanOverride: true, index: aidx)
+        check(false, "P0-1：plan --i-am-human must not admit case/symlink variants of ~/Documents")
+    } catch {
+        check(true, "P0-1：plan --i-am-human refuses case/symlink variants of ~/Documents")
+    }
+    // 15.1c P0-7 regression: credential / keychain / iCloud / library trees are off-limits
+    //       as a whole AND inside; bulk select-all skips dotfiles and ~/Library children.
+    for rel in [".ssh", "Library/Keychains", "Library/Mobile Documents/com~apple~CloudDocs",
+                "Pictures/Photos Library.photoslibrary/database", "Library/Application Support/Foo",
+                ".config/gh", ".config/other"] {
+        try fm.createDirectory(at: afile(rel), withIntermediateDirectories: true)
+    }
+    for rel in [".ssh/id_ed25519", "Library/Keychains/login.keychain-db",
+                "Library/Mobile Documents/com~apple~CloudDocs/report.pdf",
+                "Pictures/Photos Library.photoslibrary/database/Photos.sqlite", ".zshrc"] {
+        try "secret".write(to: afile(rel), atomically: true, encoding: .utf8)
+    }
+    let sensitive = [".ssh", ".ssh/id_ed25519", ".SSH/ID_ED25519", "homelink/.ssh/id_ed25519",
+                     "Library/Keychains", "Library/Keychains/login.keychain-db",
+                     "Library/Mobile Documents", "Library/Mobile Documents/com~apple~CloudDocs/report.pdf",
+                     "Pictures/Photos Library.photoslibrary",
+                     "Pictures/Photos Library.photoslibrary/database/Photos.sqlite", ".config/gh"]
+    for rel in sensitive {
+        check(deletionGate(afile(rel)) == .protected, "P0-7：deletionGate blocks ~/\(rel)")
+        check(!isReclaimableWhole(afile(rel)) || rel.hasPrefix("homelink"),
+              "P0-7：UI row ~/\(rel) is not selectable")
+    }
+    let sshExplain = await agentExplain(path: "~/.ssh/id_ed25519", index: aidx)
+    check(sshExplain.refusal == .protected && !sshExplain.humanMayTrash,
+          "P0-7：agent/--i-am-human refuse ~/.ssh/id_ed25519 (\(sshExplain.refusal?.rawValue ?? "ok"))")
+    for rel in [".ssh/id_ed25519", "Library/Mobile Documents/com~apple~CloudDocs/report.pdf"] {
+        do {
+            _ = try trashItem(afile(rel))
+            check(false, "P0-7：trashItem must refuse ~/\(rel)")
+        } catch {
+            check(fm.fileExists(atPath: afile(rel).path), "P0-7：trashItem refused, ~/\(rel) still in place")
+        }
+    }
+    check(deletionGate(afile(".config/other")) == nil, "P0-7：other ~/.config entries stay deletable one by one")
+    check(deletionGate(afile("Library/Application Support/Foo")) == nil,
+          "P0-7：~/Library/Application Support/<app> still deletable (uninstall leftovers)")
+    check(!isBulkSelectable(afile(".zshrc")) && isReclaimableWhole(afile(".zshrc")),
+          "P0-7：dotfiles are tickable one by one but skipped by select-all")
+    check(!isBulkSelectable(afile("Library/Application Support")),
+          "P0-7：direct children of ~/Library are skipped by select-all")
+    check(isBulkSelectable(afile("my-stuff")) && isBulkSelectable(afile("Library/Application Support/Foo")),
+          "P0-7：ordinary rows remain bulk-selectable")
+    for rel in [".ssh", "Library/Keychains", "Library/Mobile Documents", "Pictures", "Library/Application Support",
+                ".zshrc", ".config"] {
+        try? fm.removeItem(at: afile(rel))
+    }
+
+    try fm.removeItem(at: afile("homelink"))
     let redo = await agentExplain(path: "~/.ollama/models", index: aidx)
     check(redo.agentMayTrash && redo.tier == "redo",
           "Agent：redo 条目（模型权重）可动但 tier 如实标注")

@@ -412,8 +412,144 @@ public func protectedPaths() -> Set<String> {
 }
 
 public func isProtected(_ url: URL) -> Bool {
-    let p = url.standardizedFileURL.path
-    return protectedPaths().contains(p)
+    let p = foldPath(url.standardizedFileURL.path)
+    return protectedPaths().contains { foldPath($0) == p }
+}
+
+// ── Deletion gate: canonical (on-disk) comparison ──
+//
+// APFS is case-insensitive and Unicode-normalization-insensitive by default, while
+// `standardizedFileURL` is purely lexical and does not resolve symlinks. Without this layer:
+//   · `~/DOCUMENTS` is the same directory as `~/Documents` yet missed the protected set;
+//   · `~/link/Documents` (with `~/link -> ~`) passed the lexical check and `trashItem`
+//     followed the parent symlink to the real `~/Documents`.
+// Everything that actually moves files (`trashItem`, `agentPipeline`) must go through
+// `deletionGate`; `isProtected`/`isDeletable` stay cheap for list rendering.
+
+/// Fold a path the way the default APFS volume compares names (NFC + case-insensitive).
+/// On a case-sensitive volume this over-protects, which is the safe direction.
+func foldPath(_ p: String) -> String {
+    p.precomposedStringWithCanonicalMapping.lowercased()
+}
+
+/// `realpath(3)` as a String; nil if the path does not exist / cannot be resolved.
+/// Darwin's realpath returns the on-disk case of each component and resolves symlinks.
+func realpathString(_ p: String) -> String? {
+    guard let r = realpath(p, nil) else { return nil }
+    defer { free(r) }
+    return String(cString: r)
+}
+
+/// The location a filesystem operation on `url` would actually act on:
+/// every **parent** component resolved (symlinks + on-disk case) through the deepest
+/// existing ancestor, the not-yet-existing remainder appended lexically, and the **last**
+/// component left unresolved — trashing a symlink moves the link, not its target.
+public func safetyCanonicalPath(_ url: URL) -> String {
+    let std = url.standardizedFileURL.path
+    guard std != "/" else { return "/" }
+    let last = (std as NSString).lastPathComponent
+    var head = (std as NSString).deletingLastPathComponent
+    var missing: [String] = []
+    while true {
+        if let resolved = realpathString(head) {
+            var out = resolved
+            for c in missing.reversed() { out = (out as NSString).appendingPathComponent(c) }
+            return (out as NSString).appendingPathComponent(last)
+        }
+        if head == "/" || head.isEmpty { return std }
+        missing.append((head as NSString).lastPathComponent)
+        head = (head as NSString).deletingLastPathComponent
+    }
+}
+
+// ── Sensitive trees: nothing inside is ever trashed by this tool ──
+//
+// `protectedPaths` only blocks a handful of folders **as a whole**; everything below them is
+// fair game. That is right for `~/Documents/x.iso`, wrong for credentials, keychains and
+// synced/app databases, where removing one inner file is already the damage:
+//   · keys & tokens (`~/.ssh`, `~/.gnupg`, cloud CLIs) — lost access, not lost space;
+//   · `~/Library/Keychains` — every saved password;
+//   · `~/Library/Mobile Documents` — iCloud Drive: trashing here deletes on every device;
+//   · Mail / Messages / Contacts / Calendars / Photos libraries — databases plus their blobs,
+//     an inner deletion corrupts the library rather than freeing space safely.
+// None of these appear in safety_db.json, so no cleaning feature loses anything.
+
+/// Home-relative roots of sensitive trees. The root itself and everything under it is off-limits.
+let sensitiveTreeRelRoots = [
+    ".ssh", ".gnupg", ".aws", ".azure", ".kube", ".config/gcloud", ".config/gh",
+    ".password-store",
+    "Library/Keychains",
+    "Library/Mobile Documents",
+    "Library/Mail",
+    "Library/Messages",
+    "Library/Accounts",
+    "Library/Cookies",
+    "Library/Calendars",
+    "Library/Application Support/AddressBook",
+    "Library/Application Support/MobileSync",   // iPhone/iPad backups
+]
+
+/// Package suffixes that are libraries, not folders: never trash them or anything inside.
+let sensitivePackageSuffixes = [".photoslibrary", ".musiclibrary", ".tvlibrary"]
+
+/// Is `path` a sensitive tree root, inside one, or inside a protected library package?
+/// Lexical + case/Unicode-folded; `deletionGate` also runs it on the canonical path.
+public func isInSensitiveTree(_ path: String) -> Bool {
+    isInSensitiveTree(path, homes: [homePath()])
+}
+
+func isInSensitiveTree(_ path: String, homes: [String]) -> Bool {
+    let p = foldPath(URL(fileURLWithPath: path).standardizedFileURL.path)
+    for h in homes {
+        let fh = foldPath(h)
+        for rel in sensitiveTreeRelRoots {
+            let root = foldPath(rel)
+            let r = fh.hasSuffix("/") ? fh + root : fh + "/" + root
+            if p == r || p.hasPrefix(r + "/") { return true }
+        }
+    }
+    for comp in p.split(separator: "/") where sensitivePackageSuffixes.contains(where: { comp.hasSuffix($0) }) {
+        return true
+    }
+    return false
+}
+
+public enum DeletionGateRefusal: Equatable {
+    case protected
+    case outsideAllowed
+}
+
+/// The single gate every deletion passes: lexical checks first, then the same checks
+/// on the canonical location (see `safetyCanonicalPath`), both case/Unicode-folded.
+/// nil = allowed.
+public func deletionGate(_ url: URL) -> DeletionGateRefusal? {
+    if isProtected(url) { return .protected }
+    if !isDeletable(url) { return .outsideAllowed }
+    if isInSensitiveTree(url.path) { return .protected }
+
+    let canonRaw = safetyCanonicalPath(url)
+    let home = homePath()
+    if isInSensitiveTree(canonRaw, homes: [home] + [realpathString(home)].compactMap { $0 }) {
+        return .protected
+    }
+    let canon = foldPath(canonRaw)
+    // Protected set in both spellings: as written, and as resolved on disk
+    // (`/var` → `/private/var`, a shim home under `/var/folders` → `/private/var/folders`…).
+    for p in protectedPaths() {
+        if foldPath(p) == canon { return .protected }
+        if let r = realpathString(p), foldPath(r) == canon { return .protected }
+    }
+
+    func under(_ root: String, orEqual: Bool) -> Bool {
+        let f = foldPath(root)
+        let base = f.hasSuffix("/") ? String(f.dropLast()) : f
+        return (orEqual && canon == base) || canon.hasPrefix(base + "/")
+    }
+    var roots = [homePath(), applicationsDir()]
+    roots += roots.compactMap(realpathString)
+    if roots.contains(where: { under($0, orEqual: true) }) { return nil }
+    if sharedTempRoots.contains(where: { under($0, orEqual: false) }) { return nil }
+    return .outsideAllowed
 }
 
 /// 我们能动手的范围：家目录、/Applications（演示模式下它在假树里），以及两个共享临时区。
@@ -450,7 +586,18 @@ public func isDeletable(_ url: URL) -> Bool {
 /// 只查 `isDeletable` 那一行就标成「能删」，而真点下去 `trashItem` 是拒绝的。
 /// 环形上那道「点我，能收走」的亮沿读的正是这条，标错一次那一格就是骗人点击。
 public func isReclaimableWhole(_ url: URL) -> Bool {
-    isDeletable(url) && !isProtected(url)
+    isDeletable(url) && !isProtected(url) && !isInSensitiveTree(url.path)
+}
+
+/// Rows a bulk "select all" may tick. Stricter than `isReclaimableWhole`: hidden entries
+/// (dotfiles/dot-dirs: shell config, tool state, credentials) and the direct children of
+/// `~/Library` (each one is an app's or the system's whole state) must be ticked one by one,
+/// never swept up by a single click.
+public func isBulkSelectable(_ url: URL) -> Bool {
+    guard isReclaimableWhole(url) else { return false }
+    if url.lastPathComponent.hasPrefix(".") { return false }
+    let parent = foldPath(url.standardizedFileURL.deletingLastPathComponent().path)
+    return parent != foldPath(homePath() + "/Library")
 }
 
 // ── 环形那本「可回收」账的目标集 ──

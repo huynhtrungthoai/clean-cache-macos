@@ -212,8 +212,9 @@ struct FolderDrillView: View {
         .onChange(of: store.rescanPulse) { _ in model.invalidate() }
         .confirmTrash(isPresented: $confirm,
                       text: LF("将 %1$@（%2$@）移入废纸篓。",
-                               cnt(model.selected.count, "项"),
-                               human(model.selectedBytes, inRulerOf: model.level?.total ?? 0))) {
+                               cnt(model.selectedEntries.count, "项"),
+                               human(model.selectedBytes, inRulerOf: model.level?.total ?? 0))
+                          + confirmNames(model.selectedEntries)) {
             doClean()
         }
     }
@@ -250,11 +251,11 @@ struct FolderDrillView: View {
                         hint: verdictHint(for: r.path),
                         sizeText: sizeCell(r),
                         fraction: Double(r.size) / Double(maxSize),
-                        badge: isDeletable(r.url) ? nil : ItemBadge(text: L("本工具不碰"), tone: .neutral),
+                        badge: isReclaimableWhole(r.url) ? nil : ItemBadge(text: L("本工具不碰"), tone: .neutral),
                         badge2: rowBadge(r),
-                        selectable: isDeletable(r.url),
-                        lit: isDeletable(r.url),
-                        lockedHint: isDeletable(r.url) ? nil : outsideScopeHint,
+                        selectable: isReclaimableWhole(r.url),
+                        lit: isReclaimableWhole(r.url),
+                        lockedHint: isReclaimableWhole(r.url) ? nil : outsideScopeHint,
                         onOpen: r.isDir ? { store.drill(into: r.path) } : nil,
                         onReveal: { reveal(r.path) },
                         // 文件行的路径只有摊开才看得见，而摊开这件事批量拍图这一路点不到，
@@ -363,7 +364,7 @@ struct FolderDrillView: View {
 
     /// 这一层的账：分「本工具能清 / 本工具不碰」两堆，跟大文件页同一口径。
     private var tiers: [LedgerTier] {
-        let sp = listedSplitOf(model.rows, bytes: { $0.size }, lit: { isDeletable($0.url) })
+        let sp = listedSplitOf(model.rows, bytes: { $0.size }, lit: { isReclaimableWhole($0.url) })
         return [LedgerTier(label: L("本工具能清"), bytes: sp.reclaimable, tone: .hot),
                 LedgerTier(label: L("本工具不碰"), bytes: sp.viewOnly, tone: .cold)]
     }
@@ -439,8 +440,10 @@ struct FolderDrillView: View {
     }
 
     /// 「全选」只管勾得动的那几行：本工具不碰的行选上也删不掉，全选后按清理只会换一屏报错。
+    /// P0-7: select-all also skips dotfiles and direct children of ~/Library
+    /// (`isBulkSelectable`) — those can still be ticked one by one, never in one sweep.
     private var selectAll: SelectAll? {
-        let open = model.rows.filter { isDeletable($0.url) }
+        let open = model.rows.filter { isBulkSelectable($0.url) }
         guard !open.isEmpty else { return nil }
         return SelectAll(allSelected: open.allSatisfy { model.selected.contains($0.path) },
                          unselectable: model.rows.count - open.count) { on in
@@ -450,6 +453,15 @@ struct FolderDrillView: View {
                 model.selected.removeAll()
             }
         }
+    }
+
+    /// Names of what is about to be trashed, shown in the confirm alert so a single
+    /// generic "N items" never hides `.ssh` or `Application Support` among them.
+    private func confirmNames(_ entries: [ChildEntry]) -> String {
+        guard !entries.isEmpty else { return "" }
+        let shown = entries.prefix(10).map { $0.name }
+        let more = entries.count > shown.count ? "\n…(+\(entries.count - shown.count))" : ""
+        return "\n\n" + shown.joined(separator: "\n") + more + "\n\n"
     }
 
     // MARK: 动作
@@ -506,7 +518,7 @@ struct FolderDrillView: View {
     /// 具体怎么勾、怎么发筹码在 `TrashFlightController.fireSnapshotIfAsked`。
     private func fireSnapshotFlightIfAsked() {
         guard let lv = model.level, !model.busy, !lv.entries.isEmpty else { return }
-        let open = Array(model.rows.filter { isDeletable($0.url) }.prefix(2))
+        let open = Array(model.rows.filter { isReclaimableWhole($0.url) }.prefix(2))
         guard let first = open.first else { return }
         flight.fireSnapshotIfAsked(candidates: open.map { (key: $0.path, bytes: $0.size) },
                                    selected: model.selected.contains(first.path)) {
