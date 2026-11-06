@@ -573,8 +573,8 @@ struct ItemRow<Detail: View>: View {
                 SizeNumber(shown: sizeText, size: act ? 21 : 17, color: numberColor)
                     .frame(minWidth: 104, alignment: .trailing)
             }
-            .padding(.top, 11)
-            .padding(.bottom, 8)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
 
             // 条子定宽 232 不铺满：贴到行尾的长条会被读成分隔线，而且各页行宽不同
             // 就没了可比性。窗口窄到装不下时宁可让 List 截这一列的右边，不缩短条子。
@@ -583,7 +583,7 @@ struct ItemRow<Detail: View>: View {
                           track: theme.palette.surfaceAlt,
                           height: 3, trackWidth: 232)
                 .padding(.leading, rowLeadInset)
-                .padding(.bottom, 11)
+                .padding(.bottom, 6)
 
             if expanded {
                 VStack(alignment: .leading, spacing: 6) {
@@ -596,7 +596,7 @@ struct ItemRow<Detail: View>: View {
                     }
                 }
                 .padding(.leading, rowLeadInset)
-                .padding(.bottom, 11)
+                .padding(.bottom, 6)
                 .transition(.opacity)
             }
         }
@@ -677,17 +677,28 @@ private struct LedgerCardChrome: ViewModifier {
 struct ListNote: View {
     @Environment(\.theme) private var theme
     var text: String
+    @State private var showsDetail = false
 
     var body: some View {
-        Text(text)
-            .font(theme.bodyFont(.caption))
-            .foregroundStyle(theme.palette.inkTertiary)
-            .fixedSize(horizontal: false, vertical: true)
-            .multilineTextAlignment(.leading)
-            .pagePadding()
-            .padding(.top, 11)
-            .padding(.bottom, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 6) {
+            Text(text).lineLimit(1).truncationMode(.tail)
+            Button { showsDetail.toggle() } label: {
+                Image(systemName: "info.circle")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(L("Details"))
+            .popover(isPresented: $showsDetail) {
+                Text(text).font(theme.bodyFont(.callout))
+                    .foregroundStyle(theme.palette.ink)
+                    .textSelection(.enabled).padding(16).frame(width: 400)
+            }
+        }
+        .font(theme.bodyFont(.caption))
+        .foregroundStyle(theme.palette.inkSecondary)
+        .help(text)
+        .pagePadding()
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

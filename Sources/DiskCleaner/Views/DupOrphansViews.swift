@@ -30,10 +30,10 @@ struct DupView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "square.on.square", title: L("Duplicates"),
                            subtitle: L("The newest copy in each group is always kept"),
-                           variant: .display, scope: model.scope.uiName)
+                           variant: .compact, scope: model.scope.uiName)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: model.phase.isEmpty ? L("Comparing…") : model.phase,
@@ -50,13 +50,13 @@ struct DupView: View {
                 } trailing: {
                     ThemeStepper(label: "≥", unit: "MB", value: $model.minMB,
                                  range: 5...500, step: 5) { model.scan(scope: store.scope) }
-                    ScanControl(scanning: model.scanning,
+                    ScanControl(scanning: model.scanning, kind: .compact,
                                 rescan: { model.scan(scope: store.scope) }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan(scope: store.scope) })
 
@@ -71,7 +71,7 @@ struct DupView: View {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(model.groups.count), detail: uiHuman(model.waste), symbol: "square.on.square"),
                     .init(title: L("Selected"), value: uiHuman(selectedBytes), detail: LF("%d items selected", model.selectedCount), symbol: "checkmark.circle")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
                 if let note = ledgerNote { ListNote(text: note) }
                 List(model.groups) { g in
                     dupRow(g)
@@ -244,7 +244,7 @@ private struct EnvCopiesSheet: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 18)
-            .padding(.bottom, 12)
+            .padding(.bottom, 6)
 
 
             List(groups) { g in
@@ -299,10 +299,10 @@ struct OrphansView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "app.badge", title: L("Leftovers"),
                            subtitle: L("Uninstalled apps left data behind — checked against every app still installed"),
-                           variant: .display, scope: L("App data in the home folder"))
+                           variant: .compact, scope: L("App data in the home folder"))
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("Inventorying installed apps, matching orphans…"),
@@ -315,13 +315,13 @@ struct OrphansView: View {
                     }
                     ThemeBadge(text: L("Under-reports rather than over-deletes"), tone: .neutral)
                 } trailing: {
-                    ScanControl(scanning: model.scanning,
+                    ScanControl(scanning: model.scanning, kind: .compact,
                                 rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan() })
             Button(L("Review installed apps")) { store.arrive(NavStop(panel: .uninstall)) }
@@ -337,7 +337,7 @@ struct OrphansView: View {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(model.items.count), detail: uiHuman(model.totalBytes), symbol: "app.badge"),
                     .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
                 if let note = ledgerNote { ListNote(text: note) }
                 List($model.items) { $it in
                     ItemRow(selected: $it.selected,

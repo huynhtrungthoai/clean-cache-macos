@@ -7,6 +7,7 @@ struct ScanStatusView: View {
     var model: any ScanStatusReporting
     var lastTrashAt: Date?
     var rescan: () -> Void
+    @State private var showsIssues = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 30)) { _ in
@@ -26,45 +27,43 @@ struct ScanStatusView: View {
                     }
                 }
                 if !model.issues.isEmpty {
-                    if model.issues.contains(where: { $0.kind == .noPermission }) {
-                        Button(L("Grant access")) {
-                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
-                                NSWorkspace.shared.open(url)
-                            }
+                    HStack(spacing: 12) {
+                        Button { showsIssues.toggle() } label: {
+                            Label(LF("%d locations were not fully scanned", model.issues.count),
+                                  systemImage: "exclamationmark.triangle")
                         }
-                        .help(L("Opens System Settings › Privacy & Security › Full Disk Access; restart CleanPilot once you've ticked it"))
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(LF("%d locations were not fully scanned", model.issues.count))
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(model.issues.prefix(3)) { issue in
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(issue.root).textSelection(.enabled)
-                                        Text(issueReason(issue)).foregroundStyle(theme.palette.inkSecondary)
-                                    }
-                                    .accessibilityElement(children: .combine)
-                                }
-                            }.frame(maxWidth: .infinity, alignment: .leading)
-                        }.frame(maxHeight: 100)
-                        if model.issues.count > 3 {
-                            DisclosureGroup(L("Details")) {
-                                ScrollView {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        ForEach(model.issues.dropFirst(3)) { issue in
-                                            Text(issue.root + " · " + issueReason(issue)).textSelection(.enabled)
+                        .popover(isPresented: $showsIssues) {
+                            ScrollView {
+                                LazyVStack(alignment: .leading, spacing: 12) {
+                                    ForEach(model.issues) { issue in
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(issue.root).textSelection(.enabled)
+                                            Text(issueReason(issue)).foregroundStyle(theme.palette.inkSecondary)
                                         }
-                                    }.frame(maxWidth: .infinity, alignment: .leading)
-                                }.frame(maxHeight: 100)
+                                        .accessibilityElement(children: .combine)
+                                    }
+                                }.padding(16)
                             }
+                            .font(theme.bodyFont(.caption))
+                            .foregroundStyle(theme.palette.ink)
+                            .frame(width: 440, height: 280)
                         }
+                        if model.issues.contains(where: { $0.kind == .noPermission }) {
+                            Button(L("Grant access")) {
+                                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            .help(L("Opens System Settings › Privacy & Security › Full Disk Access; restart CleanPilot once you've ticked it"))
+                        }
+                        Spacer(minLength: 0)
                     }
                 }
             }
             .font(theme.bodyFont(.caption))
             .foregroundStyle(theme.palette.inkSecondary)
             .buttonStyle(.borderless)
-            .padding(.horizontal, 24).padding(.bottom, 8)
+            .padding(.horizontal, 20).padding(.bottom, 6)
         }
     }
 

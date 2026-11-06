@@ -117,9 +117,9 @@ struct CachesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: page.symbol, title: L(page.titleKey),
-                           subtitle: L(page.subtitleKey), variant: .display,
+                           subtitle: L(page.subtitleKey), variant: .compact,
                            scope: L("Known cache locations in the home folder"))
                 ControlStrip {
                     if model.scanning {
@@ -135,13 +135,13 @@ struct CachesView: View {
                         }
                     }
                 } trailing: {
-                    ScanControl(scanning: model.scanning,
+                    ScanControl(scanning: model.scanning, kind: .compact,
                                 rescan: { model.load(force: true) }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.load(force: true) })
 
@@ -150,7 +150,7 @@ struct CachesView: View {
                     .init(title: L("Listed items"), value: String(model.items.count), detail: L("Known cache locations in the home folder"), symbol: "list.bullet"),
                     .init(title: L("Bulk selection"), value: uiHuman(model.selectableBytes), detail: L("Only eligible items are included"), symbol: "checklist"),
                     .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
             }
 
             if model.scanning && model.items.isEmpty {

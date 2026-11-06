@@ -15,10 +15,10 @@ struct UninstallView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: AppPanel.uninstall.symbol, title: L("Uninstall Apps"),
                            subtitle: L("Review an app and its private data before uninstalling"),
-                           variant: .display, scope: L("Installed apps; related data in the home folder"))
+                           variant: .compact, scope: L("Installed apps; related data in the home folder"))
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("Taking stock of installed apps…"), progress: model.progress)
@@ -29,13 +29,13 @@ struct UninstallView: View {
                     }
                     ThemeBadge(text: L("Home folder only"), tone: .neutral)
                 } trailing: {
-                    ScanControl(scanning: model.scanning,
+                    ScanControl(scanning: model.scanning, kind: .compact,
                                 rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan() })
             Button(L("Review leftover app data")) { store.arrive(NavStop(panel: .orphans)) }
@@ -51,7 +51,7 @@ struct UninstallView: View {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(model.apps.count), detail: L("Applications"), symbol: "app"),
                     .init(title: L("Selected"), value: planSizeText, detail: model.current?.name ?? L("No app picked yet"), symbol: "checkmark.circle")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
                 HStack(alignment: .top, spacing: 14) {
                     picker
                         .frame(minWidth: 200, idealWidth: 240, maxWidth: 260)

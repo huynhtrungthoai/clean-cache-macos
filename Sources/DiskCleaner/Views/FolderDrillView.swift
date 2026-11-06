@@ -30,10 +30,10 @@ struct FolderDrillView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "folder", title: L("Folder details"),
                            subtitle: L("Go deeper level by level and see how much each folder and file takes up"),
-                           variant: .display, wrapsControls: true, scope: model.path.isEmpty ? L("No folder selected yet") : displayPath(URL(fileURLWithPath: model.path))) {
+                           variant: .compact, wrapsControls: true, scope: model.path.isEmpty ? L("No folder selected yet") : displayPath(URL(fileURLWithPath: model.path))) {
                     // "Find large files in this tree" goes from here: Overview no longer shows two side-by-side "go down"
                     // buttons (click name to enter this level + dig into Large files); one step only: enter to see this level first,
                     // then press this to find large files. Two actions on two levels, each with a clear place.
@@ -76,8 +76,8 @@ struct FolderDrillView: View {
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.reload() })
 
@@ -142,7 +142,7 @@ struct FolderDrillView: View {
             SummaryCards(metrics: [
                 .init(title: L("Listed items"), value: String(model.rows.count), detail: uiHuman(model.level?.total ?? 0), symbol: "folder"),
                 .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selectedEntries.count), symbol: "checkmark.circle")
-            ]).pagePadding().padding(.bottom, 12)
+            ]).pagePadding().padding(.bottom, 6)
             if showsTreemap, let level = model.level, level.rootErrno == 0 {
                 HSplitView {
                     VStack(alignment: .leading, spacing: 8) {

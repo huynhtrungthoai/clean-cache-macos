@@ -29,10 +29,10 @@ struct NMView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "shippingbox", title: L("node_modules"),
                            subtitle: L("Dependencies reinstall themselves — take the space back"),
-                           variant: .display, scope: L("Home folder only"))
+                           variant: .compact, scope: L("Home folder only"))
                 ControlStrip {
                     if model.scanning {
                         if model.items.isEmpty {
@@ -61,13 +61,13 @@ struct NMView: View {
                     // 「这页只看用户区」这件事由别处说：加载那行写的是「翻**项目目录**找
                     // node_modules」，而项目只长在家目录里。
                 } trailing: {
-                    ScanControl(scanning: model.scanning,
+                    ScanControl(scanning: model.scanning, kind: .compact,
                                 rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan() })
 
@@ -83,7 +83,7 @@ struct NMView: View {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(model.items.count), detail: uiHuman(model.totalBytes), symbol: "shippingbox"),
                     .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
                 List($model.items) { $it in
                     ItemRow(selected: $it.selected,
                             icon: .path(URL(fileURLWithPath: it.project)),
@@ -289,10 +289,10 @@ struct DockerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "cube", title: L("Docker Usage"),
                            subtitle: L("Read-only — each container runtime deletes differently; open the row for the route"),
-                           variant: .display, scope: L("Container runtimes on this Mac"))
+                           variant: .compact, scope: L("Container runtimes on this Mac"))
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("Counting what your containers take…"))
@@ -301,13 +301,13 @@ struct DockerView: View {
                     }
                     ThemeBadge(text: L("No delete button here"), tone: .neutral)
                 } trailing: {
-                    ScanControl(scanning: model.scanning,
+                    ScanControl(scanning: model.scanning, kind: .compact,
                                 rescan: { model.scan() }, stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan() })
 
@@ -321,7 +321,7 @@ struct DockerView: View {
                 SummaryCards(metrics: [
                     .init(title: L("Docker Usage"), value: uiHuman(model.totalBytes), detail: L("Actually on disk"), symbol: "cube"),
                     .init(title: L("Listed items"), value: String(model.items.count), detail: L("Read-only"), symbol: "list.bullet")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
                 if let note = ledgerNote { ListNote(text: note) }
                 List(model.items) { it in
                     ItemRow(selected: .constant(false),

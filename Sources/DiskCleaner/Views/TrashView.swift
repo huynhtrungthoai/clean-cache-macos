@@ -12,8 +12,8 @@ struct TrashView: View {
         VStack(spacing: 0) {
             PageHeader(symbol: "trash", title: L("Trash and activity"),
                        subtitle: L("Review the Trash and restore recorded batches when possible"),
-                       variant: .display, scope: L("Trash contents and saved activity"))
-                .pagePadding().padding(.top, 14).padding(.bottom, 12)
+                       variant: .compact, scope: L("Trash contents and saved activity"))
+                .pagePadding().padding(.top, 10).padding(.bottom, 6)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     SummaryCards(metrics: [

@@ -16,32 +16,35 @@ struct SummaryCards: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .top, spacing: 12) { cards }
-            VStack(spacing: 12) { cards }
+            HStack(spacing: 8) { cards }
+            VStack(spacing: 4) { cards }
         }
     }
 
     private var cards: some View {
-        ForEach(Array(metrics.enumerated()), id: \.element.id) { index, metric in
-            ThemedCard(padding: 12, alt: index > 0) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label(metric.title, systemImage: metric.symbol)
-                        .font(theme.bodyFont(.caption))
+        ForEach(metrics) { metric in
+            HStack(spacing: 8) {
+                Image(systemName: metric.symbol)
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(metric.title).font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkSecondary)
-                    Text(metric.value)
-                        .font(theme.prose(size: index == 0 ? 32 : 24, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(theme.palette.ink)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                    Text(metric.detail)
-                        .font(theme.bodyFont(.caption2))
+                    Text(metric.detail).font(theme.bodyFont(.caption2))
                         .foregroundStyle(theme.palette.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1).help(metric.detail)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityElement(children: .combine)
+                Spacer(minLength: 8)
+                Text(metric.value)
+                    .font(theme.prose(size: 18, weight: .semibold))
+                    .monospacedDigit()
+                    .lineLimit(1)
             }
+            .padding(.horizontal, 12).padding(.vertical, 6)
             .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
+            .background(theme.cardShape().fill(theme.palette.surfaceAlt))
+            .foregroundStyle(theme.palette.ink)
+            .accessibilityElement(children: .combine)
         }
     }
 }
@@ -56,37 +59,48 @@ struct SelectionActionBar: View {
     var consequence: String = L("Items move to the Trash. Free space may not increase until it is emptied.")
     var review: () -> Void
 
+    @State private var showsConsequence = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 16) {
-                    selected
-                    selectionButton
-                    Spacer(minLength: 8)
-                    reviewButton
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    selected
-                    HStack { selectionButton; Spacer(minLength: 8); reviewButton }
-                }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                selected
+                selectionButton
+                consequenceButton
+                Spacer(minLength: 8)
+                reviewButton
             }
-            Text(consequence)
-                .font(theme.bodyFont(.caption))
-                .foregroundStyle(theme.palette.inkSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack { selected; consequenceButton; Spacer(); selectionButton }
+                HStack { Spacer(); reviewButton }
+            }
         }
-        .padding(.horizontal, 24).padding(.vertical, 12)
+        .padding(.horizontal, 20).padding(.vertical, 8)
         .background(theme.palette.surface)
         .overlay(alignment: .top) { Divider().overlay(theme.palette.separator) }
     }
 
     private var selected: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 8) {
             Text(LF("%d items selected", count)).font(theme.bodyFont(.caption))
-            Text(bytes).font(theme.prose(size: 22, weight: .semibold)).monospacedDigit()
+            Text(bytes).font(theme.prose(size: 16, weight: .semibold)).monospacedDigit()
         }
         .foregroundStyle(theme.palette.ink)
         .accessibilityElement(children: .combine)
+    }
+
+    private var consequenceButton: some View {
+        Button { showsConsequence.toggle() } label: {
+            Image(systemName: "info.circle")
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(consequence)
+        .help(consequence)
+        .popover(isPresented: $showsConsequence) {
+            Text(consequence).font(theme.bodyFont(.callout))
+                .foregroundStyle(theme.palette.ink)
+                .padding(16).frame(width: 320)
+        }
     }
 
     @ViewBuilder private var selectionButton: some View {
@@ -101,7 +115,7 @@ struct SelectionActionBar: View {
     }
 
     private var reviewButton: some View {
-        ThemeButton(kind: .primary, symbol: "checklist", title: L("Review and confirm"),
+        ThemeButton(kind: .compact, symbol: "checklist", title: L("Review and confirm"),
                     isDisabled: count == 0 || busy,
                     shortcut: KeyboardShortcut(.return, modifiers: .command), action: review)
     }
@@ -326,7 +340,7 @@ struct ToolFooter<Actions: View>: View {
             HStack(spacing: 12) { note; Spacer(minLength: 8); actions() }
             VStack(alignment: .leading, spacing: 8) { note; HStack(spacing: 12) { actions() } }
         }
-        .padding(.horizontal, 24).padding(.vertical, 12)
+        .padding(.horizontal, 20).padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.palette.surface)
         .overlay(alignment: .top) { Divider() }

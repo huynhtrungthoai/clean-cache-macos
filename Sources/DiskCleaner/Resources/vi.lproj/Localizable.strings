@@ -1359,3 +1359,15 @@
 "The Trash has been emptied." = "Thùng rác đã được dọn sạch.";
 
 "Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "Hãy cho phép CleanPilot điều khiển Finder trong Cài đặt hệ thống › Quyền riêng tư & Bảo mật › Tự động hóa, rồi thử lại.";
+
+// Compact system menu
+"Installed RAM: %@" = "RAM lắp đặt: %@";
+"Processor: %d logical cores" = "Bộ xử lý: %d nhân logic";
+"Thermal state: %@" = "Trạng thái nhiệt: %@";
+"Nominal" = "Bình thường";
+"Elevated" = "Tăng nhẹ";
+"Serious" = "Cao";
+"Critical" = "Rất cao";
+"Quit %@" = "Thoát %@";
+"Shows free disk space, installed RAM, processor cores, macOS and thermal state — no file scan" = "Hiển thị dung lượng trống, RAM lắp đặt, nhân xử lý, macOS và trạng thái nhiệt — không quét file";
+"Thermal state is reported by macOS; it is not a temperature in degrees. Quit CleanPilot from its menu bar menu." = "Trạng thái nhiệt do macOS báo cáo, không phải nhiệt độ theo °C. Bạn có thể thoát CleanPilot từ menu trên thanh menu.";

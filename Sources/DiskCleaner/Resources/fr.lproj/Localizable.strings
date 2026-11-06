@@ -1359,3 +1359,15 @@
 "The Trash has been emptied." = "La corbeille a été vidée.";
 
 "Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "Autorisez CleanPilot à contrôler le Finder dans Réglages Système › Confidentialité et sécurité › Automatisation, puis réessayez.";
+
+// Compact system menu
+"Installed RAM: %@" = "RAM installée : %@";
+"Processor: %d logical cores" = "Processeur : %d cœurs logiques";
+"Thermal state: %@" = "État thermique : %@";
+"Nominal" = "Normal";
+"Elevated" = "Élevé";
+"Serious" = "Important";
+"Critical" = "Critique";
+"Quit %@" = "Quitter %@";
+"Shows free disk space, installed RAM, processor cores, macOS and thermal state — no file scan" = "Affiche l’espace libre, la RAM installée, les cœurs, macOS et l’état thermique — sans analyser les fichiers";
+"Thermal state is reported by macOS; it is not a temperature in degrees. Quit CleanPilot from its menu bar menu." = "L’état thermique est fourni par macOS ; ce n’est pas une température en degrés. Quittez CleanPilot depuis son menu dans la barre des menus.";

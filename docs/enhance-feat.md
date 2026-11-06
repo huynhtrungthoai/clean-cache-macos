@@ -506,6 +506,9 @@ Chủ dự án yêu cầu (2026-11-06): nhiều cache hơn, giống CleanMyMac; 
 
 ### Requests — yêu cầu từ UI
 
+- **Menu bar — thông tin hệ thống (2026-11-06, chủ dự án yêu cầu):** cần model snapshot RAM đang dùng/tổng RAM, memory pressure, CPU utilization và nhiệt độ °C nếu có nguồn đo đáng tin cậy; giá trị không hỗ trợ phải là `nil`, có thời điểm đo, cập nhật nền và dừng khi tắt menu bar. P1, Claude/core. UI hiện chỉ hiển thị tổng RAM, số nhân logic, phiên bản macOS và `ProcessInfo.thermalState` (trạng thái nhiệt định tính, không phải °C). Chủ dự án đã cho phép Codex sửa `MenuBar.swift` lần này; nút Thoát gọi `NSApp.terminate`.
+
+
 - ✅ **Đã có (P0/F03, File trùng)** — `duplicateContentCheck(kept:extra:) -> ContentMatch` (.same/.different/.cancelled) so **toàn bộ nội dung từng byte** mọi kích thước (bỏ giới hạn 64 MiB); `preflight` dùng nó. Huỷ: `AppStore.cancelTrash()` dừng lô giữa các mục và giữa lúc so file lớn — mục đã chuyển giữ nguyên trong batch, phần còn lại là `.skipped(.cancelled)` (reasonKey "Stopped before it was moved", đã có ở 9 bảng). UI: nút "Dừng" khi `store.isTrashing`, gọi `store.cancelTrash()`.
 
 - ✅ **Đã có (P2/F04, Folder Drill)** — C7 `merged` (xem trên): `squarifiedLayout` + `treemapNodes(for:)`; metadata: `DirLevel.unlistedBytes/unlistedCount` (ô riêng `treemapUnlistedID`), `ChildEntry.unreadable` + `DirLevel.unreadableChildren` (đo được một phần), `DirLevel.rootErrno` (cấp không đọc được).

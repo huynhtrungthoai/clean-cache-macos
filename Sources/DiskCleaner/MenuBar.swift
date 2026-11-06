@@ -63,10 +63,36 @@ final class MenuBar: NSObject {
             menu.addItem(Self.info(LF("%@ free", human(u.available))))
         }
         menu.addItem(.separator())
+        let system = ProcessInfo.processInfo
+        menu.addItem(Self.info(LF("Installed RAM: %@", human(Int64(system.physicalMemory)))))
+        menu.addItem(Self.info(LF("Processor: %d logical cores", system.processorCount)))
+        let version = system.operatingSystemVersion
+        menu.addItem(Self.info("macOS \(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"))
+        menu.addItem(Self.info(LF("Thermal state: %@", thermalStateText)))
+        menu.addItem(.separator())
         let open = NSMenuItem(title: Product.name, action: #selector(focusMain), keyEquivalent: "")
         open.target = self
         open.isEnabled = true
         menu.addItem(open)
+        let quit = NSMenuItem(title: LF("Quit %@", Product.name), action: #selector(quitApp), keyEquivalent: "q")
+        quit.target = self
+        quit.isEnabled = true
+        menu.addItem(quit)
+    }
+
+    // macOS thermal pressure is qualitative, not a temperature sensor reading.
+    private var thermalStateText: String {
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: return L("Nominal")
+        case .fair: return L("Elevated")
+        case .serious: return L("Serious")
+        case .critical: return L("Critical")
+        @unknown default: return L("Unknown")
+        }
+    }
+
+    @objc private func quitApp() {
+        NSApp.terminate(nil)
     }
 
     private static func info(_ text: String) -> NSMenuItem {

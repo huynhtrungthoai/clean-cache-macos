@@ -39,15 +39,13 @@ struct BigFilesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "doc.on.doc", title: L("Large Files"),
                            subtitle: L("Sorted by size, largest first"),
-                           variant: .display, scope: model.scopeNote ?? model.scope.uiName)
+                           variant: .compact)
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("Going through your folders…"), progress: model.progress)
-                    } else {
-                        Text(LF("Found %@", cnt(model.count, "files")))
                     }
                     if let note = model.scopeNote {
 
@@ -67,14 +65,14 @@ struct BigFilesView: View {
                     ThemeStepper(label: L("Top"), value: $model.limit, range: 10...200, step: 10) {
                         model.applyLimit()
                     }
-                    ScanControl(scanning: model.scanning,
+                    ScanControl(scanning: model.scanning, kind: .compact,
                                 rescan: { model.rescan(scope: store.scope) },
                                 stop: { model.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.rescan(scope: store.scope) })
 
@@ -88,7 +86,7 @@ struct BigFilesView: View {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(model.rows.count), detail: uiHuman(listedTotal), symbol: "doc.on.doc"),
                     .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
                 if let note = ledgerNote { ListNote(text: note) }
                 List($model.rows) { $r in
                     ItemRow(selected: $r.selected,
@@ -177,14 +175,17 @@ struct OldFilesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
 
                 PageHeader(symbol: "clock", title: L("Files not modified recently"),
-                           subtitle: L("Modification dates do not indicate whether a file is still used."),
-                           variant: .display,
-                           wrapsControls: true, scope: model.scope.uiName) {
+                           subtitle: L("Modification dates do not indicate whether a file is still used."))
+                ControlStrip {
                     ThemeBadge(text: LF("Scope: %@", model.scope.uiName),
                                tone: .neutral, symbol: "scope")
+                    if model.scanning {
+                        LoadingRow(text: L("Looking for files that gathered dust…"), progress: model.progress)
+                    }
+                } trailing: {
                     ThemeSwitch(label: L("Skip dev folders"), isOn: $model.skipDev) {
                         model.scan(scope: store.scope)
                     }
@@ -192,27 +193,14 @@ struct OldFilesView: View {
                                  value: $model.days, range: 30...365, step: 30) {
                         model.scan(scope: store.scope)
                     }
-                    ScanControl(scanning: model.scanning,
+                    ScanControl(scanning: model.scanning, kind: .compact,
                                 rescan: { model.scan(scope: store.scope) },
                                 stop: { model.stop() })
                 }
-
-                Group {
-                    if model.scanning {
-                        LoadingRow(text: L("Looking for files that gathered dust…"), progress: model.progress,
-                                   fillsRow: true)
-                    } else {
-                        Text(LF("%1$@, %2$@ in total", cnt(model.rows.count, "files"),
-                                uiHuman(model.totalBytes)))
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .font(theme.bodyFont(.callout))
-                .foregroundStyle(theme.palette.inkSecondary)
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan(scope: store.scope) })
 
@@ -226,7 +214,7 @@ struct OldFilesView: View {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(model.rows.count), detail: uiHuman(model.totalBytes), symbol: "doc.on.doc"),
                     .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
                 if let note = ledgerNote { ListNote(text: note) }
                 List($model.rows) { $r in
                     ItemRow(selected: $r.selected,
@@ -291,7 +279,7 @@ struct OldFilesView: View {
             return LF(" Showing the %2$d largest of the %1$@ found — the rest are smaller than the smallest row here.",
                       String(model.count), model.rows.count)
         }
-        return L(" Every row on this page is on screen: add this column and you land on the header's number.")
+        return nil
     }
 
     private var verdictNote: String? { fileVerdictNote(model.rows, ruler: model.totalBytes) }

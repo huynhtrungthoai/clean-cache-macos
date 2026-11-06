@@ -46,7 +46,7 @@ struct MenuBarLaunchView: View {
     private var switches: some View {
         VStack(spacing: 0) {
             SwitchLine(title: L("Show free space in the menu bar"),
-                       note: L("It only asks the volume how much is left — no disk scan, no reading your files · on by default"),
+                       note: L("Shows free disk space, installed RAM, processor cores, macOS and thermal state — no file scan"),
                        isOn: Binding(get: { prefs.menuBarEnabled },
                                      set: { prefs.setMenuBar($0) }))
             Divider().overlay(theme.palette.separator)
@@ -103,7 +103,7 @@ struct MenuBarLaunchView: View {
     }
 
     private var footnote: some View {
-        Text(L("These two switches are the whole page. Scan scope, unit basis and language come when there’s a real need for them."))
+        Text(L("Thermal state is reported by macOS; it is not a temperature in degrees. Quit CleanPilot from its menu bar menu."))
             .font(theme.bodyFont(.caption))
             .foregroundStyle(theme.palette.inkTertiary)
             .fixedSize(horizontal: false, vertical: true)

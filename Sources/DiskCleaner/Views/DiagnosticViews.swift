@@ -19,10 +19,10 @@ struct CrashDumpsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "ladybug", title: L("Crash dumps"),
                            subtitle: L("Records left behind by crashes — pile up long enough and they become an incident"),
-                           variant: .display)
+                           variant: .compact)
                 ControlStrip {
                     if hub.scanning {
                         LoadingRow(text: L("Looking for crash dumps in application data…"))
@@ -32,21 +32,21 @@ struct CrashDumpsView: View {
                         Text(LF("%1$@, %2$@ in total", cnt(hub.hits.count, "apps"), uiHuman(hub.totalBytes)))
                     }
                 } trailing: {
-                    ScanControl(scanning: hub.scanning,
+                    ScanControl(scanning: hub.scanning, kind: .compact,
                                 rescan: { hub.discover(force: true) },
                                 stop: { hub.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: hub, lastTrashAt: store.lastTrashAt, rescan: { hub.discover(force: true) })
 
             if !hub.scanning && hub.started {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(hub.hits.count), detail: uiHuman(hub.totalBytes), symbol: "ladybug")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
             }
 
             if !hub.hits.isEmpty {
@@ -210,10 +210,10 @@ struct DiagReportsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "stethoscope", title: L("System diagnostics reports"),
                            subtitle: L("Logs the system writes to troubleshoot, kept to locate problems"),
-                           variant: .display)
+                           variant: .compact)
                 ControlStrip {
                     if hub.scanning {
                         LoadingRow(text: L("Reading the diagnostics reports folder…"))
@@ -221,21 +221,21 @@ struct DiagReportsView: View {
                         Text(LF("%1$@, %2$@ in total", cnt(hub.reports.count, "files"), uiHuman(hub.reportBytes)))
                     }
                 } trailing: {
-                    ScanControl(scanning: hub.scanning,
+                    ScanControl(scanning: hub.scanning, kind: .compact,
                                 rescan: { hub.discover(force: true) },
                                 stop: { hub.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: hub, lastTrashAt: store.lastTrashAt, rescan: { hub.discover(force: true) })
 
             if !hub.scanning && hub.started {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(hub.reports.count), detail: uiHuman(hub.reportBytes), symbol: "stethoscope")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
             }
 
             if hub.scanning && hub.reports.isEmpty {
@@ -307,10 +307,10 @@ struct ObservationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
                 PageHeader(symbol: "eye", title: L("Observation"),
                            subtitle: L("Everything you can see but not delete lives here"),
-                           variant: .display)
+                           variant: .compact)
                 ControlStrip {
                     if hub.scanning {
                         LoadingRow(text: L("Looking for crash dumps in application data…"))
@@ -318,21 +318,21 @@ struct ObservationView: View {
                         Text(LF("%@ total", cnt(hub.observation.count, "items")))
                     }
                 } trailing: {
-                    ScanControl(scanning: hub.scanning,
+                    ScanControl(scanning: hub.scanning, kind: .compact,
                                 rescan: { hub.discover(force: true) },
                                 stop: { hub.stop() })
                 }
             }
             .pagePadding()
-            .padding(.top, 14)
-            .padding(.bottom, 12)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
 
             ScanStatusView(model: hub, lastTrashAt: store.lastTrashAt, rescan: { hub.discover(force: true) })
 
             if !hub.scanning && hub.started {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(hub.observation.count), detail: L("Read-only"), symbol: "eye")
-                ]).pagePadding().padding(.bottom, 12)
+                ]).pagePadding().padding(.bottom, 6)
             }
             List(hub.observation) { item in
                 ItemRow(selected: .constant(false),
