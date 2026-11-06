@@ -474,7 +474,7 @@ Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in
 - **P1, Tổng quan/Folder Drill/node_modules/Docker/Chẩn đoán** — Các model hiện chưa conform `ScanStatusReporting`; cần vòng đời, thời điểm, issues và stale thật để UI hiển thị đủ §6 mà không tự tạo state quét trong View.
 - **P1, công cụ dùng lịch sử cũ** — Cần `trashPlan`/executor/receipt theo lô cho Folder Drill, node_modules và Chẩn đoán (gồm trim), `FolderDrillModel.selectAll` và policy bulk-selectable cho NMModel; hiện UI chỉ chuẩn hóa hiển thị, giữ nguyên đường thao tác cũ theo phạm vi Giai đoạn B. Lịch sử cũ được tách riêng, không gán batch ID giả.
 
-- **P0, QA chuyển/hoàn tác** — Với `DISKWISE_HOME_SHIM`, `trashItem` vẫn chuyển fixture vào Thùng rác thật nhưng `trashRoots()` chỉ nhận Thùng rác của home giả, nên `undo` trả `.refused`; cần điểm tiêm executor/Trash root dành cho bản dev để kiểm thử end-to-end trong cây tạm mà không mở rộng gate ở View.
+- ✅ **Đã có (P0, QA chuyển/hoàn tác)** — Bản dev (`swift run`/`DEV_HOOKS=1`) có `DISKWISE_HOME_SHIM`: `trashItem` thật chuyển vào `<home giả>/.Trash` (tên không ghi đè), khớp `trashRoots()`, nên luồng chuyển → `store.undo` chạy trọn trong cây tạm; Thùng rác thật không bị đụng. `devShimTrashDir()` cho biết đường dẫn (nil ở bản release). SelfTest "QA:" chạy trọn vòng không tiêm executor.
 - **P1, các trang File lớn/cũ/trùng/còn sót** — Cần trả `issues` thật từ bộ duyệt cho root thiếu quyền/lỗi; UI đã hiển thị C2/C5, hiện các model này vẫn trả mảng rỗng theo giới hạn contract.
 
 Codex ghi yêu cầu API còn thiếu ở đây (một dòng mỗi yêu cầu: màn hình, dữ liệu/hành động cần, ưu tiên).

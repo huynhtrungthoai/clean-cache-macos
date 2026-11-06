@@ -663,11 +663,30 @@ public enum TrashError: Error {
     }
 }
 
+/// `<DISKWISE_HOME_SHIM>/.Trash` in dev-hook builds with a fake home; nil otherwise (always nil
+/// in release builds, where `envString` ignores DISKWISE_*). With a fake home, `trashRoots()`
+/// only accepts the fake home's Trash, so moves must land there for undo to be testable.
+public func devShimTrashDir() -> URL? {
+    guard devHooksEnabled, !envString("DISKWISE_HOME_SHIM").isEmpty else { return nil }
+    return homeDir().appendingPathComponent(".Trash", isDirectory: true)
+}
+
 public func trashItem(_ url: URL) throws -> URL {
     switch deletionGate(url) {
     case .protected?: throw TrashError.protected(url.path)
     case .outsideAllowed?: throw TrashError.outsideAllowed(url.path)
     case nil: break
+    }
+    if let fakeTrash = devShimTrashDir() {
+        // Dev/QA only: keep the whole move → restore round trip inside the fake home tree.
+        do {
+            try FileManager.default.createDirectory(at: fakeTrash, withIntermediateDirectories: true)
+            let dst = nonClobberingDestination(for: fakeTrash.appendingPathComponent(url.lastPathComponent))
+            try FileManager.default.moveItem(at: url, to: dst)
+            return dst
+        } catch {
+            throw TrashError.failed(error.localizedDescription)
+        }
     }
     var out: NSURL?
     do {

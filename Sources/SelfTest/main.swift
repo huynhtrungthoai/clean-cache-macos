@@ -2502,7 +2502,23 @@ do {
     let b3 = executeTrashPlan([TrashPlanItem(url: f("big/b.bin"), bytes: 4)], source: "selftest", trash: fakeTrash)
     if case let .moved(inTrash, _, _)? = b3.entries.first?.outcome { try? fm.removeItem(atPath: inTrash) }
     check(restoreBatch(b3).entries.first?.restore == .goneFromTrash, "C1: emptied Trash reports gone, not failed")
+    // QA: with a fake home, the REAL trashItem (no injection) moves into <fake home>/.Trash,
+    // so a dev build can test move → undo end to end without touching the real Trash.
+    check(devShimTrashDir()?.path == trashDir.path, "QA: dev shim Trash is <fake home>/.Trash")
+    make("e2e/report.pdf", "real path"); make("e2e/clash.pdf", "1")
+    let realBatch = executeTrashPlan([TrashPlanItem(url: f("e2e/report.pdf"), bytes: 9),
+                                      TrashPlanItem(url: f("e2e/clash.pdf"), bytes: 1)], source: "selftest")
+    let landed = realBatch.entries.compactMap { e -> String? in
+        if case let .moved(inTrash, _, _) = e.outcome { return inTrash }; return nil
+    }
+    check(landed.count == 2 && landed.allSatisfy { $0.hasPrefix(trashDir.path + "/") && isInsideTrash($0) },
+          "QA: real trashItem lands inside the fake home's Trash (\(landed))")
+    let realUndo = restoreBatch(realBatch)
+    check(realUndo.entries.allSatisfy { if case .restored = $0.restore { return true }; return false }
+          && fm.fileExists(atPath: f("e2e/report.pdf").path),
+          "QA: undo of a real-trashItem batch restores in the fake home")
     unsetenv("DISKWISE_HOME_SHIM")
+    check(devShimTrashDir() == nil, "QA: no fake home → real Trash (no shim Trash)")
     try? fm.removeItem(at: root)
 }
 
