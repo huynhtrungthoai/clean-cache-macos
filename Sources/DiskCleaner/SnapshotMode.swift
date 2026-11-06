@@ -866,7 +866,7 @@ enum SnapshotMode {
     /// 连拍剧本（`DISKWISE_FILM`）。每一拍按的都是页面上那些控件自己的 action：
     /// 摊开走账目行行首那颗 `▸` 的同一条 `openChildDrill`／`openDrill`，
     /// 上膛与真搬走的是弧上 `onTapGesture` 的同一条 `tapArc`，
-    /// 放回走废纸篓页那颗「撤销」的同一条 `undoLast`。没有一帧是另画出来的假界面。
+    /// 放回走提示条那颗「撤销」的同一条 `undoLastBatch`。没有一帧是另画出来的假界面。
     ///
     /// ②③ 之间那段 `waitSettled` 不落帧：整盘那一趟要走上百 G，中间全是重复帧，
     /// 拼进 GIF 只会白占体积。
@@ -944,25 +944,30 @@ enum SnapshotMode {
             .data(using: .utf8)!)
     }
 
-    /// 把这一趟搬走的东西全部放回原处，返回放回了几处。
+    /// Puts back everything moved during this capture run and returns how many items came back.
     ///
-    /// 一条弧名下有几处就记几条账，而 `undoLast` 一次只 `popLast` 一条：只撤一次的话，
-    /// 演示树会凭空少掉几处（下一趟的账跟着变，而环形恒等式照样自洽，没人看得出来），
-    /// 而且那些目录是真的躺在 `~/.Trash` 里。
-    /// 撤失败时 `undoLast` 会把那条记录原样塞回，计数不变 —— 那就是出口，不用另设上限。
+    /// Goes through `undoLastBatch()`, the same path as the notice bar's Undo (and the Trash
+    /// page's `undo(batchID:)` validation), one batch at a time, newest first, pumping the run
+    /// loop while each restore runs. Each batch is tried once: a batch whose items cannot come
+    /// back stays undoable, and retrying it would loop forever.
     @MainActor
     private static func restoreAllMoved(_ store: AppStore) -> Int {
-        var passes = 0
-        while !store.trashHistory.isEmpty {
-            let before = store.trashHistory.count
-            let said = store.undoLast()
-            if store.trashHistory.count == before {
-                FileHandle.standardError.write("    ↺ 停在这里：\(said)\n".data(using: .utf8)!)
-                break
+        final class Box { var said: String? }
+        var restored = 0
+        var tried = Set<UUID>()
+        while let id = store.lastUndoableBatchID, !tried.contains(id) {
+            tried.insert(id)
+            let before = store.batches.first { $0.id == id }?.restorable.count ?? 0
+            let box = Box()
+            Task { @MainActor in box.said = await store.undoLastBatch() }
+            while box.said == nil { pump(0.05) }
+            let after = store.batches.first { $0.id == id }?.restorable.count ?? 0
+            restored += before - after
+            if after > 0 {
+                FileHandle.standardError.write("    ↺ stopped here: \(box.said ?? "")\n".data(using: .utf8)!)
             }
-            passes += 1
         }
-        return passes
+        return restored
     }
 
     /// 走不走窗口服务器的合成路径，由 `run` 开头探一次决定。

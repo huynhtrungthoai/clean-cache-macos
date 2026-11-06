@@ -388,15 +388,33 @@ final class AppStore: ObservableObject {
         return top.panel.title
     }
 
-    func undoLast() -> String {
-        guard let last = trashHistory.popLast() else { return L("Nothing to undo") }
-        do {
-            try untrash(last)
-            return LF("Restored: %@", last.displayName)
-        } catch {
-            trashHistory.append(last)
-            return LF("Undo failed: %@", error.localizedDescription)
+    /// Start of this app session. The notice bar's Undo only reaches batches made since then,
+    /// like the in-memory history it replaced.
+    private let sessionStart = Date()
+
+    /// Newest batch from this session that still has items to put back (notice bar Undo).
+    var lastUndoableBatchID: UUID? {
+        batches.first { $0.createdAt >= sessionStart && !$0.restorable.isEmpty }?.id
+    }
+
+    /// Notice bar Undo: restores the newest undoable batch of this session through
+    /// `undo(batchID:)` (same validation as the Trash page) and returns the message to show.
+    func undoLastBatch() async -> String {
+        guard !isTrashing, let id = lastUndoableBatchID,
+              let before = batches.first(where: { $0.id == id }) else { return L("Nothing to undo") }
+        let tried = Set(before.restorable.map(\.id))
+        guard let after = await undo(batchID: id) else { return L("Nothing to undo") }
+        let attempted = after.entries.filter { tried.contains($0.id) }
+        let restored = attempted.filter { if case .restored = $0.restore { return true }; return false }
+        let failed = attempted.filter { e in
+            guard let r = e.restore else { return false }
+            if case .restored = r { return false }
+            return true
         }
+        if let first = failed.first?.restore {
+            return LF("Still couldn't restore %1$d locations: %2$@", failed.count, L(first.reasonKey))
+        }
+        return LF("Undid this move; restored %d locations", restored.count)
     }
 
     func clearHistory() {

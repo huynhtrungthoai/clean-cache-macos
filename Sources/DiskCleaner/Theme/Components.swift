@@ -3158,8 +3158,9 @@ struct NoticeBar: View {
                     .foregroundStyle(theme.palette.ink)
                     .lineLimit(2)
                 Spacer(minLength: 10)
-                if !store.trashHistory.isEmpty {
-                    Button(L("Undo")) { store.notice = store.undoLast() }
+                if store.lastUndoableBatchID != nil {
+                    Button(L("Undo")) { Task { store.notice = await store.undoLastBatch() } }
+                        .disabled(store.isTrashing)
                         .buttonStyle(.plain)
                         .font(theme.bodyFont(.callout).weight(.semibold))
                         .foregroundStyle(theme.palette.tint)
