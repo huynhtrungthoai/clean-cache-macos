@@ -467,6 +467,9 @@ Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in
 
 ### Requests — yêu cầu từ UI
 
+- **P0, QA chuyển/hoàn tác** — Với `DISKWISE_HOME_SHIM`, `trashItem` vẫn chuyển fixture vào Thùng rác thật nhưng `trashRoots()` chỉ nhận Thùng rác của home giả, nên `undo` trả `.refused`; cần điểm tiêm executor/Trash root dành cho bản dev để kiểm thử end-to-end trong cây tạm mà không mở rộng gate ở View.
+- **P1, các trang File lớn/cũ/trùng/còn sót** — Cần trả `issues` thật từ bộ duyệt cho root thiếu quyền/lỗi; UI đã hiển thị C2/C5, hiện các model này vẫn trả mảng rỗng theo giới hạn contract.
+
 Codex ghi yêu cầu API còn thiếu ở đây (một dòng mỗi yêu cầu: màn hình, dữ liệu/hành động cần, ưu tiên).
 
 - ✅ **Đã có (C1 + C2, C4)** — Cache, File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót, Gỡ ứng dụng: cần API model/store thực hiện kế hoạch đã xác nhận, chạy ngoài main thread, chặn thao tác lặp, kiểm tra lại file/bản giữ, cập nhật model và trả kết quả từng mục (đã chuyển/bỏ qua/thất bại); P0, trước khi nối nút chuyển vào Thùng rác. C0 hiện chỉ tách model, các thao tác cũ vẫn nằm trong View.

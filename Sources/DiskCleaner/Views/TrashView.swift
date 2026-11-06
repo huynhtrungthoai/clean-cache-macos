@@ -47,6 +47,7 @@ struct TrashView: View {
             footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .buttonStyle(.borderless)
         .onAppear { model.refresh() }
         .onChange(of: store.lastTrashAt) { _ in model.refresh() }
         .sheet(item: $result) { batch in BatchResultSheet(batch: batch).themed(theme) }
