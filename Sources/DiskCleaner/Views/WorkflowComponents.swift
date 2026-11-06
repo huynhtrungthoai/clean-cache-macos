@@ -125,6 +125,7 @@ struct TrashReviewSheet: View {
     var busy = false
     var busyText = L("Moving to Trash…")
     var dismissOnConfirm = true
+    var stop: (() -> Void)? = nil
     var confirm: (() -> Void)? = nil
 
     var body: some View {
@@ -160,6 +161,8 @@ struct TrashReviewSheet: View {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text(busyText).font(theme.bodyFont(.callout))
+                    Spacer()
+                    if let stop { Button(L("Stop"), action: stop) }
                 }.accessibilityElement(children: .combine)
             }
             if confirm == nil {
@@ -268,7 +271,7 @@ struct ConfirmedTrashSheet: View {
     var body: some View {
         TrashReviewSheet(items: plan.map(TrashReviewItem.init),
                          bytes: uiHuman(plan.reduce(0) { $0 + $1.bytes }),
-                         busy: store.isTrashing, dismissOnConfirm: false) {
+                         busy: store.isTrashing, dismissOnConfirm: false, stop: { store.cancelTrash() }) {
             guard plan == currentPlan() else { changed = true; return }
             Task { if let batch = await perform() { completed(batch) } }
         }

@@ -377,7 +377,8 @@ private struct UninstallConfirmationSheet: View {
                          consequence: L("The app and selected private data will move to the Trash. Shared data is excluded."),
                          busy: store.isTrashing || quitting,
                          busyText: quitting ? L("Waiting for the app to quit…") : L("Moving to Trash…"),
-                         dismissOnConfirm: false) {
+                         dismissOnConfirm: false,
+                         stop: store.isTrashing ? { store.cancelTrash() } : nil) {
             Task { await performUninstall() }
         }
         .alert(LF("%@ is running. Quit it and uninstall?", model.current?.name ?? ""), isPresented: $quitPrompt) {
