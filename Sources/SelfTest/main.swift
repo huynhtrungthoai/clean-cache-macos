@@ -2480,6 +2480,18 @@ do {
     check(preflight(TrashPlanItem(url: f("big/a.bin"), bytes: 1, expected: snap("big/a.bin"))) == nil,
           "C2: unchanged file passes preflight")
     check(preflight(TrashPlanItem(url: f("Documents"), bytes: 1)) == .protected, "C2: protected folder is skipped")
+    // Trim: the file must still be the inode seen at preview time.
+    make("dumps/a.dmp", "dump")
+    var idst = stat(); _ = lstat(f("dumps/a.dmp").path, &idst)
+    let ident = FileIdentity(dev: Int(idst.st_dev), ino: Int(idst.st_ino))
+    check(preflight(TrashPlanItem(url: f("dumps/a.dmp"), bytes: 4, expectedIdentity: ident)) == nil,
+          "trim: same inode passes preflight")
+    try? fm.removeItem(at: f("dumps/a.dmp")); make("dumps/pad.bin", "keep the old inode busy"); make("dumps/a.dmp", "dump")
+    check(preflight(TrashPlanItem(url: f("dumps/a.dmp"), bytes: 4, expectedIdentity: ident)) == .changedSinceScan,
+          "trim: a file swapped in under the same name is skipped")
+    let legacyJSON = #"{"path":"/x","name":"x","bytes":1,"critical":false}"#
+    check((try? JSONDecoder().decode(TrashPlanItem.self, from: Data(legacyJSON.utf8)))?.expectedIdentity == nil,
+          "trim: history written before expectedIdentity still decodes")
     check(preflight(TrashPlanItem(url: f("dup/extra.bin"), bytes: 1, keptCopy: f("dup/missing.bin"))) == .keptCopyMissingOrChanged,
           "C2: duplicate whose kept copy is gone is skipped")
     // execute: moved / covered / skipped / critical abort

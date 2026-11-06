@@ -25,11 +25,44 @@ final class NMModel: ObservableObject, ScanStatusReporting {
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
     var totalBytes: Int64 { items.reduce(0) { $0 + $1.size } }
 
+    /// The folder a row stands for.
+    static func nodeModulesURL(_ p: NMProject) -> URL {
+        URL(fileURLWithPath: p.project).appendingPathComponent("node_modules")
+    }
+
+    /// Bulk selection follows `isBulkSelectable` on each project's node_modules folder.
     var selectAll: SelectAll? {
-        guard !items.isEmpty else { return nil }
-        return SelectAll(allSelected: items.allSatisfy(\.selected), unselectable: 0) { on in
-            for i in self.items.indices { self.items[i].selected = on }
+        let open = items.indices.filter { isBulkSelectable(Self.nodeModulesURL(items[$0])) }
+        guard !open.isEmpty else { return nil }
+        return SelectAll(allSelected: open.allSatisfy { items[$0].selected },
+                         unselectable: items.count - open.count) { on in
+            for i in open where i < self.items.count { self.items[i].selected = on }
+            if !on { for i in self.items.indices { self.items[i].selected = false } }
         }
+    }
+
+    // MARK: - C1/C2 trash API (docs/enhance-feat.md §11)
+
+    /// One item per selected project: its `node_modules` folder (rebuilt by the package
+    /// manager). Folders are re-checked by existence and the deletion gate.
+    func trashPlan() -> [TrashPlanItem] {
+        selected.map { p in
+            let u = Self.nodeModulesURL(p)
+            return TrashPlanItem(url: u, name: URL(fileURLWithPath: p.project).lastPathComponent + "/node_modules",
+                                 bytes: p.size)
+        }.filter { isReclaimableWhole($0.url) }
+    }
+
+    func trash(using store: AppStore) async -> TrashBatch? {
+        guard let batch = await store.runTrash(trashPlan(), source: "node-modules") else { return nil }
+        apply(batch)
+        return batch
+    }
+
+    /// Drops projects whose node_modules is gone, clears the selection.
+    func apply(_ batch: TrashBatch) {
+        items.removeAll { !FileManager.default.fileExists(atPath: Self.nodeModulesURL($0).path) }
+        for i in items.indices { items[i].selected = false }
     }
 
     func scan() {

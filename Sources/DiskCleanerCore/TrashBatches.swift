@@ -20,6 +20,17 @@ public struct FileSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+/// Device + inode of a file at preview time.
+public struct FileIdentity: Codable, Hashable, Sendable {
+    public let dev: UInt64
+    public let ino: UInt64
+    public init(dev: UInt64, ino: UInt64) { self.dev = dev; self.ino = ino }
+    /// From the `Int` dev/ino pair `TrimFile` records.
+    public init(dev: Int, ino: Int) {
+        self.dev = UInt64(bitPattern: Int64(dev)); self.ino = UInt64(bitPattern: Int64(ino))
+    }
+}
+
 /// One confirmed item of a plan. Exactly what the review sheet shows is what gets executed.
 public struct TrashPlanItem: Codable, Hashable, Sendable, Identifiable {
     public var id: String { path }
@@ -31,12 +42,16 @@ public struct TrashPlanItem: Codable, Hashable, Sendable, Identifiable {
     public var expected: FileSnapshot?
     /// Duplicates: the copy being kept must still exist with identical content.
     public var keptCopy: String?
+    /// When set, the path must still be this exact inode (crash-dump trim: a file swapped in
+    /// under the same name after the preview is skipped).
+    public var expectedIdentity: FileIdentity?
     /// When a critical item is not moved, every later item of the plan is skipped
     /// (uninstall: never move an app's data when its bundle stayed behind).
     public var critical: Bool
 
     public init(url: URL, name: String? = nil, bytes: Int64, expected: FileSnapshot? = nil,
-                keptCopy: URL? = nil, critical: Bool = false) {
+                keptCopy: URL? = nil, critical: Bool = false, expectedIdentity: FileIdentity? = nil) {
+        self.expectedIdentity = expectedIdentity
         self.path = url.path
         self.name = name ?? url.lastPathComponent
         self.bytes = bytes
@@ -148,6 +163,10 @@ public func preflight(_ item: TrashPlanItem) -> TrashSkipReason? {
     case .protected?: return .protected
     case .outsideAllowed?: return .outsideAllowed
     case nil: break
+    }
+    if let id = item.expectedIdentity,
+       UInt64(bitPattern: Int64(st.st_dev)) != id.dev || UInt64(st.st_ino) != id.ino {
+        return .changedSinceScan
     }
     if let e = item.expected {
         if Int64(st.st_blocks) * 512 != e.allocatedBytes || Int64(st.st_mtimespec.tv_sec) != e.mtimeSeconds {

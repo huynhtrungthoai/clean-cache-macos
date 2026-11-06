@@ -144,6 +144,51 @@ final class DiagnosticsHub: ObservableObject, ScanStatusReporting {
         reportSelection.subtract(ids)
     }
 
+    // MARK: - C1/C2 trash API (docs/enhance-feat.md §11)
+
+    /// Crash-dump folders of the selected hits (the four clean-target subfolders per host;
+    /// `settings.dat` and the folder skeleton stay). Measures each folder, so it is async:
+    /// build it once for the review sheet and pass the same array to `trashHits`.
+    func hitsTrashPlan() async -> [TrashPlanItem] {
+        guard let spec = CategoryRule.crashDumps.safeDeleteSpec else { return [] }
+        var plan: [TrashPlanItem] = []
+        for hit in selectedHits where hit.deletable {
+            for dir in spec.cleanTargets(under: URL(fileURLWithPath: hit.path))
+            where FileManager.default.fileExists(atPath: dir.path) {
+                let size = await dirSize(dir)
+                plan.append(TrashPlanItem(url: dir, name: "\(hit.host ?? hit.path)/Crashpad/\(dir.lastPathComponent)",
+                                          bytes: size))
+            }
+        }
+        return plan
+    }
+
+    /// Runs the reviewed plan from `hitsTrashPlan()`. Hits with at least one moved folder
+    /// leave the list.
+    func trashHits(_ plan: [TrashPlanItem], using store: AppStore) async -> TrashBatch? {
+        guard let batch = await store.runTrash(plan, source: "crash-dumps") else { return nil }
+        let movedPaths = batch.moved.map(\.item.path)
+        let cleaned = Set(hits.filter { h in movedPaths.contains { $0.hasPrefix(h.path + "/") } }.map(\.id))
+        removeHits(cleaned)
+        hitSelection.removeAll()
+        return batch
+    }
+
+    /// Selected diagnostic report files, each must still be the size measured.
+    func reportsTrashPlan() -> [TrashPlanItem] {
+        selectedReports.filter { isReclaimableWhole($0.url) }.map {
+            TrashPlanItem(url: $0.url, bytes: $0.size)
+        }
+    }
+
+    func trashReports(using store: AppStore) async -> TrashBatch? {
+        guard let batch = await store.runTrash(reportsTrashPlan(), source: "diagnostic-reports") else { return nil }
+        let gone = Set(reports.filter { !FileManager.default.fileExists(atPath: $0.url.path) }.map(\.id))
+        removeReports(gone)
+        reportSelection.removeAll()
+        return batch
+    }
+
     // MARK: 修剪三步流（PR-4）
 
     enum TrimState: Equatable {
@@ -187,6 +232,32 @@ final class DiagnosticsHub: ObservableObject, ScanStatusReporting {
             self.trim = .done(bytes: moved.reduce(0) { $0 + $1.bytes }, skipped: skipped, batchID: batchID)
             self.discover(force: true)
         }
+    }
+
+    /// The trim preview as a confirmed plan: every file must still be the same inode it was
+    /// at preview time. Empty unless `trim` is `.preview`.
+    func trimTrashPlan() -> [TrashPlanItem] {
+        guard case .preview(_, let plan) = trim else { return [] }
+        return plan.remove.map {
+            TrashPlanItem(url: $0.url, bytes: $0.size, expectedIdentity: FileIdentity(dev: $0.dev, ino: $0.ino))
+        }
+    }
+
+    /// Trim through the shared batch executor: off the main thread, cancellable
+    /// (`store.cancelTrash()`), per-item receipt, undo with `store.undo(batchID:)`.
+    /// `trim` ends as `.done(bytes:skipped:batchID:)` with `batchID` = the batch's UUID string.
+    func runTrim(using store: AppStore) async -> TrashBatch? {
+        let items = trimTrashPlan()
+        guard !items.isEmpty else { return nil }
+        trim = .running(done: 0, total: items.count)
+        guard let batch = await store.runTrash(items, source: "crash-dump-trim") else {
+            if case .running = trim { trim = nil }
+            return nil
+        }
+        trim = .done(bytes: batch.movedBytes, skipped: batch.skipped.count + batch.failed.count,
+                     batchID: batch.id.uuidString)
+        discover(force: true)
+        return batch
     }
 
     /// 第三步的「撤销整批」：废纸篓里的原路搬回。反馈就是行回来了——

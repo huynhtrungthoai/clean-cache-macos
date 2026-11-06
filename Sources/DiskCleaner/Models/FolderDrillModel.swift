@@ -122,6 +122,42 @@ final class FolderDrillModel: ObservableObject, ScanStatusReporting {
         }
     }
 
+    // MARK: - C1/C2 trash API (docs/enhance-feat.md §11)
+
+    /// Bulk selection: only rows `isBulkSelectable` allows (no dotfiles, no direct ~/Library
+    /// children); the rest must be ticked one by one and are reported as `unselectable`.
+    var selectAll: SelectAll? {
+        let open = rows.filter { isBulkSelectable($0.url) }
+        guard !open.isEmpty else { return nil }
+        return SelectAll(allSelected: open.allSatisfy { selected.contains($0.path) },
+                         unselectable: rows.count - open.count) { on in
+            if on { self.selected = Set(open.map(\.path)) } else { self.selected.removeAll() }
+        }
+    }
+
+    /// Selected rows the tool may touch, as a confirmed plan. Files must still match the size
+    /// and modification time measured; folders are re-checked by existence and the gate only
+    /// (their measured size is the whole subtree, not something lstat can compare).
+    func trashPlan() -> [TrashPlanItem] {
+        selectedEntries.filter { isReclaimableWhole($0.url) }.map { e in
+            let snap: FileSnapshot? = (!e.isDir && e.newest != nil)
+                ? FileSnapshot(allocatedBytes: e.size, mtime: e.newest!) : nil
+            return TrashPlanItem(url: e.url, name: e.name, bytes: e.size, expected: snap)
+        }
+    }
+
+    func trash(using store: AppStore) async -> TrashBatch? {
+        guard let batch = await store.runTrash(trashPlan(), source: "folder-drill") else { return nil }
+        apply(batch)
+        return batch
+    }
+
+    /// Clears the selection and re-measures this level (sizes and totals changed).
+    func apply(_ batch: TrashBatch) {
+        selected.removeAll()
+        reload()
+    }
+
     /// This strip is fully defined by `crumbChain` (it lives in Core and is self-checked); here we only handle
     /// "don't show an empty strip before entering any folder". Rules are documented there: each cell is that level itself,
     /// the home folder collapses to `~`, and the leftmost "Overview" cell isn't in this array.
