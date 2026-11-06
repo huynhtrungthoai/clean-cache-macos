@@ -57,6 +57,7 @@ public enum TrashSkipReason: String, Codable, Sendable {
     case outsideAllowed             // deletion gate: outside the allowed scope
     case coveredByEarlierItem       // inside a folder this batch already moved
     case prerequisiteFailed         // an earlier critical item was not moved
+    case cancelled                  // the user stopped the batch before this item
 
     /// English source text, look it up with `L()` in the UI.
     public var reasonKey: String {
@@ -68,6 +69,7 @@ public enum TrashSkipReason: String, Codable, Sendable {
         case .outsideAllowed: return "Outside the locations this app may clean"
         case .coveredByEarlierItem: return "Already moved with its parent folder"
         case .prerequisiteFailed: return "Not moved because the app itself was not moved"
+        case .cancelled: return "Stopped before it was moved"
         }
     }
 }
@@ -152,9 +154,12 @@ public func preflight(_ item: TrashPlanItem) -> TrashSkipReason? {
             return .changedSinceScan
         }
     }
-    if let kept = item.keptCopy,
-       !duplicateStillMatches(kept: URL(fileURLWithPath: kept), extra: item.url) {
-        return .keptCopyMissingOrChanged
+    if let kept = item.keptCopy {
+        switch duplicateContentCheck(kept: URL(fileURLWithPath: kept), extra: item.url) {
+        case .same: break
+        case .different: return .keptCopyMissingOrChanged
+        case .cancelled: return .cancelled
+        }
     }
     return nil
 }
@@ -163,6 +168,8 @@ public func preflight(_ item: TrashPlanItem) -> TrashSkipReason? {
 
 /// Runs a confirmed plan in order. Never throws: every item ends as moved / skipped / failed.
 /// Synchronous and blocking; call it off the main thread (`AppStore.runTrash` does).
+/// Cancelling the calling Task stops it between items (and inside a duplicate compare): what
+/// was already moved stays moved and recorded, the rest ends as `.skipped(.cancelled)`.
 public func executeTrashPlan(_ items: [TrashPlanItem], source: String, now: Date = Date(),
                              trash: (URL) throws -> URL = trashItem) -> TrashBatch {
     var entries: [TrashBatchEntry] = []
@@ -174,10 +181,11 @@ public func executeTrashPlan(_ items: [TrashPlanItem], source: String, now: Date
         guard seen.insert(key).inserted else { continue }
         func add(_ o: TrashOutcome) { entries.append(TrashBatchEntry(item: item, outcome: o, restore: nil)) }
         if abortRest { add(.skipped(.prerequisiteFailed)); continue }
+        if Task.isCancelled { add(.skipped(.cancelled)); continue }
         if movedRoots.contains(where: { key.hasPrefix($0 + "/") }) { add(.skipped(.coveredByEarlierItem)); continue }
         if let reason = preflight(item) {
             add(.skipped(reason))
-            if item.critical { abortRest = true }
+            if item.critical && reason != .cancelled { abortRest = true }
             continue
         }
         var st = stat()

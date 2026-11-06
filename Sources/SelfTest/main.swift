@@ -122,6 +122,47 @@ do {
     check(!duplicateStillMatches(kept: kept, extra: extra), "P0-8：kept copy gone since scan → refuse")
     try? FileManager.default.removeItem(at: d)
 }
+
+// F03: files above 64 MB are compared in full, so an edit in the middle is caught; the compare
+// and the batch stop when the Task is cancelled.
+do {
+    let fm = FileManager.default
+    let d = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("dw-bigdup-\(UUID().uuidString)")
+    try? fm.createDirectory(at: d, withIntermediateDirectories: true)
+    let kept = d.appendingPathComponent("kept.bin"), extra = d.appendingPathComponent("extra.bin")
+    var blob = Data(repeating: 0x5A, count: 70 << 20)
+    try? blob.write(to: kept)
+    try? blob.write(to: extra)
+    check(duplicateContentCheck(kept: kept, extra: extra) == .same, "F03：identical 70 MB copies match")
+    blob[35 << 20] = 0x00                      // same size, same head and tail, middle differs
+    try? blob.write(to: kept)
+    check(duplicateContentCheck(kept: kept, extra: extra) == .different,
+          "F03：70 MB kept copy edited in the middle → refuse")
+    let item = TrashPlanItem(url: extra, bytes: Int64(blob.count), keptCopy: kept)
+    try? blob.write(to: extra)                 // identical again
+
+    // Cancelled before / during: compare reports .cancelled, executor moves nothing.
+    let semC = DispatchSemaphore(value: 0)
+    var cmp: ContentMatch = .same
+    var batch: TrashBatch? = nil
+    var trashCalls = 0
+    let t = Task.detached {
+        withUnsafeCurrentTask { $0?.cancel() }
+        cmp = duplicateContentCheck(kept: kept, extra: extra)
+        let other = d.appendingPathComponent("other.bin")
+        try? Data([1]).write(to: other)
+        batch = executeTrashPlan([item, TrashPlanItem(url: other, bytes: 1)], source: "selftest",
+                                 trash: { u in trashCalls += 1; return u })
+        semC.signal()
+    }
+    semC.wait()
+    _ = t
+    check(cmp == .cancelled, "F03：a cancelled Task stops the content compare")
+    check(trashCalls == 0, "F03：a cancelled batch moves nothing")
+    check(batch?.entries.count == 2 && batch?.entries.allSatisfy { $0.outcome == .skipped(.cancelled) } == true,
+          "F03：every item of a cancelled batch is skipped(.cancelled)")
+    try? fm.removeItem(at: d)
+}
 // 注：「没经授权面板就不该拿到访问权」这条在非沙盒里量不出来——
 // startAccessingSecurityScopedResource() 对没进沙盒的进程永远返回 true。
 

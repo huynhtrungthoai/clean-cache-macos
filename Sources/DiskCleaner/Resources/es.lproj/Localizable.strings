@@ -1302,3 +1302,4 @@
 /* UI workflow. */
 "Excluded shared data" = "Datos compartidos excluidos";
 "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "Acceso denegado. Revisa los permisos de la carpeta o Acceso total al disco en Ajustes del Sistema > Privacidad y seguridad y vuelve a analizar.";
+"Stopped before it was moved" = "Detenido antes de moverlo";

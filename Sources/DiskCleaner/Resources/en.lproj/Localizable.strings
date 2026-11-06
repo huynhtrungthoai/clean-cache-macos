@@ -1302,3 +1302,4 @@
 /* UI workflow. */
 "Excluded shared data" = "Excluded shared data";
 "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again.";
+"Stopped before it was moved" = "Stopped before it was moved";

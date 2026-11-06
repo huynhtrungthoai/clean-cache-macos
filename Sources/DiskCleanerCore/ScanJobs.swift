@@ -219,22 +219,51 @@ private func fullHash(_ url: URL) -> String? {
     return digest.finalize().map { String(format: "%02x", $0) }.joined()
 }
 
-/// P0-8: duplicate groups come from a scan that may be minutes or hours old. Right before an
-/// extra copy is trashed, verify that the copy being KEPT still exists as a regular file and
-/// still has the same content as the extra — otherwise the "extra" may now be the only copy
-/// (kept file moved / deleted / edited since the scan). Full hash up to 64 MB, the scan's
-/// head+tail partial hash above that (keeps the UI responsive on huge files).
-public func duplicateStillMatches(kept: URL, extra: URL) -> Bool {
+/// Result of comparing two files' contents right before a trash.
+public enum ContentMatch: Equatable, Sendable {
+    case same
+    case different          // includes: missing, not a regular file, size differs, unreadable
+    case cancelled          // the surrounding Task was cancelled mid-compare
+}
+
+/// Streams both files in 4 MB chunks and compares them byte for byte, stopping at the first
+/// difference. Checks `Task.isCancelled` between chunks so a large compare can be stopped.
+public func compareFileContents(_ a: URL, _ b: URL, chunk: Int = 4 << 20) -> ContentMatch {
+    guard let ha = try? FileHandle(forReadingFrom: a), let hb = try? FileHandle(forReadingFrom: b) else {
+        return .different
+    }
+    defer { try? ha.close(); try? hb.close() }
+    while true {
+        if Task.isCancelled { return .cancelled }
+        let ca: Data, cb: Data
+        do {
+            ca = try ha.read(upToCount: chunk) ?? Data()
+            cb = try hb.read(upToCount: chunk) ?? Data()
+        } catch { return .different }
+        if ca != cb { return .different }
+        if ca.isEmpty { return .same }
+    }
+}
+
+/// P0-8 / F03: duplicate groups come from a scan that may be minutes or hours old. Right before
+/// an extra copy is trashed, verify that the copy being KEPT still exists as a regular file and
+/// still has exactly the same content as the extra — otherwise the "extra" may now be the only
+/// copy (kept file moved / deleted / edited since the scan). Always the full content, any size:
+/// a head+tail check would miss an edit in the middle of a large file.
+public func duplicateContentCheck(kept: URL, extra: URL) -> ContentMatch {
     func regularSize(_ u: URL) -> Int64? {
         var st = stat()
         guard lstat(u.path, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG else { return nil }
         return Int64(st.st_size)
     }
     guard kept.standardizedFileURL.path != extra.standardizedFileURL.path,
-          let ks = regularSize(kept), let es = regularSize(extra), ks == es else { return false }
-    let hash: (URL) -> String? = ks <= 64 << 20 ? fullHash : partialHash
-    guard let hk = hash(kept), let he = hash(extra) else { return false }
-    return hk == he
+          let ks = regularSize(kept), let es = regularSize(extra), ks == es else { return .different }
+    return compareFileContents(kept, extra)
+}
+
+/// Bool form of `duplicateContentCheck`; a cancelled compare counts as "does not match".
+public func duplicateStillMatches(kept: URL, extra: URL) -> Bool {
+    duplicateContentCheck(kept: kept, extra: extra) == .same
 }
 
 /// 留哪一份看这个日期：修改时间，读不到退回创建时间，再读不到算最旧。

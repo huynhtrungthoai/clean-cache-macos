@@ -1302,3 +1302,4 @@
 /* UI workflow. */
 "Excluded shared data" = "Исключённые общие данные";
 "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "Нет доступа. Проверьте права папки или полный доступ к диску в Системных настройках > Конфиденциальность и безопасность и повторите сканирование.";
+"Stopped before it was moved" = "Остановлено до перемещения";

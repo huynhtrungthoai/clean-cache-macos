@@ -467,7 +467,7 @@ Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in
 
 ### Requests — yêu cầu từ UI
 
-- **P0/F03, File trùng** — Bước nhóm đã dùng `fullHash`, nhưng `duplicateStillMatches` trong `ScanJobs.swift` chỉ kiểm tra đầu/cuối khi file trên 64 MiB; cần xác minh toàn bộ nội dung ngay trước khi chuyển và hỗ trợ huỷ tác vụ hash. UI không tự thay thuật toán hay đặt ngưỡng mới; nghiệm thu thay đổi phần giữa sau quét còn chờ Core.
+- ✅ **Đã có (P0/F03, File trùng)** — `duplicateContentCheck(kept:extra:) -> ContentMatch` (.same/.different/.cancelled) so **toàn bộ nội dung từng byte** mọi kích thước (bỏ giới hạn 64 MiB); `preflight` dùng nó. Huỷ: `AppStore.cancelTrash()` dừng lô giữa các mục và giữa lúc so file lớn — mục đã chuyển giữ nguyên trong batch, phần còn lại là `.skipped(.cancelled)` (reasonKey "Stopped before it was moved", đã có ở 9 bảng). UI: nút "Dừng" khi `store.isTrashing`, gọi `store.cancelTrash()`.
 
 - **P2/F04, Folder Drill** — Đã dựng Canvas với hàng đã đo, dùng cùng selection/breadcrumb/danh sách; chờ C7 `merged` để thay bố cục chia ô tỷ lệ tạm bằng `squarifiedLayout`, giữ ID và số byte từ model. Cần metadata phần chưa liệt kê/không đọc được nếu muốn biểu diễn thành nhóm riêng, không tự cộng phần chưa đo vào diện tích có thể dọn.
 

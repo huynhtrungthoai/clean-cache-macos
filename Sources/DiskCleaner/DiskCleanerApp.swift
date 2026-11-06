@@ -257,13 +257,24 @@ final class AppStore: ObservableObject {
     /// moved with `trashItem` and reported as moved / skipped / failed. The batch is persisted
     /// and mirrored into `trashHistory` for the pages that still use it.
     /// Returns nil when another run is in progress or the plan is empty.
+    /// The running `runTrash` job, so `cancelTrash()` can stop it.
+    private var trashJob: Task<TrashBatch, Never>? = nil
+
+    /// Stops the running batch between items (or inside a long duplicate compare). Items
+    /// already moved stay moved and are in the returned batch; the rest are
+    /// `.skipped(.cancelled)`. No-op when nothing is running. Undo is not cancellable.
+    func cancelTrash() { trashJob?.cancel() }
+
     func runTrash(_ items: [TrashPlanItem], source: String) async -> TrashBatch? {
         guard !isTrashing, !items.isEmpty else { return nil }
         isTrashing = true
         defer { isTrashing = false }
-        let batch = await Task.detached(priority: .userInitiated) {
+        let job = Task.detached(priority: .userInitiated) {
             executeTrashPlan(items, source: source)
-        }.value
+        }
+        trashJob = job
+        let batch = await job.value
+        trashJob = nil
         batches.insert(batch, at: 0)
         for e in batch.moved {
             if case let .moved(inTrash, _, _) = e.outcome {

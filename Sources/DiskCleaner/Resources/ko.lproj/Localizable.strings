@@ -1302,3 +1302,4 @@
 /* UI workflow. */
 "Excluded shared data" = "제외된 공유 데이터";
 "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "접근이 거부되었습니다. 폴더 권한이나 시스템 설정 > 개인정보 보호 및 보안의 전체 디스크 접근 권한을 확인한 후 다시 검사하세요.";
+"Stopped before it was moved" = "이동하기 전에 중지됨";
