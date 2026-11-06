@@ -26,10 +26,19 @@ struct ScanStatusView: View {
                     }
                 }
                 if !model.issues.isEmpty {
-                    DisclosureGroup(LF("%d locations were not fully scanned", model.issues.count)) {
+                    if model.issues.contains(where: { $0.kind == .noPermission }) {
+                        Button(L("Grant access")) {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .help(L("Opens System Settings › Privacy & Security › Full Disk Access; restart CleanPilot once you've ticked it"))
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(LF("%d locations were not fully scanned", model.issues.count))
                         ScrollView {
                             VStack(alignment: .leading, spacing: 8) {
-                                ForEach(model.issues) { issue in
+                                ForEach(model.issues.prefix(3)) { issue in
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(issue.root).textSelection(.enabled)
                                         Text(issueReason(issue)).foregroundStyle(theme.palette.inkSecondary)
@@ -38,6 +47,17 @@ struct ScanStatusView: View {
                                 }
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }.frame(maxHeight: 100)
+                        if model.issues.count > 3 {
+                            DisclosureGroup(L("Details")) {
+                                ScrollView {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(model.issues.dropFirst(3)) { issue in
+                                            Text(issue.root + " · " + issueReason(issue)).textSelection(.enabled)
+                                        }
+                                    }.frame(maxWidth: .infinity, alignment: .leading)
+                                }.frame(maxHeight: 100)
+                            }
+                        }
                     }
                 }
             }
