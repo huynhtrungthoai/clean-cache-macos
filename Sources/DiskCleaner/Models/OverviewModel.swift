@@ -477,6 +477,7 @@ final class OverviewModel: ObservableObject, ScanStatusReporting {
     func openFirstClean() {
         disarm()
         cleanRun = nil
+        cleanBatchID = nil
         rebuildCleanCandidates()
         cleanStage = .candidates
     }
@@ -484,6 +485,7 @@ final class OverviewModel: ObservableObject, ScanStatusReporting {
     func closeFirstClean() {
         cleanStage = nil
         cleanRun = nil
+        cleanBatchID = nil
         cleanBusy = false
     }
 
@@ -606,6 +608,8 @@ final class OverviewModel: ObservableObject, ScanStatusReporting {
         usage.map { CostLedger(sums: costSumsBacking, total: $0.total) }
     }
 
+    /// Legacy (main thread, no preflight, old history): replaced by `trashClean(using:)`.
+    /// Removed once the Overview UI calls the batch API.
     /// 真搬。一条一条走 `trashItem`，失败留在 `failures` 里点名。
     ///
     /// 搬走的当场从候选池里去掉；失败的那些留在池里，用户可以再试一次。
@@ -650,6 +654,91 @@ final class OverviewModel: ObservableObject, ScanStatusReporting {
         cleanRun = run
         cleanBusy = false
         rebuildCleanCandidates()
+    }
+
+    // MARK: C1/C2: first clean through the shared batch executor (docs/enhance-feat.md §11)
+
+    /// Batch of the last first-clean run, for undo. nil before a run and after a full undo.
+    @Published private(set) var cleanBatchID: UUID? = nil
+
+    /// The confirmed plan for the confirm screen: exactly the selected candidates. The pool is
+    /// already free of parent/child overlap (`rebuildCleanCandidates`), so nothing is moved twice.
+    func cleanTrashPlan() -> [TrashPlanItem] {
+        cleanSelected.map { TrashPlanItem(url: $0.url, name: $0.name, bytes: $0.size) }
+    }
+
+    /// Runs the plan through `AppStore.runTrash`: every item re-checked (`preflight`), off the
+    /// main thread, cancellable with `store.cancelTrash()`, recorded as one batch.
+    /// Afterwards `cleanRun` is the receipt (built from the batch), `cleanBatchID` is set, the
+    /// moved ledger, pool and free space are updated. Stage: `.result` if anything moved,
+    /// otherwise stays on `.confirm` with `cleanRun.failures` saying why.
+    /// nil = not on the confirm screen, nothing selected, or another run in progress.
+    func trashClean(using store: AppStore) async -> TrashBatch? {
+        guard cleanStage == .confirm, !cleanBusy else { return nil }
+        let plan = cleanTrashPlan()
+        guard !plan.isEmpty else { return nil }
+        let before = usage?.available ?? 0
+        let picked = Dictionary(cleanSelected.map { ($0.path, $0) }, uniquingKeysWith: { a, _ in a })
+        cleanBusy = true
+        defer { cleanBusy = false }
+        guard let batch = await store.runTrash(plan, source: "first-clean") else { return nil }
+
+        var records: [TrashRecord] = []
+        var receipts: [CleanReceipt] = []
+        var failures: [CleanFailure] = []
+        for e in batch.entries {
+            let c = picked[e.item.path]
+            switch e.outcome {
+            case let .moved(inTrash, _, _):
+                records.append(TrashRecord(original: e.item.url, inTrash: URL(fileURLWithPath: inTrash),
+                                           size: e.item.bytes, displayName: e.item.name))
+                receipts.append(CleanReceipt(path: e.item.path, name: e.item.name, size: e.item.bytes,
+                                             tier: c?.tier ?? .safe, appID: c?.appID, brand: c?.brand))
+            case let .skipped(reason):
+                failures.append(CleanFailure(path: e.item.path, name: e.item.name, reason: L(reason.reasonKey)))
+            case let .failed(reasonKey, detail):
+                failures.append(CleanFailure(path: e.item.path, name: e.item.name,
+                                             reason: detail.isEmpty ? L(reasonKey) : "\(L(reasonKey)): \(detail)"))
+            }
+        }
+        cleanRun = CleanRun(records: records, receipts: receipts, failures: failures,
+                            bytes: batch.movedBytes, beforeAvailable: before)
+        cleanBatchID = records.isEmpty ? nil : batch.id
+        syncMoved(from: store)
+        rebuildCleanCandidates()
+        if !records.isEmpty { cleanStage = .result }
+        refreshUsage()
+        return batch
+    }
+
+    /// True when the last first-clean batch still has items to put back.
+    func canUndoClean(using store: AppStore) -> Bool {
+        cleanBatchID.map { store.canUndo(batchID: $0) } ?? false
+    }
+
+    /// Undo of the last first-clean batch through `store.undo(batchID:)` (each item validated:
+    /// still in the Trash, same inode, target in scope; a same-named item gets a new name).
+    /// If anything came back: back to the candidates with those re-selected. If nothing did:
+    /// stays on the result; the returned batch's `entries[].restore` says why per item.
+    func undoClean(using store: AppStore) async -> TrashBatch? {
+        guard let id = cleanBatchID, store.canUndo(batchID: id),
+              let batch = await store.undo(batchID: id) else { return nil }
+        let restored = Set(batch.entries.compactMap { e -> String? in
+            if case .restored = e.restore { return e.item.path }
+            return nil
+        })
+        syncMoved(from: store)
+        if !restored.isEmpty {
+            if batch.restorable.isEmpty { cleanBatchID = nil }
+            reopenCandidatesAfterUndo(restored)
+        }
+        refreshUsage()
+        return batch
+    }
+
+    /// The moved ledger (ring, "already moved" deductions) follows the store's history.
+    private func syncMoved(from store: AppStore) {
+        setMoved(store.trashHistory.map { ($0.original.path, $0.size) })
     }
 
     /// 撤销之后回到候选页，并把刚放回原处的那几处重新勾上。
