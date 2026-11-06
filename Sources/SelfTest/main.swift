@@ -108,6 +108,13 @@ do {
           "C9: bundle-ID folders + browser aliases; no Apple, denylisted, known, plain-named, hidden, file or symlink (\(rel))")
     check(found.first { $0.url.lastPathComponent == "Chrome" }?.bundleID == "com.google.Chrome",
           "C9: Google/Chrome is owned by com.google.Chrome")
+    let withRoot = discoverAppCaches(cachesDir: base, knownPaths: [base.path, base.deletingLastPathComponent().path,
+                                                                  base.appendingPathComponent("org.swift.swiftpm").path])
+    check(withRoot.map(\.url) == found.map(\.url),
+          "C9: a knowledge-base entry for the Caches folder itself (or above) does not hide the app folders")
+    let underGoogle = discoverAppCaches(cachesDir: base, knownPaths: [base.appendingPathComponent("Google").path])
+    check(!underGoogle.contains { $0.bundleID == "com.google.Chrome" },
+          "C9: an alias inside a known folder below Caches is left to that entry")
     let inside = discoverAppCaches(cachesDir: base, knownPaths: [base.appendingPathComponent("com.vendor.App/sub").path])
     check(!inside.contains { $0.url.lastPathComponent == "com.vendor.App" },
           "C9: a folder containing a knowledge-base path is left to that entry")

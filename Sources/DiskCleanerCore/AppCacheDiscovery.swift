@@ -49,7 +49,11 @@ public func discoverAppCaches(cachesDir: URL = homeDir().appendingPathComponent(
                               knownPaths: [String]) -> [DiscoveredAppCache] {
     let fm = FileManager.default
     let base = cachesDir.standardizedFileURL
+    // Only entries *inside* the Caches folder decide ownership. The knowledge base also has an
+    // entry for ~/Library/Caches itself ("Main cache folder", redo tier); counting that as a
+    // container would swallow every app folder (2026-11-06: one-click found 991 KB instead of 1.6 GB).
     let known = knownPaths.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+        .filter { $0.hasPrefix(base.path + "/") }
     func related(_ p: String) -> Bool {
         known.contains { $0 == p || $0.hasPrefix(p + "/") || p.hasPrefix($0 + "/") }
     }
