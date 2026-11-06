@@ -205,11 +205,8 @@ struct CachesView: View {
         .frame(maxWidth: .infinity)
 
         .onAppear { model.load() }
-        .sheet(item: $review) { review in
-            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
-                                perform: { await model.trash(using: store) })
-                .themed(theme)
-        }
+        .trashWorkflow(review: $review, currentPlan: { model.trashPlan() },
+                       perform: { await model.trash(using: store) })
     }
 
     private func cacheSize(_ item: CacheItem) -> String {
