@@ -41,6 +41,8 @@ struct CrashDumpsView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            ScanStatusView(model: hub, lastTrashAt: store.lastTrashAt, rescan: { hub.discover(force: true) })
+
             if !hub.scanning && hub.started {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(hub.hits.count), detail: uiHuman(hub.totalBytes), symbol: "ladybug")
@@ -261,6 +263,8 @@ struct DiagReportsView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            ScanStatusView(model: hub, lastTrashAt: store.lastTrashAt, rescan: { hub.discover(force: true) })
+
             if !hub.scanning && hub.started {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(hub.reports.count), detail: uiHuman(hub.reportBytes), symbol: "stethoscope")
@@ -359,6 +363,7 @@ struct DiagReportsView: View {
 /// 只读清单：能看见、动不了的东西。没有勾选框、没有清理条（设计稿屏⑦的交互红线）。
 /// 原因码与 agent 通道的拒绝词同源，同一件事在两个入口叫同一个名字。
 struct ObservationView: View {
+    @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var hub: DiagnosticsHub
     @State private var asking: ObservationItem? = nil
@@ -384,6 +389,8 @@ struct ObservationView: View {
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
+
+            ScanStatusView(model: hub, lastTrashAt: store.lastTrashAt, rescan: { hub.discover(force: true) })
 
             if !hub.scanning && hub.started {
                 SummaryCards(metrics: [

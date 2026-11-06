@@ -1303,3 +1303,5 @@
 "Excluded shared data" = "除外した共有データ";
 "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "アクセスできません。フォルダの権限、またはシステム設定 > プライバシーとセキュリティのフルディスクアクセスを確認して再スキャンしてください。";
 "Stopped before it was moved" = "移動する前に停止しました";
+
+"Unable to read this folder" = "このフォルダを読み取れません";

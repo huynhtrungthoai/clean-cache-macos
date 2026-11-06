@@ -71,6 +71,8 @@ struct NMView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan() })
+
             if model.scanning && model.items.isEmpty {
                 ScanChecklist(progress: model.progress)
             } else if !model.scanning && model.items.isEmpty {
@@ -349,6 +351,8 @@ struct DockerView: View {
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
+
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan() })
 
             if model.scanning && model.items.isEmpty {
                 ScanChecklist(progress: model.progress)

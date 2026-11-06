@@ -2006,6 +2006,8 @@ struct OverviewView: View {
                 .pagePadding()
             }
 
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.refresh(scope: store.scope) })
+
             scrollContent
             ToolFooter(text: L("Items move to the Trash. Free space may not increase until it is emptied.")) {
                 Button(L("App Caches")) { store.arrive(NavStop(panel: .caches)) }

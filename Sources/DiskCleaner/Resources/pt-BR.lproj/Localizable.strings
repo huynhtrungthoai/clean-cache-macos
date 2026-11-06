@@ -1303,3 +1303,5 @@
 "Excluded shared data" = "Dados compartilhados excluídos";
 "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "Acesso negado. Confira as permissões da pasta ou Acesso Total ao Disco em Ajustes do Sistema > Privacidade e Segurança e verifique novamente.";
 "Stopped before it was moved" = "Interrompido antes de ser movido";
+
+"Unable to read this folder" = "Não foi possível ler esta pasta";

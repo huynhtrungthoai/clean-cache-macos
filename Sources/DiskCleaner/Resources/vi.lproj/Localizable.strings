@@ -1303,3 +1303,5 @@
 "Excluded shared data" = "Dữ liệu dùng chung đã loại trừ";
 "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "Không có quyền đọc. Hãy kiểm tra quyền của thư mục hoặc Truy cập toàn bộ ổ đĩa trong Cài đặt hệ thống > Quyền riêng tư & Bảo mật, rồi quét lại.";
 "Stopped before it was moved" = "Đã dừng trước khi chuyển";
+
+"Unable to read this folder" = "Không đọc được thư mục này";

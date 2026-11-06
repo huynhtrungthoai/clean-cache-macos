@@ -81,6 +81,8 @@ struct FolderDrillView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.reload() })
+
             content
 
             Spacer(minLength: 0)   // clean bar pinned to the window bottom, see `CleanBar`
@@ -137,6 +139,10 @@ struct FolderDrillView: View {
                 .frame(maxHeight: .infinity)
         } else if model.busy && model.rows.isEmpty {
             ScanChecklist(progress: model.progress)
+        } else if let level = model.level, level.rootErrno != 0 {
+            EmptyState(symbol: "exclamationmark.folder", title: L("Unable to read this folder"),
+                       hint: model.path)
+                .frame(maxHeight: .infinity)
         } else if !model.busy && model.rows.isEmpty {
             EmptyState(symbol: "folder", title: L("Nothing readable at this level"),
                        hint: L("It may be empty, or it may need Full Disk Access to read."))
@@ -210,7 +216,10 @@ struct FolderDrillView: View {
     /// The badge itself is `SharedViews.verdictBadge`, shared with Caches and Overview;
     /// this page only decides "which rows don't get one".
     private func rowBadge(_ r: ChildEntry) -> ItemBadge? {
-        verdictBadge(VerdictIndex.shared.verdict(for: r.path).tier)
+        if model.level?.unreadableChildren.contains(r.path) == true {
+            return ItemBadge(text: L("Partially counted"), tone: .warn)
+        }
+        return verdictBadge(VerdictIndex.shared.verdict(for: r.path).tier)
     }
 
     /// This level's verdict tally: of the places the knowledge base recognizes, how many **name a regeneration path**.

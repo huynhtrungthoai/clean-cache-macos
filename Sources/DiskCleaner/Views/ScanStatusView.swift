@@ -21,8 +21,8 @@ struct ScanStatusView: View {
                     if model.scanState != .scanning && model.isStale(lastTrashAt: lastTrashAt) {
                         Text(L("Results may be out of date"))
                         Button(L("Scan again"), action: rescan)
-                    } else if model.scanState == .idle || model.scanState == .stopped {
-                        Button(L("Scan now"), action: rescan)
+                    } else if model.scanState != .scanning {
+                        Button(model.scanState == .idle ? L("Scan now") : L("Scan again"), action: rescan)
                     }
                 }
                 if !model.issues.isEmpty {
