@@ -140,11 +140,8 @@ struct BigFilesView: View {
                 model.scan(scope: store.scope)
             }
         }
-        .sheet(item: $review) { review in
-            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
-                                perform: { await model.trash(using: store) })
-                .themed(theme)
-        }
+        .trashWorkflow(review: $review, currentPlan: { model.trashPlan() },
+                       perform: { await model.trash(using: store) })
     }
 
     private var maxSize: Int64 { max(1, model.rows.map(\.size).max() ?? 1) }
@@ -273,11 +270,8 @@ struct OldFilesView: View {
         .frame(maxWidth: .infinity)
 
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
-        .sheet(item: $review) { review in
-            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
-                                perform: { await model.trash(using: store) })
-                .themed(theme)
-        }
+        .trashWorkflow(review: $review, currentPlan: { model.trashPlan() },
+                       perform: { await model.trash(using: store) })
     }
 
     private var maxSize: Int64 { max(1, model.rows.map(\.size).max() ?? 1) }

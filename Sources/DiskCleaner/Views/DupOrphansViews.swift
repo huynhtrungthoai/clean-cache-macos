@@ -96,11 +96,8 @@ struct DupView: View {
             EnvCopiesSheet(groups: model.envGroups, bytes: model.envBytes)
                 .themed(theme)
         }
-        .sheet(item: $review) { review in
-            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
-                                perform: { await model.trash(using: store) })
-                .themed(theme)
-        }
+        .trashWorkflow(review: $review, currentPlan: { model.trashPlan() },
+                       perform: { await model.trash(using: store) })
     }
 
     ///
@@ -376,11 +373,8 @@ struct OrphansView: View {
         .frame(maxWidth: .infinity)
 
         .onAppear { if !model.started { model.scan() } }
-        .sheet(item: $review) { review in
-            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
-                                perform: { await model.trash(using: store) })
-                .themed(theme)
-        }
+        .trashWorkflow(review: $review, currentPlan: { model.trashPlan() },
+                       perform: { await model.trash(using: store) })
     }
 
     private var maxSize: Int64 { max(1, model.items.compactMap(\.size).max() ?? 1) }
