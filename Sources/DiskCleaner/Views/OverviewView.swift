@@ -230,6 +230,10 @@ struct OverviewView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: OverviewModel
     @State private var review: TrashReviewPlan?
+    @State private var cleanRestoreResult: TrashBatch?
+    @State private var cleanActionPending = false
+
+    private var firstCleanBusy: Bool { cleanActionPending || model.cleanBusy || store.isTrashing }
     /// 这一圈按空间还是按代价读。存在偏好里，不是 `@State`：
     /// 换页回来还该是刚才那副面孔，而它是「这个人习惯怎么看盘」，不是一次性动作。
     @ObservedObject private var prefs = Prefs.shared
@@ -850,12 +854,26 @@ struct OverviewView: View {
         Group {
             if let stage = model.cleanStage {
                 if stage == .result, let run = model.cleanRun {
+                    let batch = model.cleanBatchID.flatMap { id in store.batches.first { $0.id == id } }
                     OperationResultView(
                         moved: run.records.map { $0.displayName + " · " + $0.original.path },
-                        skipped: [], failed: run.failures.map { LF("%@: %@", $0.name, $0.reason) },
-                        reportsSkipped: false,
-                        undo: run.records.isEmpty ? nil : { undoFirstClean() },
+                        skipped: batch?.skipped.map { entry in
+                            if case .skipped(let reason) = entry.outcome {
+                                return LF("%@: %@", entry.item.name, L(reason.reasonKey))
+                            }
+                            return entry.item.name
+                        } ?? [],
+                        failed: batch?.failed.map { entry in
+                            if case .failed(let key, let detail) = entry.outcome {
+                                return LF("%@: %@", entry.item.name,
+                                          detail.isEmpty ? L(key) : LF("%@: %@", L(key), detail))
+                            }
+                            return entry.item.name
+                        } ?? run.failures.map { LF("%@: %@", $0.name, $0.reason) },
+                        reportsSkipped: batch != nil,
+                        undo: !firstCleanBusy && model.canUndoClean(using: store) ? { undoFirstClean() } : nil,
                         done: { closeCleanPage() })
+                        .disabled(firstCleanBusy)
                 } else {
                     firstCleanPage(stage)
                 }
@@ -870,14 +888,17 @@ struct OverviewView: View {
             model.refreshUsage()
             return batch
         })
-        // 结果页的账要跟着这一刀走；总览页自己那条 onChange 在流程开着时不在树上。
-        .onChange(of: store.trashHistory) { _ in syncMovedLedger() }
+        .sheet(item: $cleanRestoreResult) { batch in BatchResultSheet(batch: batch).themed(theme) }
+        // First-clean accounting is owned by the model batch APIs.
+        .onChange(of: store.trashHistory) { _ in
+            if model.cleanStage == nil { syncMovedLedger() }
+        }
         // 首次清理那几屏的截图口令。走的是页面上那几颗按钮自己的方法（见 `runFirstClean`），
         // 不是另画一条「看起来像确认页」的假路。
         .onChange(of: store.overviewClean) { token in handleCleanCommand(token) }
         // 切走这一页就把流程收掉：半截的选择和已经搬走的东西都不该带进下一页。
         .onDisappear {
-            model.closeFirstClean()
+            if !firstCleanBusy { model.closeFirstClean() }
             model.disarm()
             setHover(nil)
             arcNote = nil
@@ -887,6 +908,7 @@ struct OverviewView: View {
     private func handleCleanCommand(_ token: String?) {
         guard let token else { return }
         store.overviewClean = nil
+        guard !firstCleanBusy else { return }
         switch token {
         case "open":
             model.openFirstClean()
@@ -904,40 +926,48 @@ struct OverviewView: View {
         }
     }
 
-    /// 确认页那颗「移进废纸篓」：一次真搬。搬完把环的账、可用空间、顶部提示一起更新。
     private func runFirstClean() {
-        guard model.cleanStage == .confirm, !model.cleanBusy, !model.cleanSelected.isEmpty
-        else { return }
+        guard model.cleanStage == .confirm, !firstCleanBusy, !model.cleanTrashPlan().isEmpty else { return }
+        cleanActionPending = true
         Sound.shared.play(.snap)
-        let run = model.performFirstClean { store.record($0) }
-        if run.records.isEmpty {
-            model.noteFirstCleanFailure(run)
-            store.notice = run.failures.first.map { LF("Nothing was moved: %@", $0.reason) }
-                ?? L("No candidates to move")
-            return
+        Task {
+            defer { cleanActionPending = false }
+            if let _ = await model.trashClean(using: store), let run = model.cleanRun {
+                guard !run.records.isEmpty else {
+                    store.notice = run.failures.first.map { LF("Nothing was moved: %@", $0.reason) }
+                        ?? L("No candidates to move")
+                    return
+                }
+                Sound.shared.play(.gather, after: ReclaimTimeline.releaseAt)
+                Sound.shared.play(.dawn, after: ReclaimTimeline.dawnAt)
+                store.notice = run.failures.isEmpty
+                    ? LF("Moved %1$d locations to Trash, %2$@ total", run.records.count, uiHuman(run.bytes))
+                    : LF("Moved %1$d locations, %2$d weren't moved", run.records.count, run.failures.count)
+            }
         }
-        Sound.shared.play(.gather, after: ReclaimTimeline.releaseAt)
-        Sound.shared.play(.dawn, after: ReclaimTimeline.dawnAt)
-        model.finishFirstClean(run)
-        syncMovedLedger()
-        store.notice = run.failures.isEmpty
-            ? LF("Moved %1$d locations to Trash, %2$@ total", run.records.count, uiHuman(run.bytes))
-            : LF("Moved %1$d locations, %2$d weren't moved", run.records.count, run.failures.count)
-        model.refreshUsage()
     }
 
-    /// 结果页那颗「撤销本次移入」：倒序放回，再回到候选页（文件已经回来了，
-    /// 还挂着一张「已移入」的账单就是假账）。
     private func undoFirstClean() {
-        guard let run = model.cleanRun else { return }
+        guard !firstCleanBusy, model.canUndoClean(using: store) else { return }
+        cleanActionPending = true
         Sound.shared.play(.undo)
-        let r = store.undoBatch(run.records)
-        model.reopenCandidatesAfterUndo(Set(r.restored.map { $0.original.path }))
-        syncMovedLedger()
-        store.notice = r.failed == 0
-            ? LF("Undid this move; restored %d locations", r.restored.count)
-            : LF("Still couldn't restore %1$d locations: %2$@", r.failed, r.firstError ?? "")
-        model.refreshUsage()
+        Task {
+            defer { cleanActionPending = false }
+            guard let batch = await model.undoClean(using: store) else { return }
+            let restored = batch.entries.filter { if case .restored = $0.restore { return true }; return false }
+            let failed = batch.entries.filter { entry in
+                guard let outcome = entry.restore else { return false }
+                if case .restored = outcome { return false }
+                return true
+            }
+            if failed.isEmpty {
+                store.notice = LF("Undid this move; restored %d locations", restored.count)
+            } else {
+                cleanRestoreResult = batch
+                store.notice = LF("Still couldn't restore %1$d locations: %2$@", failed.count,
+                                  failed.first?.restore.map { L($0.reasonKey) } ?? "")
+            }
+        }
     }
 
     // MARK: - 首次清理三屏（候选 / 确认 / 结果）
@@ -956,6 +986,7 @@ struct OverviewView: View {
                 .padding(.bottom, 4)
 
             cleanBody(stage)
+                .disabled(firstCleanBusy)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             cleanDock(stage)
@@ -964,6 +995,7 @@ struct OverviewView: View {
     }
 
     private func closeCleanPage() {
+        guard !firstCleanBusy else { return }
         cleanDetail = nil
         model.closeFirstClean()
     }
@@ -981,7 +1013,7 @@ struct OverviewView: View {
             ink = theme.palette.inkSecondary
         case .confirm:
             symbol = "lock.shield"
-            text = L("Confirm · nothing has moved yet; this step only checks, no writes")
+            text = firstCleanBusy ? L("Moving to Trash…") : L("Confirm · nothing has moved yet; this step only checks, no writes")
             ink = theme.palette.inkSecondary
         case .result:
             // 处数与字节由这条横幅下面两样东西各自报过一遍：全局提示条（「已移入废纸篓
@@ -1009,6 +1041,7 @@ struct OverviewView: View {
             }
             .buttonStyle(.plain)
             .help(L("Back to overview"))
+            .disabled(firstCleanBusy)
         }
         .padding(.horizontal, 13)
         .padding(.vertical, 9)
@@ -1019,7 +1052,7 @@ struct OverviewView: View {
     private func cleanHeader(_ stage: CleanStage) -> some View {
         PageHeader(symbol: "internaldrive", title: cleanTitle(stage),
                    subtitle: cleanSubtitle(stage), variant: .display) {
-            ThemeButton(kind: .ghost, symbol: "arrow.left", title: L("Back to overview")) {
+            ThemeButton(kind: .ghost, symbol: "arrow.left", title: L("Back to overview"), isDisabled: firstCleanBusy) {
                 closeCleanPage()
             }
         }
@@ -1332,19 +1365,20 @@ struct OverviewView: View {
     // MARK: 确认列
 
     private var cleanConfirmColumn: some View {
-        ScrollView(.vertical, showsIndicators: false) {
+        let plan = model.cleanTrashPlan()
+        return ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 7) {
                     Text(L("Moving to Trash"))
                         .font(theme.prose(size: 14, weight: .semibold))
                         .foregroundStyle(theme.palette.ink)
-                    Text(LF("%d paths", model.cleanSelected.count))
+                    Text(LF("%d paths", plan.count))
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkSecondary)
                     Text("·")
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkTertiary)
-                    Text(uiHuman(model.cleanSelectedBytes))
+                    Text(uiHuman(plan.reduce(0) { $0 + $1.bytes }))
                         .font(theme.numeric(size: 11.5))
                         .monospacedDigit()
                         .foregroundStyle(theme.palette.inkSecondary)
@@ -1352,8 +1386,8 @@ struct OverviewView: View {
                 }
                 .padding(.bottom, 6)
 
-                ForEach(Array(model.cleanSelected.enumerated()), id: \.element.path) { i, c in
-                    cleanPreviewRow(c, showRule: i > 0)
+                ForEach(Array(plan.enumerated()), id: \.element.path) { i, item in
+                    cleanPlanRow(item, showRule: i > 0)
                 }
 
                 cleanCostSection
@@ -1368,47 +1402,31 @@ struct OverviewView: View {
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.warnFG)
                         .padding(.top, 12)
+                    ForEach(f) { failure in
+                        Text(LF("%@: %@", failure.path, failure.reason))
+                            .font(theme.bodyFont(.caption)).foregroundStyle(theme.palette.warnFG)
+                            .textSelection(.enabled)
+                    }
                 }
             }
             .padding(.bottom, 12)
         }
     }
 
-    private func cleanPreviewRow(_ c: CleanCandidate, showRule: Bool) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                RowIconView(icon: .path(c.url), side: 22,
-                            appID: c.appID, brand: c.brand)
-                    .frame(width: rowIconSide, height: rowIconSide)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(c.name)
-                        .font(theme.bodyFont(.callout))
-                        .foregroundStyle(theme.palette.ink)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text(displayPath(c.url))
-                        .font(theme.bodyFont(.caption2))
-                        .foregroundStyle(theme.palette.inkTertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                Spacer(minLength: 10)
-                if let b = verdictBadge(c.tier) {
-                    ThemeBadge(text: b.text, tone: b.tone)
-                }
-                Text(uiHuman(c.size))
-                    .font(theme.numeric(size: 12))
-                    .monospacedDigit()
-                    .foregroundStyle(theme.palette.ink)
-                    .frame(width: 78, alignment: .trailing)
+    private func cleanPlanRow(_ item: TrashPlanItem, showRule: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if showRule { Divider() }
+            HStack {
+                Text(item.name).font(theme.bodyFont(.callout))
+                Spacer(minLength: 8)
+                Text(uiHuman(item.bytes)).monospacedDigit()
             }
-            .padding(.vertical, 7)
-            if showRule {
-                Rectangle()
-                    .fill(theme.palette.separator)
-                    .frame(height: 1)
-            }
+            Text(displayPath(item.url)).font(theme.bodyFont(.caption2))
+                .foregroundStyle(theme.palette.inkSecondary).textSelection(.enabled)
         }
+        .foregroundStyle(theme.palette.ink)
+        .padding(.vertical, 7)
+        .accessibilityElement(children: .combine)
     }
 
     private var cleanCostSection: some View {
@@ -1760,15 +1778,23 @@ struct OverviewView: View {
             let n = model.cleanSelected.count
             ThemeButton(kind: .lamp,
                         title: n > 0 ? LF("Next: confirm these %d locations →", n) : L("Nothing selected"),
-                        isDisabled: n == 0) {
+                        isDisabled: n == 0 || firstCleanBusy) {
                 cleanDetail = nil
                 model.advanceToConfirm()
             }
         case .confirm:
-            ThemeButton(kind: .lamp,
-                        title: LF("Move to Trash · %@ →", uiHuman(model.cleanSelectedBytes)),
-                        isDisabled: model.cleanBusy || model.cleanSelected.isEmpty) {
-                runFirstClean()
+            if model.cleanBusy {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(L("Moving to Trash…")).font(theme.bodyFont(.caption))
+                    Button(L("Stop")) { store.cancelTrash() }.disabled(!store.isTrashing)
+                }
+            } else {
+                ThemeButton(kind: .lamp,
+                            title: LF("Move to Trash · %@ →", uiHuman(model.cleanSelectedBytes)),
+                            isDisabled: firstCleanBusy || model.cleanTrashPlan().isEmpty) {
+                    runFirstClean()
+                }
             }
         case .result:
             ThemeButton(kind: .lamp, title: L("Open Trash to empty →")) {
@@ -1802,6 +1828,7 @@ struct OverviewView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .disabled(firstCleanBusy)
                 Text(LF("%@ in Trash", uiHuman(model.moved.reduce(Int64(0)) { $0 + $1.bytes })))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
@@ -1822,7 +1849,7 @@ struct OverviewView: View {
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .disabled(model.cleanRun == nil)
+                .disabled(firstCleanBusy || !model.canUndoClean(using: store))
                 Text(L("Undo stays available until you empty"))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
