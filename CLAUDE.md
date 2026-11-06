@@ -26,11 +26,14 @@ Shared, with rules:
 
 ## Git workflow
 
-- Work only in the worktree/branch for the task, e.g. `../CleanPilot-worktrees/claude-p0` on
-  `feat/claude-p0`. Never commit to `main` directly, never commit another tool's uncommitted work,
-  never force-push.
-- One logical change per commit. The owner merges to `main`.
-- Before starting work: `git fetch && git rebase origin/main` (after C0 is merged, Codex rebases on it).
+- Owner decision (2026-11-06): no worktrees, both tools work directly on `main` in the single
+  checkout `/Volumes/ThoaiHuynh/Project/CleanPilot` and push to `origin/main`.
+- The checkout is shared: stage **only your own files by path** (`git add <paths>`), never
+  `git add -A` / `git commit -a`, never commit, stash, reset or revert the other tool's
+  uncommitted changes. Never force-push.
+- One logical change per commit, gates green before each push (see below).
+- Before pushing: `git pull --rebase origin main`; if the other tool's edits block the rebase,
+  wait or ask the owner — do not touch their files.
 
 ## Safety rules (non-negotiable)
 

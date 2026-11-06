@@ -29,11 +29,13 @@ Shared, with rules:
 
 ## Git workflow
 
-- Work only in your own worktree/branch, e.g. `../CleanPilot-worktrees/codex-ui-p1` on
-  `feat/codex-ui-p1` (`git worktree add ../CleanPilot-worktrees/codex-ui-p1 -b feat/codex-ui-p1 origin/main`).
-- Never commit or push to `main`, never commit files you did not change, never force-push.
-  The owner merges branches to `main`.
-- `git fetch && git rebase origin/main` before starting and before opening a PR.
+- Owner decision (2026-11-06): no worktrees, both tools work directly on `main` in the single
+  checkout `/Volumes/ThoaiHuynh/Project/CleanPilot` and push to `origin/main`.
+- The checkout is shared with Claude: stage **only your own files by path** (`git add <paths>`),
+  never `git add -A` / `git commit -a`, never commit, stash, reset or revert Claude's
+  uncommitted changes. Never force-push.
+- Run `swift build`, `swift run SelfTest`, `swift build_app/l10n_tool.swift check .` before each
+  push; `git pull --rebase origin main` first.
 
 ## UI rules
 
