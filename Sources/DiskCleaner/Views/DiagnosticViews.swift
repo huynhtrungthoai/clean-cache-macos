@@ -193,11 +193,11 @@ struct CrashDumpsView: View {
     /// 四笔才落在预算内。撤销粒度随之是「一个子目录一次」，整批撤销进 PR-4 的修剪流。
     private func doClean() {
         err = nil
-        let historyStart = store.trashHistory.count
         let targets = hub.selectedHits
         let spec = CategoryRule.crashDumps.safeDeleteSpec
         Task { @MainActor in
             var errs: [String] = []
+            var movedRows: [String] = []
             var cleaned: Set<String> = []
             for hit in targets {
                 guard let spec else { continue }
@@ -210,6 +210,7 @@ struct CrashDumpsView: View {
                         let dst = try trashItem(dir)
                         store.record(TrashRecord(original: dir, inTrash: dst, size: size,
                                                  displayName: "\(hit.host ?? dir.path)/Crashpad/\(dir.lastPathComponent)"))
+                        movedRows.append(dir.lastPathComponent + " · " + dir.path)
                         moved += 1
                     } catch {
                         errs.append(failLine(dir.lastPathComponent, error))
@@ -223,7 +224,7 @@ struct CrashDumpsView: View {
             } else {
                 err = errList(errs)
             }
-            result = LegacyOperationResult(moved: store.trashHistory.dropFirst(historyStart).map { $0.displayName + " · " + $0.original.path }, failed: errs)
+            result = LegacyOperationResult(moved: movedRows, failed: errs)
         }
     }
 }
@@ -330,14 +331,15 @@ struct DiagReportsView: View {
     /// 报告是散文件：逐个进废纸篓，量小（几十到几百份），每份一条可撤销记录。
     private func doClean() {
         err = nil
-        let historyStart = store.trashHistory.count
         let targets = hub.selectedReports
         var errs: [String] = []
+        var movedRows: [String] = []
         for file in targets {
             do {
                 let dst = try trashItem(file.url)
                 store.record(TrashRecord(original: file.url, inTrash: dst, size: file.size,
                                          displayName: file.url.lastPathComponent))
+                movedRows.append(file.url.lastPathComponent + " · " + file.url.path)
             } catch {
                 errs.append(failLine(file.url.lastPathComponent, error))
             }
@@ -348,7 +350,7 @@ struct DiagReportsView: View {
         } else {
             err = errList(errs)
         }
-        result = LegacyOperationResult(moved: store.trashHistory.dropFirst(historyStart).map { $0.displayName + " · " + $0.original.path }, failed: errs)
+        result = LegacyOperationResult(moved: movedRows, failed: errs)
     }
 }
 
@@ -476,7 +478,7 @@ private struct RetentionBanner: View {
                 Image(systemName: "sparkles")
                     .foregroundStyle(theme.palette.tint)
                 Text(LF("The new “crash dumps” category regrows. Suggested policy: keep the latest %@.",
-                        cnt(2_000, "个")))
+                        cnt(2_000, "items")))
                     .font(theme.bodyFont(.callout))
                 Spacer()
                 ThemeButton(kind: .primary, title: L("Adopt")) {
@@ -503,7 +505,7 @@ private struct TrimSheet: View {
             switch hub.trim {
             case .preview(_, let plan):
                 Text(L("Trim by policy")).font(theme.display(.headline))
-                kvLine(L("Retention policy"), LF("Latest %@", cnt(plan.keep, "个")))
+                kvLine(L("Retention policy"), LF("Latest %@", cnt(plan.keep, "items")))
                 kvLine(L("Will trim"), LF("%1$@ · %2$@", cnt(plan.remove.count, "files"), uiHuman(plan.removeBytes)))
                 if let oldest = plan.oldestKeptMtime {
                     kvLine(L("Oldest kept"), oldest.formatted(date: .abbreviated, time: .shortened))

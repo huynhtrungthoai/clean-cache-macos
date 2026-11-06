@@ -175,12 +175,12 @@ struct NMView: View {
 
     private func doClean() {
         err = nil
-        let historyStart = store.trashHistory.count
         let targets = model.selected
         // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
         flight.launch(rows: targets.map { (key: $0.project, bytes: $0.size) },
                       animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
         var ok = 0
+        var movedRows: [String] = []
         var errs: [String] = []
         // 删项目下的 node_modules（可能多个）
         for it in targets {
@@ -195,6 +195,7 @@ struct NMView: View {
                     let dst = try trashItem(t)
                     store.record(TrashRecord(original: t, inTrash: dst, size: it.size,
                                              displayName: "\(projName)/node_modules"))
+                    movedRows.append(projName + "/node_modules · " + t.path)
                     ok += 1
                 } catch { errs.append(failLine(it.project, error)) }
             }
@@ -205,7 +206,7 @@ struct NMView: View {
         for i in model.items.indices { model.items[i].selected = false }
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "node_modules folders", failed: errs.count)
-        result = LegacyOperationResult(moved: store.trashHistory.dropFirst(historyStart).map { $0.displayName + " · " + $0.original.path }, failed: errs)
+        result = LegacyOperationResult(moved: movedRows, failed: errs)
     }
 }
 
