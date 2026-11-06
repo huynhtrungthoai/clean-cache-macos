@@ -143,12 +143,12 @@ struct FolderDrillView: View {
                 .init(title: L("Listed items"), value: String(model.rows.count), detail: uiHuman(model.level?.total ?? 0), symbol: "folder"),
                 .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selectedEntries.count), symbol: "checkmark.circle")
             ]).pagePadding().padding(.bottom, 12)
-            if showsTreemap {
+            if showsTreemap, let level = model.level, level.rootErrno == 0 {
                 HSplitView {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(L("Measured items only")).font(theme.bodyFont(.caption))
                             .foregroundStyle(theme.palette.inkSecondary)
-                        FolderTreemap(rows: model.rows, selected: model.selected, sizeLabels: shown, select: { row in
+                        FolderTreemap(level: level, selected: model.selected, sizeLabels: shown, select: { row in
                             guard isReclaimableWhole(row.url) else { return }
                             selection(row).wrappedValue.toggle()
                         }, open: { row in store.drill(into: row.path) })
@@ -161,7 +161,7 @@ struct FolderDrillView: View {
                 folderList
             }
             ListNote(text: tailNote)
-            if showsTreemap { ListNote(text: L("Displayed sizes are rounded. Selection uses measured bytes.")) }
+            if showsTreemap, let level = model.level, level.rootErrno == 0 { ListNote(text: L("Displayed sizes are rounded. Selection uses measured bytes.")) }
             if let vn = verdictNote {
                 ListNote(text: vn)
             }
