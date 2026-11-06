@@ -40,6 +40,57 @@ do {
     check(cacheRowState(CacheItem(entry: entry("e"), size: 0)) == .measured(0), "C3: a readable empty entry is 0 B")
 }
 
+// C8: Smart Scan one-click clean selection. Pure functions; the bulk predicate is injected so the
+// fixture paths need not exist, plus one check of the real predicate on ~/Library/Logs.
+do {
+    func entry(_ n: String, level: String = "safe", cost: String? = nil, grp: String? = nil,
+               app: String? = nil) -> SafetyEntry {
+        SafetyEntry(name: n, what: "", whatif: "", rec: "", path: "", level: level, cost: cost, grp: grp,
+                    docs: nil, app: app, tags: nil, icon: nil)
+    }
+    let r = "/tmp/c8-fixture"
+    func item(_ e: SafetyEntry, _ paths: [String: Int64]) -> CacheItem {
+        var it = CacheItem(entry: e, resolvedPaths: paths.keys.sorted().map { URL(fileURLWithPath: $0) })
+        it.pathSizes = paths
+        it.size = paths.values.reduce(0, +)
+        return it
+    }
+    let general = item(entry("crash", app: "com.example.Browser"), [r + "/Crash": 100])
+    let cn = item(entry("chat"), [r + "/Library/Containers/com.tencent.xinWeChat/Data/cache": 200])
+    let dev = item(entry("npm", grp: "dev"), [r + "/npm": 999])
+    let redo = item(entry("models", level: "warn", cost: "redo"), [r + "/Models": 999])
+    let risky = item(entry("sessions", level: "warn", cost: "data"), [r + "/Sessions": 999])
+    let measuring = CacheItem(entry: entry("measuring"), resolvedPaths: [URL(fileURLWithPath: r + "/M")])
+    let empty = item(entry("empty"), [r + "/Empty": 0])
+    let mixed = item(entry("mixed"), [r + "/Ok": 50, r + "/Hidden": 70])
+    let bulk: (URL) -> Bool = { $0.path != r + "/Hidden" }
+    let all = [general, cn, dev, redo, risky, measuring, empty, mixed]
+
+    let s = smartCleanSelection(all, runningBundleIDs: [], bulkSelectable: bulk)
+    check(s.picked.map(\.entry.name) == ["crash", "chat", "mixed"],
+          "C8: only app-cache groups, no-impact tier, measured > 0 (\(s.picked.map(\.entry.name)))")
+    check(s.picked.last?.resolvedPaths.map(\.path) == [r + "/Ok"],
+          "C8: paths a bulk select may not take are dropped from an entry")
+    check(cacheTrashPlan(s.picked).reduce(0) { $0 + $1.bytes } == 350,
+          "C8: plan bytes = 100 + 200 + 50 (dev, warn, unmeasured, empty, non-bulk excluded)")
+    check(s.heldBack.isEmpty, "C8: nothing held back when no app runs")
+
+    let run = smartCleanSelection(all, runningBundleIDs: ["COM.TENCENT.XINWECHAT", "com.example.browser"],
+                                  bulkSelectable: bulk)
+    check(run.picked.map(\.entry.name) == ["mixed"] && run.heldBack.map(\.name) == ["crash", "chat"],
+          "C8: caches of running apps (entry app or Containers/<id>, any case) are held back")
+    check(cacheOwnerBundleIDs(item(entry("dt"), ["/u/Library/Caches/com.alibaba.DingTalkMac": 1]))
+            == ["com.alibaba.dingtalkmac"], "C8: Library/Caches/<bundle id> names the owner app")
+    check(cacheOwnerBundleIDs(item(entry("logs"), ["/u/Library/Caches/pip": 1])).isEmpty,
+          "C8: a non-bundle-ID folder under Caches names no owner")
+    check(!isBulkSelectable(URL(fileURLWithPath: homePath() + "/Library/Logs")),
+          "C8: ~/Library/Logs (direct child of ~/Library) is never taken by one click")
+    let parent = item(entry("p"), [r + "/P": 500])
+    let child = item(entry("c"), [r + "/P/c": 200])
+    check(cacheTrashPlan(smartCleanSelection([parent, child], runningBundleIDs: [], bulkSelectable: { _ in true }).picked)
+            .map(\.bytes) == [500], "C8: nested entries are moved and counted once")
+}
+
 func check(_ cond: Bool, _ msg: String) {
     if cond {
         print("PASS  \(msg)")

@@ -281,6 +281,68 @@ public func cacheTrashPlan(_ selected: [CacheItem]) -> [(url: URL, bytes: Int64)
     return order.filter(outer.contains).compactMap { byPath[$0] }
 }
 
+// ── C8: Smart Scan one-click clean (owner decision 2026-11-06) ──
+//
+// After a Smart Scan the user presses one "Clean" button and confirms one summary; no row-by-row
+// picking. The set is deliberately narrow: app caches only (dev caches stay on their own page),
+// only the knowledge base's no-impact tier, only paths a bulk "select all" may take, and nothing
+// that belongs to an app that is running right now. It never widens what a user could select.
+
+/// Knowledge-base groups the one-click clean may take. `dev` is excluded by owner decision.
+public let smartCleanGroups: Set<String> = ["general", "cn_app"]
+
+/// One entry the one-click clean left alone because its app is running.
+public struct SmartCleanHeldBack: Equatable, Sendable {
+    public let name: String
+    public let bundleID: String
+}
+
+/// Bundle IDs an entry's data belongs to: the entry's `app`, plus the folder after
+/// `Library/Containers/` or `Library/Caches/` in any resolved path (lowercased).
+public func cacheOwnerBundleIDs(_ item: CacheItem) -> Set<String> {
+    var ids = Set<String>()
+    if let a = item.entry.app, !a.isEmpty { ids.insert(a.lowercased()) }
+    for url in item.resolvedPaths {
+        let parts = url.standardizedFileURL.pathComponents
+        for i in parts.indices.dropLast() where parts[i] == "Containers" || parts[i] == "Caches" {
+            guard i > 0, parts[i - 1] == "Library" else { continue }
+            let next = parts[i + 1]
+            if next.contains(".") { ids.insert(next.lowercased()) }   // bundle-ID shaped only
+        }
+    }
+    return ids
+}
+
+/// Picks what the one-click clean takes from a finished Smart Scan.
+///
+/// - Kept: group in `smartCleanGroups`, tier `.safe`, measured size > 0.
+/// - Each entry keeps only its paths that pass `bulkSelectable` (hidden folders and direct
+///   children of `~/Library`, e.g. `~/Library/Logs`, are never swept by one click).
+/// - Entries whose owner app is in `runningBundleIDs` are held back and reported.
+/// The returned items feed `cacheTrashPlan`, which drops nested paths.
+public func smartCleanSelection(_ items: [CacheItem], runningBundleIDs: Set<String>,
+                                bulkSelectable: (URL) -> Bool = isBulkSelectable)
+    -> (picked: [CacheItem], heldBack: [SmartCleanHeldBack]) {
+    let running = Set(runningBundleIDs.map { $0.lowercased() })
+    var picked: [CacheItem] = []
+    var held: [SmartCleanHeldBack] = []
+    for item in items {
+        guard smartCleanGroups.contains(item.groupKey), item.entry.tier == .safe,
+              (item.size ?? 0) > 0 else { continue }
+        var kept = item
+        kept.resolvedPaths = item.resolvedPaths.filter {
+            bulkSelectable($0) && (item.pathSizes[$0.path] ?? item.pathSizes[$0.standardizedFileURL.path] ?? 0) > 0
+        }
+        guard !kept.resolvedPaths.isEmpty else { continue }
+        if let owner = cacheOwnerBundleIDs(item).sorted().first(where: running.contains) {
+            held.append(SmartCleanHeldBack(name: item.entry.name, bundleID: owner))
+            continue
+        }
+        picked.append(kept)
+    }
+    return (picked, held)
+}
+
 /// Indices of items whose paths were affected by trashing `paths` (equal, inside, or containing),
 /// so their sizes can be re-measured instead of staying stale or stuck in "measuring".
 public func cacheItemsTouched(_ items: [CacheItem], by paths: [String]) -> [Int] {

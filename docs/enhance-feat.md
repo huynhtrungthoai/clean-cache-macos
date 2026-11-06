@@ -320,8 +320,8 @@ Chỉ thay đổi tài liệu này chưa cần chạy build/test của ứng d�
 
 Ghi nhận để chủ sản phẩm chốt ở giai đoạn triển khai; tài liệu này không tự thay đổi quy tắc đang có:
 
-1. Quét thông minh gồm những nhóm và thư mục nào? Giữ mặc định quét cache hay thêm app/file người dùng?
-2. Có thay đổi quy tắc đề xuất/tự chọn hiện tại không? Có thao tác tự động hoặc lịch chạy không?
+1. Quét thông minh gồm những nhóm và thư mục nào? Giữ mặc định quét cache hay thêm app/file người dùng? **Đã chốt (2026-11-06):** nút "Dọn dẹp" một bước chỉ lấy cache ứng dụng (general + cn_app) mức "không ảnh hưởng"; cache lập trình (dev) vẫn để riêng (xem C8).
+2. Có thay đổi quy tắc đề xuất/tự chọn hiện tại không? Có thao tác tự động hoặc lịch chạy không? **Đã chốt (2026-11-06):** không nới quy tắc chọn; bỏ bước tích từng mục nhưng vẫn có một hộp xác nhận tóm tắt trước khi chuyển; không tự chạy, không lịch (xem C8).
 3. Các ngưỡng kích thước, số ngày, độ tương đồng và tiêu chí app “ít dùng” là gì?
 4. ~~App đang chạy: từ chối gỡ hay cho phép đề nghị thoát rồi tiếp tục?~~ **Đã chốt:** đề nghị thoát rồi gỡ tiếp; người dùng có thể từ chối (xem C4).
 5. Login items/tiến trình nền: chỉ xem, mở System Settings hay cho thao tác trong CleanPilot?
@@ -475,6 +475,24 @@ public let treemapUnlistedID: String   // ô "file đã đo nhưng không liệt
 - Ô lấp đầy đúng `rect`, diện tích tỷ lệ với bytes, giữ nguyên `id`; bỏ bytes ≤ 0 và id trùng; thứ tự lớn → nhỏ, hoà thì theo id (cùng input → cùng hình).
 - Dùng: `squarifiedLayout(treemapNodes(for: model.level!), in: canvasRect)`. Ô `treemapUnlistedID` là dung lượng thật nhưng không phải một dòng chọn được: vẽ khác màu, không cho chọn/xoá.
 - Thư mục `unreadable == true` chỉ có phần đo được (cận dưới): đánh dấu, không phóng to. Khi `level.rootErrno != 0` thì không vẽ treemap, hiện issue.
+
+### C8 — Dọn nhanh sau Quét thông minh · F01 · Claude · `merged`
+
+Quét xong → một nút **"Dọn dẹp X"** → **một hộp xác nhận tóm tắt** → chuyển vào Thùng rác (một lô, hoàn tác được). Không bắt người dùng tích từng mục. Model: `scans.smart` (`CachesModel`, đang quét cả dev cho thẻ thống kê).
+
+```swift
+let plan = model.smartCleanPlan()      // SmartCleanPlan? — nil khi chưa quét xong; gọi lúc bấm nút để chốt kế hoạch
+plan.bytes / plan.items.count          // số trên nút và trong hộp xác nhận (đã loại trùng cha/con)
+plan.isEmpty                           // true → không có gì để dọn nhanh: ẩn/vô hiệu nút, vẫn cho "Xem & chọn"
+plan.heldBack                          // [String] tên mục bị giữ lại vì app đang chạy → "Thoát app để dọn cả mục này"
+// confirm (hộp xác nhận chỉ hiện tóm tắt + link xem danh sách plan.items, không có checkbox):
+Task { if let batch = await model.smartClean(plan, using: store) { /* BatchResultSheet(batch), Hoàn tác qua store.undo */ } }
+```
+
+- Phạm vi (`smartCleanSelection`, Core): nhóm `general` + `cn_app`, tier `.safe`, đã đo > 0, mỗi đường dẫn qua `isBulkSelectable` (vd. `~/Library/Logs` là con trực tiếp của `~/Library` nên **không** vào dọn nhanh, vẫn chọn tay ở trang Cache). Dev cache, mức "tải lại"/"mất dữ liệu", Thùng rác, file trùng/lớn **không** vào.
+- Cache của app đang chạy (bundle ID từ `entry.app` hoặc thư mục `Library/Containers/<id>`, `Library/Caches/<id>`) bị giữ lại, báo qua `heldBack`.
+- Thực thi đúng `plan.items` đã hiện trong hộp xác nhận (preflight từng mục, `store.isTrashing`, source `"smart-clean"`); không đổi lựa chọn trên trang Cache.
+- **Việc của Codex trong `SmartScanView.swift`:** nút chính khi `ready` thành "Dọn dẹp %@" (`plan.bytes`), "Review & Choose" thành link phụ; hộp xác nhận tóm tắt; câu dưới nút đổi theo phạm vi mới (dòng "Found %@…" nên dùng `plan.bytes` thay `selectableBytes`, vì `selectableBytes` gồm cả dev).
 
 ### Requests — yêu cầu từ UI
 

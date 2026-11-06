@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import DiskCleanerCore
 
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
@@ -157,6 +158,35 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
         return batch
     }
 
+    // MARK: - C8 Smart Scan one-click clean (docs/enhance-feat.md §11)
+
+    /// The frozen plan the confirmation summary shows and `smartClean(_:using:)` executes.
+    /// Built from the scan, not from the row checkboxes; app caches only, no-impact tier only,
+    /// running apps' caches held back. nil = scan not finished.
+    func smartCleanPlan() -> SmartCleanPlan? {
+        guard completed, !scanning else { return nil }
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        let pick = smartCleanSelection(items, runningBundleIDs: running)
+        var names: [String: String] = [:]
+        for it in pick.picked {
+            for u in it.resolvedPaths where names[u.standardizedFileURL.path] == nil {
+                names[u.standardizedFileURL.path] = L(it.entry.name)
+            }
+        }
+        let planItems = cacheTrashPlan(pick.picked).map {
+            TrashPlanItem(url: $0.url, name: names[$0.url.standardizedFileURL.path], bytes: $0.bytes)
+        }
+        return SmartCleanPlan(items: planItems, heldBack: pick.heldBack.map { L($0.name) })
+    }
+
+    /// Runs exactly `plan.items` as one batch (preflight, off main thread, undoable), then
+    /// re-measures the touched rows. nil = another run in progress or the plan is empty.
+    func smartClean(_ plan: SmartCleanPlan, using store: AppStore) async -> TrashBatch? {
+        guard let batch = await store.runTrash(plan.items, source: "smart-clean") else { return nil }
+        apply(batch)
+        return batch
+    }
+
     /// Clears the selection and re-measures every row touched by the batch.
     func apply(_ batch: TrashBatch) {
         for i in items.indices { items[i].selected = false }
@@ -197,6 +227,16 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
             }
         }
     }
+}
+
+/// What the Smart Scan "Clean" confirmation shows and executes (C8).
+struct SmartCleanPlan {
+    /// Exactly what gets moved; nested paths already collapsed.
+    let items: [TrashPlanItem]
+    /// Localized names of entries skipped because their app is running ("Quit X to clean it too").
+    let heldBack: [String]
+    var bytes: Int64 { items.reduce(0) { $0 + $1.bytes } }
+    var isEmpty: Bool { items.isEmpty }
 }
 
 /// 这一行亮不亮「删了没影响」那一档。体积还没量出来的不亮（那是「还不知道」，
