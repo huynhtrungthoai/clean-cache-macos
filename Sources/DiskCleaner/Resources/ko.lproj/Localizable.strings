@@ -1307,3 +1307,23 @@
 "Unable to read this folder" = "이 폴더를 읽을 수 없습니다";
 
 "Unlisted files" = "목록에 없는 파일";
+
+"Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose." = "영향이 없는 앱 캐시만 계산합니다. 개발 캐시와 다시 다운로드해야 하거나 데이터가 손실될 수 있는 항목은 직접 선택할 수 있도록 목록에 남습니다.";
+
+"Clean %@" = "%@ 정리";
+
+"Clean moves only no-impact app caches to the Trash. You can undo it." = "정리는 영향이 없는 앱 캐시만 휴지통으로 옮깁니다. 실행 취소할 수 있습니다.";
+
+"Clean recommended caches" = "권장 캐시 정리";
+
+"%d items · app caches with no impact" = "%d개 항목 · 영향이 없는 앱 캐시";
+
+"To move to the Trash" = "휴지통으로 옮길 용량";
+
+"Apps rebuild these files when needed. Items move to the Trash and can be restored; free space may not increase until the Trash is emptied." = "앱이 필요할 때 이 파일을 다시 만듭니다. 항목은 휴지통으로 옮겨지며 복원할 수 있습니다. 휴지통을 비우기 전에는 여유 공간이 늘지 않을 수 있습니다.";
+
+"Skipped while the app is running: %@. Quit it and scan again to clean it too." = "앱이 실행 중이라 건너뜀: %@. 앱을 종료하고 다시 스캔하면 함께 정리할 수 있습니다.";
+
+"Show items" = "항목 보기";
+
+"Clean" = "정리";

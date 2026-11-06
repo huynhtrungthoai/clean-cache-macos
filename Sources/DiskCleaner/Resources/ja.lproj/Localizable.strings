@@ -1307,3 +1307,23 @@
 "Unable to read this folder" = "このフォルダを読み取れません";
 
 "Unlisted files" = "未表示のファイル";
+
+"Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose." = "影響のないアプリのキャッシュだけを数えています。開発用キャッシュや再ダウンロードが必要な項目、データが失われるおそれのある項目は、ご自身で選べるようリストに残ります。";
+
+"Clean %@" = "%@ をクリーンアップ";
+
+"Clean moves only no-impact app caches to the Trash. You can undo it." = "クリーンアップでは影響のないアプリのキャッシュだけをゴミ箱に移します。取り消せます。";
+
+"Clean recommended caches" = "推奨キャッシュをクリーンアップ";
+
+"%d items · app caches with no impact" = "%d 項目 · 影響のないアプリのキャッシュ";
+
+"To move to the Trash" = "ゴミ箱に移す量";
+
+"Apps rebuild these files when needed. Items move to the Trash and can be restored; free space may not increase until the Trash is emptied." = "これらのファイルは必要に応じてアプリが再作成します。項目はゴミ箱に移され、元に戻せます。ゴミ箱を空にするまで空き容量は増えないことがあります。";
+
+"Skipped while the app is running: %@. Quit it and scan again to clean it too." = "アプリの実行中のためスキップしました: %@。アプリを終了して再スキャンすると、これも削除できます。";
+
+"Show items" = "項目を表示";
+
+"Clean" = "クリーンアップ";

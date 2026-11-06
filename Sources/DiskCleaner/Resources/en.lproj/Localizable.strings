@@ -1307,3 +1307,23 @@
 "Unable to read this folder" = "Unable to read this folder";
 
 "Unlisted files" = "Unlisted files";
+
+"Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose." = "Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose.";
+
+"Clean %@" = "Clean %@";
+
+"Clean moves only no-impact app caches to the Trash. You can undo it." = "Clean moves only no-impact app caches to the Trash. You can undo it.";
+
+"Clean recommended caches" = "Clean recommended caches";
+
+"%d items · app caches with no impact" = "%d items · app caches with no impact";
+
+"To move to the Trash" = "To move to the Trash";
+
+"Apps rebuild these files when needed. Items move to the Trash and can be restored; free space may not increase until the Trash is emptied." = "Apps rebuild these files when needed. Items move to the Trash and can be restored; free space may not increase until the Trash is emptied.";
+
+"Skipped while the app is running: %@. Quit it and scan again to clean it too." = "Skipped while the app is running: %@. Quit it and scan again to clean it too.";
+
+"Show items" = "Show items";
+
+"Clean" = "Clean";

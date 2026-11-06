@@ -1307,3 +1307,23 @@
 "Unable to read this folder" = "Không đọc được thư mục này";
 
 "Unlisted files" = "Các file chưa liệt kê";
+
+"Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose." = "Chỉ tính cache ứng dụng không ảnh hưởng. Cache lập trình và các mục cần tải lại hoặc có thể mất dữ liệu vẫn nằm trong danh sách để bạn tự chọn.";
+
+"Clean %@" = "Dọn dẹp %@";
+
+"Clean moves only no-impact app caches to the Trash. You can undo it." = "Dọn dẹp chỉ chuyển cache ứng dụng không ảnh hưởng vào Thùng rác. Bạn có thể hoàn tác.";
+
+"Clean recommended caches" = "Dọn cache được đề xuất";
+
+"%d items · app caches with no impact" = "%d mục · cache ứng dụng không ảnh hưởng";
+
+"To move to the Trash" = "Sẽ chuyển vào Thùng rác";
+
+"Apps rebuild these files when needed. Items move to the Trash and can be restored; free space may not increase until the Trash is emptied." = "Ứng dụng sẽ tự tạo lại các file này khi cần. Các mục được chuyển vào Thùng rác và có thể khôi phục; dung lượng trống có thể chưa tăng cho đến khi dọn sạch Thùng rác.";
+
+"Skipped while the app is running: %@. Quit it and scan again to clean it too." = "Bỏ qua vì ứng dụng đang chạy: %@. Thoát ứng dụng rồi quét lại để dọn cả mục này.";
+
+"Show items" = "Xem các mục";
+
+"Clean" = "Dọn dẹp";

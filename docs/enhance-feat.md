@@ -492,7 +492,7 @@ Task { if let batch = await model.smartClean(plan, using: store) { /* BatchResul
 - Phạm vi (`smartCleanSelection`, Core): nhóm `general` + `cn_app`, tier `.safe`, đã đo > 0, mỗi đường dẫn qua `isBulkSelectable` (vd. `~/Library/Logs` là con trực tiếp của `~/Library` nên **không** vào dọn nhanh, vẫn chọn tay ở trang Cache). Dev cache, mức "tải lại"/"mất dữ liệu", Thùng rác, file trùng/lớn **không** vào.
 - Cache của app đang chạy (bundle ID từ `entry.app` hoặc thư mục `Library/Containers/<id>`, `Library/Caches/<id>`) bị giữ lại, báo qua `heldBack`.
 - Thực thi đúng `plan.items` đã hiện trong hộp xác nhận (preflight từng mục, `store.isTrashing`, source `"smart-clean"`); không đổi lựa chọn trên trang Cache.
-- **Việc của Codex trong `SmartScanView.swift`:** nút chính khi `ready` thành "Dọn dẹp %@" (`plan.bytes`), "Review & Choose" thành link phụ; hộp xác nhận tóm tắt; câu dưới nút đổi theo phạm vi mới (dòng "Found %@…" nên dùng `plan.bytes` thay `selectableBytes`, vì `selectableBytes` gồm cả dev).
+- **UI (đã nối, Claude làm theo yêu cầu chủ dự án 2026-11-06):** `SmartScanView.swift` — nút chính "Dọn dẹp %@" khi có kế hoạch, "Xem & chọn" thành link phụ; `SmartCleanConfirmSheet` tóm tắt (dung lượng, số mục, mục bị giữ lại, danh sách thu gọn), không phím Enter; kết quả qua `BatchResultSheet`. Dòng "Found %@…" dùng `plan.bytes`.
 
 ### Requests — yêu cầu từ UI
 

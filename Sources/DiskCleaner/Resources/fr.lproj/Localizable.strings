@@ -1307,3 +1307,23 @@
 "Unable to read this folder" = "Impossible de lire ce dossier";
 
 "Unlisted files" = "Fichiers non répertoriés";
+
+"Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose." = "Seuls les caches d’apps sans impact sont comptés ici. Les caches de développement et les éléments à retélécharger ou à risque de perte de données restent dans la liste pour que vous choisissiez.";
+
+"Clean %@" = "Nettoyer %@";
+
+"Clean moves only no-impact app caches to the Trash. You can undo it." = "Nettoyer ne place dans la corbeille que les caches d’apps sans impact. Vous pouvez annuler.";
+
+"Clean recommended caches" = "Nettoyer les caches recommandés";
+
+"%d items · app caches with no impact" = "%d éléments · caches d’apps sans impact";
+
+"To move to the Trash" = "À placer dans la corbeille";
+
+"Apps rebuild these files when needed. Items move to the Trash and can be restored; free space may not increase until the Trash is emptied." = "Les apps recréent ces fichiers au besoin. Les éléments vont dans la corbeille et peuvent être restaurés ; l’espace libre peut ne pas augmenter avant que la corbeille soit vidée.";
+
+"Skipped while the app is running: %@. Quit it and scan again to clean it too." = "Ignoré car l’app est ouverte : %@. Quittez-la et relancez l’analyse pour le nettoyer aussi.";
+
+"Show items" = "Afficher les éléments";
+
+"Clean" = "Nettoyer";

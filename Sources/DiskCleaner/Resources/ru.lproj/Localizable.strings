@@ -1307,3 +1307,23 @@
 "Unable to read this folder" = "Не удалось прочитать эту папку";
 
 "Unlisted files" = "Файлы вне списка";
+
+"Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose." = "Здесь учитываются только кэши приложений без последствий. Кэши разработки и объекты, которые придётся скачать заново или которые могут привести к потере данных, остаются в списке для самостоятельного выбора.";
+
+"Clean %@" = "Очистить %@";
+
+"Clean moves only no-impact app caches to the Trash. You can undo it." = "Очистка перемещает в корзину только кэши приложений без последствий. Это можно отменить.";
+
+"Clean recommended caches" = "Очистить рекомендуемые кэши";
+
+"%d items · app caches with no impact" = "Объектов: %d · кэши приложений без последствий";
+
+"To move to the Trash" = "Будет перемещено в корзину";
+
+"Apps rebuild these files when needed. Items move to the Trash and can be restored; free space may not increase until the Trash is emptied." = "Приложения создадут эти файлы заново при необходимости. Объекты перемещаются в корзину и могут быть восстановлены; свободное место может не увеличиться, пока корзина не очищена.";
+
+"Skipped while the app is running: %@. Quit it and scan again to clean it too." = "Пропущено, так как приложение запущено: %@. Закройте его и повторите сканирование, чтобы очистить и это.";
+
+"Show items" = "Показать объекты";
+
+"Clean" = "Очистить";

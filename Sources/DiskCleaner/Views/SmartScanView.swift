@@ -10,6 +10,10 @@ struct SmartScanView: View {
     @ObservedObject var model: CachesModel
     @State private var reviewing = false
     @State private var usage = volumeUsage()
+    /// C8: the plan frozen when "Clean" is pressed; the confirmation executes exactly this.
+    @State private var confirming: SmartCleanPlan?
+    @State private var pendingResult: TrashBatch?
+    @State private var result: TrashBatch?
 
     private var measured: Int { model.items.filter { $0.size != nil }.count }
     private var progress: Double {
@@ -17,6 +21,8 @@ struct SmartScanView: View {
         return Double(measured) / Double(model.items.count)
     }
     private var ready: Bool { model.completed && !model.scanning }
+    /// What one click would move right now (app caches, no-impact tier, running apps held back).
+    private var preview: SmartCleanPlan? { ready ? model.smartCleanPlan() : nil }
 
     var body: some View {
         if reviewing {
@@ -110,6 +116,22 @@ struct SmartScanView: View {
             }
         }
         .onAppear { usage = volumeUsage() }
+        .sheet(item: $confirming, onDismiss: {
+            result = pendingResult
+            pendingResult = nil
+            usage = volumeUsage()
+        }) { plan in
+            SmartCleanConfirmSheet(plan: plan) {
+                Task {
+                    if let batch = await model.smartClean(plan, using: store) {
+                        pendingResult = batch
+                        confirming = nil
+                    }
+                }
+            }
+            .themed(theme)
+        }
+        .sheet(item: $result) { batch in BatchResultSheet(batch: batch).themed(theme) }
     }
 
     private var scanEmblem: some View {
@@ -198,9 +220,9 @@ struct SmartScanView: View {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 28))
                     .foregroundStyle(theme.palette.tint)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(LF("Found %@ of recommended caches to clear", uiHuman(model.selectableBytes)))
+                    Text(LF("Found %@ of recommended caches to clear", uiHuman(preview?.bytes ?? 0)))
                         .font(theme.prose(size: 17, weight: .semibold))
-                    Text(L("Only no-impact items are counted here. Items requiring re-download or risking data loss are listed separately."))
+                    Text(L("Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose."))
                         .font(theme.prose(size: 11)).foregroundStyle(theme.palette.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -218,20 +240,34 @@ struct SmartScanView: View {
     }
 
     private var actionBar: some View {
-        VStack(spacing: 10) {
+        let plan = preview
+        let canClean = !(plan?.isEmpty ?? true)
+        return VStack(spacing: 10) {
             HStack(spacing: 18) {
                 if ready {
                     Button(L("Rescan")) { model.load(force: true) }
                         .buttonStyle(.plain).foregroundStyle(theme.palette.inkSecondary)
+                        .disabled(store.isTrashing)
+                }
+                if ready && canClean {
+                    Button(L("Review & Choose")) { reviewing = true }
+                        .buttonStyle(.plain).foregroundStyle(theme.palette.inkSecondary)
                 }
                 Button {
                     if model.scanning { model.stop() }
-                    else if ready { reviewing = true }
+                    else if ready {
+                        // Re-read at press time: the confirmation shows and runs this frozen plan.
+                        if let fresh = model.smartCleanPlan(), !fresh.isEmpty { confirming = fresh }
+                        else { reviewing = true }
+                    }
                     else { model.load(force: true) }
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: model.scanning ? "stop.fill" : (ready ? "list.bullet" : "magnifyingglass"))
-                        Text(model.scanning ? L("Stop Scan") : (ready ? L("Review & Choose") : L("Scan")))
+                        Image(systemName: model.scanning ? "stop.fill"
+                              : (ready ? (canClean ? "sparkles" : "list.bullet") : "magnifyingglass"))
+                        Text(model.scanning ? L("Stop Scan")
+                             : (ready ? (canClean ? LF("Clean %@", uiHuman(plan?.bytes ?? 0)) : L("Review & Choose"))
+                                : L("Scan")))
                     }
                     .font(theme.prose(size: 14, weight: .semibold))
                     .foregroundStyle(theme.palette.onTint)
@@ -241,13 +277,96 @@ struct SmartScanView: View {
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut(.return, modifiers: [])
+                .disabled(store.isTrashing)
             }
-            Text(L("Review first, then clean. Anything moved to the Trash can be restored."))
+            Text(ready && canClean
+                 ? L("Clean moves only no-impact app caches to the Trash. You can undo it.")
+                 : L("Review first, then clean. Anything moved to the Trash can be restored."))
                 .font(theme.prose(size: 11)).foregroundStyle(theme.palette.inkSecondary)
         }
         .padding(.top, 16).padding(.bottom, 20)
         .frame(maxWidth: .infinity)
         .background(theme.palette.surface.opacity(0.7))
         .overlay(alignment: .top) { Rectangle().fill(theme.palette.separator).frame(height: 1) }
+    }
+}
+
+extension SmartCleanPlan: Identifiable {
+    var id: String { items.map(\.path).joined(separator: "\n") }
+}
+
+/// C8 confirmation: a summary, not a checklist. The item list is there to inspect, folded away.
+private struct SmartCleanConfirmSheet: View {
+    @EnvironmentObject private var store: AppStore
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    let plan: SmartCleanPlan
+    let confirm: () -> Void
+    @State private var showItems = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(symbol: "sparkles", title: L("Clean recommended caches"),
+                       subtitle: LF("%d items · app caches with no impact", plan.items.count))
+            HStack {
+                Text(L("To move to the Trash")).font(theme.bodyFont(.callout))
+                Spacer()
+                Text(uiHuman(plan.bytes)).font(theme.prose(size: 24, weight: .semibold)).monospacedDigit()
+            }
+            Text(L("Apps rebuild these files when needed. Items move to the Trash and can be restored; free space may not increase until the Trash is emptied."))
+                .font(theme.bodyFont(.callout))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !plan.heldBack.isEmpty {
+                Label(LF("Skipped while the app is running: %@. Quit it and scan again to clean it too.",
+                         plan.heldBack.joined(separator: ", ")),
+                      systemImage: "app.badge.checkmark")
+                    .font(theme.bodyFont(.callout))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            DisclosureGroup(isExpanded: $showItems) {
+                List(plan.items) { item in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name).fontWeight(.medium)
+                            Text(item.path.replacingOccurrences(of: homePath(), with: "~"))
+                                .font(theme.bodyFont(.caption))
+                                .foregroundStyle(theme.palette.inkSecondary)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                        Spacer()
+                        Text(uiHuman(item.bytes)).monospacedDigit()
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+                .listStyle(.plain).scrollContentBackground(.hidden)
+                .frame(height: 200)
+            } label: {
+                Text(L("Show items")).font(theme.bodyFont(.callout))
+            }
+            Spacer(minLength: 0)
+            if store.isTrashing {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(L("Moving to Trash…")).font(theme.bodyFont(.callout))
+                    Spacer()
+                    Button(L("Stop")) { store.cancelTrash() }
+                }.accessibilityElement(children: .combine)
+            }
+            HStack {
+                Button(L("Cancel")) { dismiss() }.keyboardShortcut(.cancelAction).disabled(store.isTrashing)
+                    .foregroundStyle(theme.palette.ink)
+                Spacer()
+                ThemeButton(kind: .primary, symbol: "sparkles", title: L("Clean"),
+                            isDisabled: plan.isEmpty || store.isTrashing) { confirm() }
+            }
+        }
+        .padding(24)
+        .frame(width: 560, height: showItems ? 560 : 360)
+        .interactiveDismissDisabled(store.isTrashing)
+        .background(theme.palette.paper)
+        .foregroundStyle(theme.palette.ink)
+        .buttonStyle(.borderless)
     }
 }
