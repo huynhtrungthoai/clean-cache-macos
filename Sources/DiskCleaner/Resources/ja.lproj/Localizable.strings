@@ -1286,3 +1286,19 @@
 
 /* UI workflow. */
 "Moved about %@ to the Trash" = "約 %@ をゴミ箱に移動しました";
+
+/* UI workflow. */
+"Treemap" = "ツリーマップ";
+"Measured items only" = "計測済みの項目のみ";
+"Select in either view; double-click a folder to open it." = "マップまたは一覧で選択します。フォルダをダブルクリックして開きます。";
+
+/* UI workflow. */
+"Waiting for the app to quit…" = "アプリの終了を待っています…";
+"No measured space to map" = "マップに表示できる計測済み容量がありません";
+
+/* UI workflow. */
+"Displayed sizes are rounded. Selection uses measured bytes." = "表示サイズは丸められています。選択合計には計測したバイト数を使用します。";
+
+/* UI workflow. */
+"Excluded shared data" = "除外した共有データ";
+"Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "アクセスできません。フォルダの権限、またはシステム設定 > プライバシーとセキュリティのフルディスクアクセスを確認して再スキャンしてください。";

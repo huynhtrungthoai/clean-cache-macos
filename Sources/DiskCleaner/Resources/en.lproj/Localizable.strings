@@ -1286,3 +1286,19 @@
 
 /* UI workflow. */
 "Moved about %@ to the Trash" = "Moved about %@ to the Trash";
+
+/* UI workflow. */
+"Treemap" = "Treemap";
+"Measured items only" = "Measured items only";
+"Select in either view; double-click a folder to open it." = "Select in either view; double-click a folder to open it.";
+
+/* UI workflow. */
+"Waiting for the app to quit…" = "Waiting for the app to quit…";
+"No measured space to map" = "No measured space to map";
+
+/* UI workflow. */
+"Displayed sizes are rounded. Selection uses measured bytes." = "Displayed sizes are rounded. Selection uses measured bytes.";
+
+/* UI workflow. */
+"Excluded shared data" = "Excluded shared data";
+"Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again.";

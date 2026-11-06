@@ -1286,3 +1286,19 @@
 
 /* UI workflow. */
 "Moved about %@ to the Trash" = "Se movieron unos %@ a la Papelera";
+
+/* UI workflow. */
+"Treemap" = "Mapa de árbol";
+"Measured items only" = "Solo elementos medidos";
+"Select in either view; double-click a folder to open it." = "Selecciona en el mapa o la lista. Haz doble clic para abrir una carpeta.";
+
+/* UI workflow. */
+"Waiting for the app to quit…" = "Esperando a que la app se cierre…";
+"No measured space to map" = "No hay espacio medido para mostrar";
+
+/* UI workflow. */
+"Displayed sizes are rounded. Selection uses measured bytes." = "Los tamaños se redondean. La selección usa los bytes medidos.";
+
+/* UI workflow. */
+"Excluded shared data" = "Datos compartidos excluidos";
+"Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "Acceso denegado. Revisa los permisos de la carpeta o Acceso total al disco en Ajustes del Sistema > Privacidad y seguridad y vuelve a analizar.";

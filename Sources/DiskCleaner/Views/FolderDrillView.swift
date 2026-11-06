@@ -23,6 +23,7 @@ struct FolderDrillView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: FolderDrillModel
     @State private var confirm = false
+    @State private var showsTreemap = false
     @State private var err: String? = nil
     @State private var result: LegacyOperationResult?
 
@@ -38,6 +39,9 @@ struct FolderDrillView: View {
                     // "Find large files in this tree" goes from here: Overview no longer shows two side-by-side "go down"
                     // buttons (click name to enter this level + dig into Large files); one step only: enter to see this level first,
                     // then press this to find large files. Two actions on two levels, each with a clear place.
+                    ThemeSwitch(label: L("Treemap"), isOn: $showsTreemap)
+                    ThemeButton(kind: .compact, symbol: "arrow.clockwise", title: L("Refresh"),
+                                isDisabled: model.busy || model.path.isEmpty) { model.reload() }
                     ThemeButton(kind: .compact, symbol: "scope",
                                 title: L("Dig in"),
                                 isDisabled: model.path.isEmpty) {
@@ -82,7 +86,7 @@ struct FolderDrillView: View {
             Spacer(minLength: 0)   // clean bar pinned to the window bottom, see `CleanBar`
 
             if let err { ListNote(text: err) }
-            SelectionActionBar(count: model.selected.count, bytes: uiHuman(model.selectedBytes),
+            SelectionActionBar(count: model.selectedEntries.count, bytes: uiHuman(model.selectedBytes),
                                selection: selectAll, busy: model.busy || store.isTrashing) { confirm = true }
 
         }
@@ -140,8 +144,34 @@ struct FolderDrillView: View {
         } else {
             SummaryCards(metrics: [
                 .init(title: L("Listed items"), value: String(model.rows.count), detail: uiHuman(model.level?.total ?? 0), symbol: "folder"),
-                .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
+                .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selectedEntries.count), symbol: "checkmark.circle")
             ]).pagePadding().padding(.bottom, 12)
+            if showsTreemap {
+                HSplitView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(L("Measured items only")).font(theme.bodyFont(.caption))
+                            .foregroundStyle(theme.palette.inkSecondary)
+                        FolderTreemap(rows: model.rows, selected: model.selected, sizeLabels: shown, select: { row in
+                            guard isReclaimableWhole(row.url) else { return }
+                            selection(row).wrappedValue.toggle()
+                        }, open: { row in store.drill(into: row.path) })
+                        Text(L("Select in either view; double-click a folder to open it."))
+                            .font(theme.bodyFont(.caption2)).foregroundStyle(theme.palette.inkSecondary)
+                    }.frame(minWidth: 160)
+                    folderList.frame(minWidth: 520, idealWidth: 540)
+                }.pagePadding()
+            } else {
+                folderList
+            }
+            ListNote(text: tailNote)
+            if showsTreemap { ListNote(text: L("Displayed sizes are rounded. Selection uses measured bytes.")) }
+            if let vn = verdictNote {
+                ListNote(text: vn)
+            }
+        }
+    }
+
+    private var folderList: some View {
             List(model.rows) { r in
                 ItemRow(selected: selection(r),
                         icon: .path(r.url),
@@ -169,11 +199,6 @@ struct FolderDrillView: View {
                                   enabled: model.selected.contains(r.path))
             }
             .ledgerCard()
-            ListNote(text: tailNote)
-            if let vn = verdictNote {
-                ListNote(text: vn)
-            }
-        }
     }
 
     // MARK: Verdicts (knowledge base)
@@ -377,7 +402,6 @@ struct FolderDrillView: View {
 
     private func doClean() {
         err = nil
-        let historyStart = store.trashHistory.count
         let targets = model.selectedEntries
         let rows = targets.map { (key: $0.path, bytes: $0.size) }
         // Grab origin and destination **before** clearing the selection: unchecked rows stop reporting anchors, and a disabled button moves the target.
@@ -389,18 +413,20 @@ struct FolderDrillView: View {
         model.selected.removeAll()
 
         var ok = 0
+        var movedRows: [String] = []
         var errs: [String] = []
         for r in targets {
             do {
                 let t = try trashItem(r.url)
                 store.record(TrashRecord(original: r.url, inTrash: t, size: r.size, displayName: r.name))
+                movedRows.append(r.name + " · " + r.path)
                 ok += 1
             } catch { errs.append(failLine(r.name, error)) }
         }
 
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "items", failed: errs.count)
-        result = LegacyOperationResult(moved: store.trashHistory.dropFirst(historyStart).map { $0.displayName + " · " + $0.original.path }, failed: errs)
+        result = LegacyOperationResult(moved: movedRows, failed: errs)
 
         // Fade rows, then reload after chips finish flying; otherwise chips are mid-air while rows are gone, wasting the trip.
         let gone = Set(targets.map(\.path))

@@ -1286,3 +1286,19 @@
 
 /* UI workflow. */
 "Moved about %@ to the Trash" = "Около %@ перемещено в Корзину";
+
+/* UI workflow. */
+"Treemap" = "Карта размеров";
+"Measured items only" = "Только измеренные объекты";
+"Select in either view; double-click a folder to open it." = "Выбирайте на карте или в списке. Двойной щелчок открывает папку.";
+
+/* UI workflow. */
+"Waiting for the app to quit…" = "Ожидание завершения приложения…";
+"No measured space to map" = "Нет измеренного объёма для карты";
+
+/* UI workflow. */
+"Displayed sizes are rounded. Selection uses measured bytes." = "Размеры округлены. Для выбранного объёма используются измеренные байты.";
+
+/* UI workflow. */
+"Excluded shared data" = "Исключённые общие данные";
+"Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again." = "Нет доступа. Проверьте права папки или полный доступ к диску в Системных настройках > Конфиденциальность и безопасность и повторите сканирование.";

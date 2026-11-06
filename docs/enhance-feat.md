@@ -285,7 +285,7 @@ Ví dụ câu chữ: “Tìm thấy 4,2 GB trong các mục đã quét”, “Đ
 
 ### P2 — Khám phá dung lượng và giám sát
 
-- [ ] Bổ sung treemap dùng chung dữ liệu với Overview/Folder Drill.
+- [ ] Bổ sung treemap dùng chung dữ liệu với Overview/Folder Drill — đã có Canvas + danh sách + lựa chọn đồng bộ từ FolderDrillModel; nghiệm thu thuật toán còn chờ C7 `merged`.
 - [ ] Thêm góc nhìn Downloads sau khi chốt bộ lọc.
 - [ ] Nâng menu bar với CPU/memory pressure sau khi đo được chi phí tài nguyên.
 - [ ] Làm thử nghiệm chỉ đọc cho login/background items bằng API được hỗ trợ.
@@ -466,6 +466,10 @@ Phác thảo: `ScanSession` trong `ScanStore`, `modules: [ModuleState]` (waiting
 Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in: CGRect) -> [(id, CGRect)]` có SelfTest; dữ liệu lấy từ `FolderDrillModel`. Codex vẽ bằng Canvas.
 
 ### Requests — yêu cầu từ UI
+
+- **P0/F03, File trùng** — Bước nhóm đã dùng `fullHash`, nhưng `duplicateStillMatches` trong `ScanJobs.swift` chỉ kiểm tra đầu/cuối khi file trên 64 MiB; cần xác minh toàn bộ nội dung ngay trước khi chuyển và hỗ trợ huỷ tác vụ hash. UI không tự thay thuật toán hay đặt ngưỡng mới; nghiệm thu thay đổi phần giữa sau quét còn chờ Core.
+
+- **P2/F04, Folder Drill** — Đã dựng Canvas với hàng đã đo, dùng cùng selection/breadcrumb/danh sách; chờ C7 `merged` để thay bố cục chia ô tỷ lệ tạm bằng `squarifiedLayout`, giữ ID và số byte từ model. Cần metadata phần chưa liệt kê/không đọc được nếu muốn biểu diễn thành nhóm riêng, không tự cộng phần chưa đo vào diện tích có thể dọn.
 
 - **P1, Tổng quan/Folder Drill/node_modules/Docker/Chẩn đoán** — Các model hiện chưa conform `ScanStatusReporting`; cần vòng đời, thời điểm, issues và stale thật để UI hiển thị đủ §6 mà không tự tạo state quét trong View.
 - **P1, công cụ dùng lịch sử cũ** — Cần `trashPlan`/executor/receipt theo lô cho Folder Drill, node_modules và Chẩn đoán (gồm trim), `FolderDrillModel.selectAll` và policy bulk-selectable cho NMModel; hiện UI chỉ chuẩn hóa hiển thị, giữ nguyên đường thao tác cũ theo phạm vi Giai đoạn B. Lịch sử cũ được tách riêng, không gán batch ID giả.
