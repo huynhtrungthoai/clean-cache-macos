@@ -285,7 +285,7 @@ private struct TrashWorkflowPresenter: ViewModifier {
     @Environment(\.theme) private var theme
     @Binding var review: TrashReviewPlan?
     var currentPlan: () -> [TrashPlanItem]
-    var perform: () async -> TrashBatch?
+    var perform: ([TrashPlanItem]) async -> TrashBatch?
     @State private var pendingResult: TrashBatch?
     @State private var result: TrashBatch?
 
@@ -295,7 +295,7 @@ private struct TrashWorkflowPresenter: ViewModifier {
                 result = pendingResult
                 pendingResult = nil
             }) { review in
-                ConfirmedTrashSheet(plan: review.items, currentPlan: currentPlan, perform: perform) { batch in
+                ConfirmedTrashSheet(plan: review.items, currentPlan: currentPlan, perform: { await perform(review.items) }) { batch in
                     pendingResult = batch
                     self.review = nil
                 }.themed(theme)
@@ -307,26 +307,15 @@ private struct TrashWorkflowPresenter: ViewModifier {
 extension View {
     func trashWorkflow(review: Binding<TrashReviewPlan?>, currentPlan: @escaping () -> [TrashPlanItem],
                        perform: @escaping () async -> TrashBatch?) -> some View {
+        modifier(TrashWorkflowPresenter(review: review, currentPlan: currentPlan, perform: { _ in await perform() }))
+    }
+
+    func reviewedTrashWorkflow(review: Binding<TrashReviewPlan?>, currentPlan: @escaping () -> [TrashPlanItem],
+                               perform: @escaping ([TrashPlanItem]) async -> TrashBatch?) -> some View {
         modifier(TrashWorkflowPresenter(review: review, currentPlan: currentPlan, perform: perform))
     }
 }
 
-
-struct LegacyOperationResult: Identifiable {
-    let id = UUID()
-    var moved: [String]
-    var failed: [String]
-}
-
-struct LegacyOperationResultSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    var result: LegacyOperationResult
-    var body: some View {
-        OperationResultView(moved: result.moved, skipped: [], failed: result.failed,
-                            reportsSkipped: false, done: { dismiss() })
-            .frame(width: 680, height: 520)
-    }
-}
 
 struct ToolFooter<Actions: View>: View {
     @Environment(\.theme) private var theme

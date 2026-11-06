@@ -13,9 +13,9 @@ struct CrashDumpsView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var hub: DiagnosticsHub
-    @State private var confirm = false
-    @State private var err: String? = nil
-    @State private var result: LegacyOperationResult?
+    @State private var review: TrashReviewPlan?
+    @State private var trimReview: TrashReviewPlan?
+    @State private var preparingReview = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -88,26 +88,33 @@ struct CrashDumpsView: View {
 
             Spacer(minLength: 0)
 
-            if let err { ListNote(text: err) }
             SelectionActionBar(count: hub.selectedHits.count, bytes: uiHuman(hub.selectedBytes),
-                               selection: hub.hitSelectAll, busy: hub.scanning || store.isTrashing) { confirm = true }
+                               selection: hub.hitSelectAll, busy: hub.scanning || store.isTrashing || preparingReview) {
+                preparingReview = true
+                Task {
+                    let plan = await hub.hitsTrashPlan()
+                    review = TrashReviewPlan(items: plan)
+                    preparingReview = false
+                }
+            }
 
         }
         .frame(maxWidth: .infinity)
         .onAppear { hub.discover() }
-        .sheet(isPresented: trimSheetOpen) { TrimSheet(hub: hub) }
-        .confirmTrash(isPresented: $confirm,
-                      text: LF("Move %1$@ (%2$@) to the Trash.",
-                               cnt(hub.selectedHits.count, "apps"),
-                               uiHuman(hub.selectedBytes, inRulerOf: hub.totalBytes))) {
-            doClean()
-        }
-        .sheet(item: $result) { result in LegacyOperationResultSheet(result: result).themed(theme) }
+        .reviewedTrashWorkflow(review: $review, currentPlan: { review?.items ?? [] },
+                               perform: { plan in await hub.trashHits(plan, using: store) })
+        .trashWorkflow(review: $trimReview, currentPlan: { hub.trimTrashPlan() }, perform: {
+            let batch = await hub.runTrim(using: store)
+            // The receipt uses the same batch ID published by the trim state.
+            if case .done(_, _, let batchID) = hub.trim,
+               let id = UUID(uuidString: batchID) {
+                hub.trim = nil
+                return store.batches.first { $0.id == id } ?? batch
+            }
+            return batch
+        })
     }
 
-    private var trimSheetOpen: Binding<Bool> {
-        Binding(get: { hub.trim != nil }, set: { if !$0 { hub.trim = nil } })
-    }
 
     private var maxBytes: Int64 { max(1, hub.hits.map(\.bytes).max() ?? 1) }
 
@@ -183,6 +190,7 @@ struct CrashDumpsView: View {
             HStack {
                 ThemeButton(kind: .secondary, symbol: "scissors", title: L("Preview trim…")) {
                     hub.prepareTrim(for: hit)
+                    trimReview = TrashReviewPlan(items: hub.trimTrashPlan())
                 }
                 Spacer()
             }
@@ -190,45 +198,6 @@ struct CrashDumpsView: View {
         }
     }
 
-    /// 移的是可清理面（四个子目录整目录），settings.dat 与目录骨架不动。
-    /// 子目录作单位是性能约束：16 万个 dump 逐个进废纸篓就是 16 万次回收登记，
-    /// 四笔才落在预算内。撤销粒度随之是「一个子目录一次」，整批撤销进 PR-4 的修剪流。
-    private func doClean() {
-        err = nil
-        let targets = hub.selectedHits
-        let spec = CategoryRule.crashDumps.safeDeleteSpec
-        Task { @MainActor in
-            var errs: [String] = []
-            var movedRows: [String] = []
-            var cleaned: Set<String> = []
-            for hit in targets {
-                guard let spec else { continue }
-                let root = URL(fileURLWithPath: hit.path)
-                var moved = 0
-                for dir in spec.cleanTargets(under: root) {
-                    guard FileManager.default.fileExists(atPath: dir.path) else { continue }
-                    do {
-                        let size = await dirSize(dir)
-                        let dst = try trashItem(dir)
-                        store.record(TrashRecord(original: dir, inTrash: dst, size: size,
-                                                 displayName: "\(hit.host ?? dir.path)/Crashpad/\(dir.lastPathComponent)"))
-                        movedRows.append(dir.lastPathComponent + " · " + dir.path)
-                        moved += 1
-                    } catch {
-                        errs.append(failLine(dir.lastPathComponent, error))
-                    }
-                }
-                if moved > 0 { cleaned.insert(hit.id) }
-            }
-            hub.removeHits(cleaned)
-            if errs.isEmpty {
-                store.notice = trashedNotice(cleaned.count, "apps", failed: 0)
-            } else {
-                err = errList(errs)
-            }
-            result = LegacyOperationResult(moved: movedRows, failed: errs)
-        }
-    }
 }
 
 // MARK: - 系统诊断报告
@@ -237,9 +206,7 @@ struct DiagReportsView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var hub: DiagnosticsHub
-    @State private var confirm = false
-    @State private var err: String? = nil
-    @State private var result: LegacyOperationResult?
+    @State private var review: TrashReviewPlan?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -299,20 +266,14 @@ struct DiagReportsView: View {
 
             Spacer(minLength: 0)
 
-            if let err { ListNote(text: err) }
             SelectionActionBar(count: hub.selectedReports.count, bytes: uiHuman(hub.selectedReportBytes),
-                               selection: hub.reportSelectAll, busy: hub.scanning || store.isTrashing) { confirm = true }
+                               selection: hub.reportSelectAll, busy: hub.scanning || store.isTrashing) { review = TrashReviewPlan(items: hub.reportsTrashPlan()) }
 
         }
         .frame(maxWidth: .infinity)
         .onAppear { hub.discover() }
-        .confirmTrash(isPresented: $confirm,
-                      text: LF("Move %1$@ (%2$@) to the Trash.",
-                               cnt(hub.selectedReports.count, "files"),
-                               uiHuman(hub.selectedReportBytes, inRulerOf: hub.reportBytes))) {
-            doClean()
-        }
-        .sheet(item: $result) { result in LegacyOperationResultSheet(result: result).themed(theme) }
+        .trashWorkflow(review: $review, currentPlan: { hub.reportsTrashPlan() },
+                       perform: { await hub.trashReports(using: store) })
     }
 
     private var maxBytes: Int64 { max(1, hub.reports.map(\.size).max() ?? 1) }
@@ -332,30 +293,6 @@ struct DiagReportsView: View {
         displayPath(file.url.deletingLastPathComponent())
     }
 
-    /// 报告是散文件：逐个进废纸篓，量小（几十到几百份），每份一条可撤销记录。
-    private func doClean() {
-        err = nil
-        let targets = hub.selectedReports
-        var errs: [String] = []
-        var movedRows: [String] = []
-        for file in targets {
-            do {
-                let dst = try trashItem(file.url)
-                store.record(TrashRecord(original: file.url, inTrash: dst, size: file.size,
-                                         displayName: file.url.lastPathComponent))
-                movedRows.append(file.url.lastPathComponent + " · " + file.url.path)
-            } catch {
-                errs.append(failLine(file.url.lastPathComponent, error))
-            }
-        }
-        hub.removeReports(Set(targets.map(\.id)))
-        if errs.isEmpty {
-            store.notice = trashedNotice(targets.count, "files", failed: 0)
-        } else {
-            err = errList(errs)
-        }
-        result = LegacyOperationResult(moved: movedRows, failed: errs)
-    }
 }
 
 // MARK: - 观察区
@@ -500,82 +437,3 @@ private struct RetentionBanner: View {
     }
 }
 
-/// 修剪三步流：预览（终稿）→ 执行（进度）→ 完成（释放量 + 整批撤销 + 渠道分支的清空提示）。
-/// 沙盒版发往访达的清空事件被系统掐掉，所以商店版只给「在访达中打开废纸篓」
-/// （评审 §2.4-1：事故场景在商店版必须交代清空这最后一步去哪了）。
-private struct TrimSheet: View {
-    @Environment(\.theme) private var theme
-    @ObservedObject var hub: DiagnosticsHub
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            switch hub.trim {
-            case .preview(_, let plan):
-                Text(L("Trim by policy")).font(theme.display(.headline))
-                kvLine(L("Retention policy"), LF("Latest %@", cnt(plan.keep, "items")))
-                kvLine(L("Will trim"), LF("%1$@ · %2$@", cnt(plan.remove.count, "files"), uiHuman(plan.removeBytes)))
-                if let oldest = plan.oldestKeptMtime {
-                    kvLine(L("Oldest kept"), oldest.formatted(date: .abbreviated, time: .shortened))
-                }
-                Text(L("Everything goes to the Trash and can be undone as a batch; settings.dat and the folder skeleton stay. Preview numbers come from a pure calculation and are final."))
-                    .font(theme.bodyFont(.caption))
-                    .foregroundStyle(theme.palette.inkSecondary)
-                HStack {
-                    Spacer()
-                    ThemeButton(kind: .ghost, title: L("Cancel")) { hub.trim = nil }
-                    ThemeButton(kind: .primary, title: L("Trim")) { hub.runTrim() }
-                }
-            case .running(let done, let total):
-                Text(L("Moving to Trash…")).font(theme.display(.headline))
-                ProgressView(value: Double(done), total: Double(max(total, 1)))
-                Text(LF("%1$@ / %2$@", String(done), String(total)))
-                    .font(theme.bodyFont(.caption))
-                    .foregroundStyle(theme.palette.inkSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            case .done(let bytes, let skipped, let batchID):
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(theme.palette.safeFG)
-                    Text(LF("Moved about %@ to the Trash", uiHuman(bytes))).font(theme.display(.headline))
-                }
-                Text(L("settings.dat kept; the batch is in the trim ledger and can be undone as a whole."))
-                    .font(theme.bodyFont(.caption))
-                    .foregroundStyle(theme.palette.inkSecondary)
-                if skipped > 0 {
-                    Text(LF("Skipped %d (changed since preview — no silent swaps)", skipped))
-                        .font(theme.bodyFont(.caption))
-                        .foregroundStyle(theme.palette.warnFG)
-                }
-                Text(L("Space is freed only after the Trash is emptied."))
-                    .font(theme.bodyFont(.caption))
-                    .foregroundStyle(theme.palette.inkSecondary)
-                HStack {
-                    // P0-6: this used to empty the WHOLE Trash via AppleScript with no confirm
-                    // (unrelated items included, errors swallowed, undo history left dangling),
-                    // right next to "undo batch". Only open the Trash; emptying stays a deliberate
-                    // act in Finder (or on the Trash page, which confirms and clears history).
-                    ThemeButton(kind: .secondary, symbol: "folder", title: L("Open Trash in Finder")) {
-                        openTrashInFinder()
-                    }
-                    Spacer()
-                    ThemeButton(kind: .secondary, symbol: "arrow.uturn.backward", title: L("Undo batch")) {
-                        hub.undoTrim(batchID: batchID)
-                    }
-                }
-            case nil:
-                EmptyView()
-            }
-        }
-        .padding(20)
-        .frame(width: 460, alignment: .leading)
-    }
-
-    private func kvLine(_ k: String, _ v: String) -> some View {
-        HStack {
-            Text(k).foregroundStyle(theme.palette.inkSecondary)
-            Spacer()
-            Text(v)
-        }
-        .font(theme.bodyFont(.callout))
-    }
-}

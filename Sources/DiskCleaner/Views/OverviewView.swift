@@ -36,7 +36,7 @@ struct CleanCandidate: Identifiable, Equatable, Hashable {
     var url: URL { URL(fileURLWithPath: path) }
 }
 
-/// 搬不动的一处。原因逐条留着：一条一条走 `trashItem`，失败就得点名说是谁、为什么。
+/// A failed location retains its name and reason in the receipt.
 struct CleanFailure: Identifiable, Equatable {
     var path: String
     var name: String
@@ -229,6 +229,7 @@ struct OverviewView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: OverviewModel
+    @State private var review: TrashReviewPlan?
     /// 这一圈按空间还是按代价读。存在偏好里，不是 `@State`：
     /// 换页回来还该是刚才那副面孔，而它是「这个人习惯怎么看盘」，不是一次性动作。
     @ObservedObject private var prefs = Prefs.shared
@@ -512,20 +513,7 @@ struct OverviewView: View {
         // 「其他已统计」那条弧没有路径，拿路径当键的话它永远上不了膛。
         if let armed = model.armedPath, armed == seg.armKey, seg.reclaim > 0 {
             model.disarm()
-            Sound.shared.play(.snap)
-            let moved = take(seg)
-            // 动效演的是**真搬走的**那一笔：一处都没搬动就不演，
-            // 一把水珠飞进废纸篓而那本账没动，比不演更让人怀疑账错了。
-            if moved > 0 {
-                if !reduceMotion {
-                    burst = reclaimBurst(seg, moved)
-                    trayWaitsForLanding()
-                }
-                // 声音跟着那一趟的节拍走，不是三声一起按下去：响指是「确认」，
-                // 收拢是「字节离开弧」，天亮是「落进废纸篓、账已改」。
-                Sound.shared.play(.gather, after: ReclaimTimeline.releaseAt)
-                Sound.shared.play(.dawn, after: ReclaimTimeline.dawnAt)
-            }
+            reviewTargets(seg.targets)
             return
         }
         // 上膛期间点别的弧：先解除，再按那条弧自己的规矩办事。
@@ -670,16 +658,7 @@ struct OverviewView: View {
     private func tapCleanAll(_ acct: RingAccount) {
         if model.armedPath == SweepRing.armAll {
             model.disarm()
-            Sound.shared.play(.snap)
-            let moved = takeAllReclaimable(acct)
-            // 与单条弧同一条纪律：一处都没搬动就不演那趟飞行。
-            if moved > 0, let seg = acct.hot.max(by: { $0.reclaim < $1.reclaim }),
-               !reduceMotion {
-                burst = reclaimBurst(seg, moved)
-                trayWaitsForLanding()
-                Sound.shared.play(.gather, after: ReclaimTimeline.releaseAt)
-                Sound.shared.play(.dawn, after: ReclaimTimeline.dawnAt)
-            }
+            reviewTargets(acct.hot.flatMap(\.targets))
             return
         }
         guard acct.reclaimable > 0 else {
@@ -725,97 +704,10 @@ struct OverviewView: View {
         return seg.label + "\n" + L("Nothing reclaimable here")
     }
 
-    /// 第二下：把这条弧上点名的那几处搬进废纸篓，一处一次 `trashItem`。
-    ///
-    /// 只搬 `targets` 里列出来的那些——它们每一处都过了知识库 `safe` + 还在原处两道筛。
-    /// 以前这里还有一条「弧上没点名就整处搬走」的路，配上「没进保护名单就算能搬」的判定，
-    /// 一键按钮于是会把用户的备份目录整段拖走，所以整条拿掉。
-    /// 不一次性标记：任何一处失败都得当场看见是哪一处、为什么，
-    /// 不然人就只剩「软件把我东西弄丢了」这一种解释。
-    ///
-    /// 返回**真搬走的字节**，不是应该搬走的：这一趟有几处没搬动是常态（沙箱里的
-    /// 诊断报告、别的 App 正在用的目录），拿去飞那一枚筹码的必须是到手的那个数。
-    @discardableResult
-    private func take(_ seg: GaugeSegment) -> Int64 {
-        takeTargets(seg)
-    }
-
-    /// 一处一处搬，成功了几处、搬走多少字节、第一处失败为什么，三样都要留到最后那句话里。
-    ///
-    /// 「已移入废纸篓 12 处（8.4 GB），另有 3 处没搬动」这种句子必须是**真数**：
-    /// 那句「还能腾出 22 GB」是按钮许的愿，搬完对不上而原因没说，这一屏就再没人信了。
-    @discardableResult
-    private func takeTargets(_ seg: GaugeSegment) -> Int64 {
-        let r = moveTargets(seg.targets)
-        var line = LF("Moved %2$@ from “%1$@” (%3$@) to the Trash. Those bytes still sit on the disk — empty the Trash in Finder and the space actually comes back.",
-                      seg.label, cnt(r.ok, "spots"), uiHuman(r.bytes))
-        line += failTail(r)
-        store.notice = line
-        return r.bytes
-    }
-
-    /// 预演条上那颗「就这样清」的第二下：把这一圈里动得了的**每一段**名下点名的处搬走。
-    ///
-    /// 一句汇总，不是六句：这一趟是一次动作，弹六条提示等于让人逐条核对一趟已经按完的账。
-    /// 处数与字节全取**真搬到的**那些（`moveTargets` 的账），跟按钮上许的「共 N 处」
-    /// 对不上时，那句「另有 x 处没搬动」必须自己把差额说出来。
-    @discardableResult
-    private func takeAllReclaimable(_ acct: RingAccount) -> Int64 {
-        var all = MoveReceipt()
-        for seg in acct.hot {
-            let r = moveTargets(seg.targets)
-            all.ok += r.ok; all.bytes += r.bytes; all.failed += r.failed
-            if all.why.isEmpty { all.why = r.why }
-        }
-        var line = LF("Moved everything this ring could give up — %1$@ (%2$@) — to the Trash. Those bytes still sit on the disk; empty the Trash in Finder and the space actually comes back.",
-                      cnt(all.ok, "spots"), uiHuman(all.bytes))
-        line += failTail(all)
-        store.notice = line
-        return all.bytes
-    }
-
-    /// 一处一处搬。成功了几处、搬走多少字节、第一处失败为什么，三样都要留到最后那句话里。
-    ///
-    /// 抽出来给两条路共用：一条弧的第二下（`takeTargets`）与预演条的第二下
-    /// （`takeAllReclaimable`）。搬文件这件事只该有一份实现——两把刀迟早有一天砍得不一样。
-    ///
-    /// 「已移入废纸篓 12 处（8.4 GB），另有 3 处没搬动」这种句子必须是**真数**：
-    /// 那句「还能腾出 22 GB」是按钮许的愿，搬完对不上而原因没说，这一屏就再没人信了。
-    private func moveTargets(_ targets: [ReclaimTarget]) -> MoveReceipt {
-        var r = MoveReceipt()
-        for t in targets {
-            do {
-                let moved = try trashItem(t.url)
-                store.record(TrashRecord(original: t.url, inTrash: moved,
-                                         size: t.size,
-                                         displayName: t.url.lastPathComponent))
-                r.ok += 1
-                r.bytes += t.size
-            } catch {
-                r.failed += 1
-                if r.why.isEmpty { r.why = failReason(error) }   // 只留第一处的原因，句子才不失控
-            }
-        }
-        return r
-    }
-
-    /// 一趟搬运的清点结果。
-    private struct MoveReceipt {
-        var ok = 0
-        var bytes: Int64 = 0
-        var failed = 0
-        var why = ""
-    }
-
-    /// 有处数没搬动时挂在最后那句话说的那半句。两处（一条弧 / 整圈）共用同一条尾巴，
-    /// 免得同一件失败在两个入口长成两种说法。
-    private func failTail(_ r: MoveReceipt) -> String {
-        guard r.failed > 0 else { return "" }
-        // 系统给的那句原因自带句号（「你没有许可。」），照搬进模板就是「许可。。」。
-        let cause = r.why.hasSuffix("。") || r.why.hasSuffix(".")
-            ? String(r.why.dropLast()) : r.why
-        return cause.isEmpty ? LF("%1$d more didn't move.", r.failed)
-                             : LF("%1$d more didn't move; the first one failed because: %2$@.", r.failed, cause)
+    /// Show the complete named plan before handing execution to the store.
+    private func reviewTargets(_ targets: [ReclaimTarget]) {
+        guard !store.isTrashing else { return }
+        review = TrashReviewPlan(items: targets.map { TrashPlanItem(url: $0.url, bytes: $0.size) })
     }
 
     // MARK: 上膛那一刻把名单念出来（第一下点亮 → 看清将搬什么 → 第二下才搬）
@@ -972,6 +864,12 @@ struct OverviewView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .reviewedTrashWorkflow(review: $review, currentPlan: { review?.items ?? [] }, perform: { plan in
+            let batch = await store.runTrash(plan, source: "overview")
+            syncMovedLedger()
+            model.refreshUsage()
+            return batch
+        })
         // 结果页的账要跟着这一刀走；总览页自己那条 onChange 在流程开着时不在树上。
         .onChange(of: store.trashHistory) { _ in syncMovedLedger() }
         // 首次清理那几屏的截图口令。走的是页面上那几颗按钮自己的方法（见 `runFirstClean`），

@@ -23,9 +23,7 @@ struct NMView: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: NMModel
-    @State private var confirm = false
-    @State private var err: String? = nil
-    @State private var result: LegacyOperationResult?
+    @State private var review: TrashReviewPlan?
     /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
     @StateObject private var flight = TrashFlightController()
 
@@ -110,9 +108,8 @@ struct NMView: View {
 
             Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
 
-            if let err { ListNote(text: err) }
             SelectionActionBar(count: model.selected.count, bytes: uiHuman(model.selectedBytes),
-                               selection: model.selectAll, busy: model.scanning || store.isTrashing) { confirm = true }
+                               selection: model.selectAll, busy: model.scanning || store.isTrashing) { review = TrashReviewPlan(items: model.trashPlan()) }
 
         }
         .frame(maxWidth: .infinity)
@@ -122,14 +119,8 @@ struct NMView: View {
         // 行数从 0 变成 N 是「扫完了」的信号，补在这里，钩子才有第二次机会。
         .onChange(of: model.items.count) { _ in fireSnapshotFlightIfAsked() }
         .onAppear { if !model.started { model.scan() } }
-        .confirmTrash(isPresented: $confirm,
-                      text: LF("Move the dependencies of %1$@ (%2$@) to the Trash.",
-                               cnt(model.selected.count, "projects"),
-                               uiHuman(model.selectedBytes, inRulerOf: model.totalBytes))
-                          + "\n\n" + model.selected.map { $0.project + "/node_modules" }.joined(separator: "\n")) {
-            doClean()
-        }
-        .sheet(item: $result) { result in LegacyOperationResultSheet(result: result).themed(theme) }
+        .trashWorkflow(review: $review, currentPlan: { model.trashPlan() },
+                       perform: { await model.trash(using: store) })
     }
 
     private var maxSize: Int64 { max(1, model.items.map(\.size).max() ?? 1) }
@@ -175,41 +166,7 @@ struct NMView: View {
         }
     }
 
-    private func doClean() {
-        err = nil
-        let targets = model.selected
-        // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
-        flight.launch(rows: targets.map { (key: $0.project, bytes: $0.size) },
-                      animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion))
-        var ok = 0
-        var movedRows: [String] = []
-        var errs: [String] = []
-        // 删项目下的 node_modules（可能多个）
-        for it in targets {
-            let projName = URL(fileURLWithPath: it.project).lastPathComponent
-            let nmURL = URL(fileURLWithPath: it.project).appendingPathComponent("node_modules")
-            let targets = (try? FileManager.default.contentsOfDirectory(atPath: it.project)
-                .filter { $0 == "node_modules" }
-                .map { URL(fileURLWithPath: it.project).appendingPathComponent($0) }) ?? [nmURL]
-            for t in targets {
-                guard FileManager.default.fileExists(atPath: t.path) else { continue }
-                do {
-                    let dst = try trashItem(t)
-                    store.record(TrashRecord(original: t, inTrash: dst, size: it.size,
-                                             displayName: "\(projName)/node_modules"))
-                    movedRows.append(projName + "/node_modules · " + t.path)
-                    ok += 1
-                } catch { errs.append(failLine(it.project, error)) }
-            }
-        }
-        // 就地收尾：整个依赖目录都没了的项目从列表里消失，不必重扫全盘
-        model.items.removeAll { !FileManager.default.fileExists(
-            atPath: ($0.project as NSString).appendingPathComponent("node_modules")) }
-        for i in model.items.indices { model.items[i].selected = false }
-        if !errs.isEmpty { err = errList(errs) }
-        store.notice = trashedNotice(ok, "node_modules folders", failed: errs.count)
-        result = LegacyOperationResult(moved: movedRows, failed: errs)
-    }
+
 }
 
 // ── Docker：只读明细，不代删，只指路 ──

@@ -22,10 +22,8 @@ struct FolderDrillView: View {
     @Environment(\.theme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject var model: FolderDrillModel
-    @State private var confirm = false
+    @State private var review: TrashReviewPlan?
     @State private var showsTreemap = false
-    @State private var err: String? = nil
-    @State private var result: LegacyOperationResult?
 
     /// Deletion flight: both origin (checked rows) and destination (the CleanBar button) are collected here.
     @StateObject private var flight = TrashFlightController()
@@ -87,9 +85,8 @@ struct FolderDrillView: View {
 
             Spacer(minLength: 0)   // clean bar pinned to the window bottom, see `CleanBar`
 
-            if let err { ListNote(text: err) }
             SelectionActionBar(count: model.selectedEntries.count, bytes: uiHuman(model.selectedBytes),
-                               selection: selectAll, busy: model.busy || store.isTrashing) { confirm = true }
+                               selection: model.selectAll, busy: model.busy || store.isTrashing) { review = TrashReviewPlan(items: model.trashPlan()) }
 
         }
         .frame(maxWidth: .infinity)
@@ -111,14 +108,8 @@ struct FolderDrillView: View {
         // Without this: going back still shows old numbers, and this tool's whole reason to exist is that numbers are true.
         // Conversely, **except for this**, visited levels stay cached; that's caching, not a missed scan.
         .onChange(of: store.rescanPulse) { _ in model.invalidate() }
-        .confirmTrash(isPresented: $confirm,
-                      text: LF("Move %1$@ (%2$@) to the Trash.",
-                               cnt(model.selectedEntries.count, "items"),
-                               uiHuman(model.selectedBytes, inRulerOf: model.level?.total ?? 0))
-                          + confirmNames(model.selectedEntries)) {
-            doClean()
-        }
-        .sheet(item: $result) { result in LegacyOperationResultSheet(result: result).themed(theme) }
+        .trashWorkflow(review: $review, currentPlan: { model.trashPlan() },
+                       perform: { await model.trash(using: store) })
     }
 
     // MARK: Body
@@ -372,29 +363,6 @@ struct FolderDrillView: View {
                 })
     }
 
-    /// "Select all" only affects checkable rows: untouchable rows can't be deleted, so cleaning after select-all would just yield an error screen.
-    /// P0-7: select-all also skips dotfiles and direct children of ~/Library
-    /// (`isBulkSelectable`) — those can still be ticked one by one, never in one sweep.
-    private var selectAll: SelectAll? {
-        let open = model.rows.filter { isBulkSelectable($0.url) }
-        guard !open.isEmpty else { return nil }
-        return SelectAll(allSelected: open.allSatisfy { model.selected.contains($0.path) },
-                         unselectable: model.rows.count - open.count) { on in
-            if on {
-                model.selected = Set(open.map(\.path))
-            } else {
-                model.selected.removeAll()
-            }
-        }
-    }
-
-    /// Names of what is about to be trashed, shown in the confirm alert so a single
-    /// generic "N items" never hides `.ssh` or `Application Support` among them.
-    private func confirmNames(_ entries: [ChildEntry]) -> String {
-        guard !entries.isEmpty else { return "" }
-        return "\n\n" + entries.map(\.path).joined(separator: "\n") + "\n\n"
-    }
-
     // MARK: Actions
 
     private func start() {
@@ -409,42 +377,7 @@ struct FolderDrillView: View {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
-    private func doClean() {
-        err = nil
-        let targets = model.selectedEntries
-        let rows = targets.map { (key: $0.path, bytes: $0.size) }
-        // Grab origin and destination **before** clearing the selection: unchecked rows stop reporting anchors, and a disabled button moves the target.
-        // No flight under "Reduce motion" or snapshot mode: appearing from nowhere and vanishing is harder to explain, and results are shown in full anyway.
-        // Removing rows here requires rescanning this level, not immediate, hence `fade`: fade first, remove after chips land.
-        let fly = flight.launch(rows: rows,
-                                animate: TrashFlightController.canAnimate(reduceMotion: reduceMotion),
-                                fade: true)
-        model.selected.removeAll()
 
-        var ok = 0
-        var movedRows: [String] = []
-        var errs: [String] = []
-        for r in targets {
-            do {
-                let t = try trashItem(r.url)
-                store.record(TrashRecord(original: r.url, inTrash: t, size: r.size, displayName: r.name))
-                movedRows.append(r.name + " · " + r.path)
-                ok += 1
-            } catch { errs.append(failLine(r.name, error)) }
-        }
-
-        if !errs.isEmpty { err = errList(errs) }
-        store.notice = trashedNotice(ok, "items", failed: errs.count)
-        result = LegacyOperationResult(moved: movedRows, failed: errs)
-
-        // Fade rows, then reload after chips finish flying; otherwise chips are mid-air while rows are gone, wasting the trip.
-        let gone = Set(targets.map(\.path))
-        DispatchQueue.main.asyncAfter(deadline: .now() + TrashFlightController.settleDelay(fly)) {
-            [weak model, weak flight] in
-            model?.reload()
-            flight?.settle(gone)
-        }
-    }
 
     /// Screenshot hook: with `DISKWISE_FLIGHT=<0~1>`, pin this page's flight too and capture it.
     ///
