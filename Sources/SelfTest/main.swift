@@ -860,6 +860,20 @@ Task.detached {
     let nested = await walkFiles(dirs: [dbase, dbase.appendingPathComponent("sub")])
     check(nested.rows.count == 5, "嵌套根不重复计数（实得 \(nested.rows.count) 条）")
     check(Set(nested.rows.map { $0.url.path }).count == nested.rows.count, "嵌套根交出来的路径不重复")
+    // Request P1: unreadable folders and missing roots are reported, not silently skipped.
+    check(nested.needFullDiskAccess.isEmpty && nested.needAdmin.isEmpty && nested.missingRoots.isEmpty,
+          "walk issues: a fully readable tree reports nothing")
+    let locked = dbase.appendingPathComponent("locked")
+    try? fm.createDirectory(at: locked, withIntermediateDirectories: true)
+    try? Data(count: 10).write(to: locked.appendingPathComponent("hidden.bin"))
+    chmod(locked.path, 0)
+    let ghost = dbase.appendingPathComponent("no-such-root")
+    let withIssues = await walkFiles(dirs: [dbase, ghost])
+    chmod(locked.path, 0o700)
+    check(withIssues.needAdmin == [locked.path], "walk issues: chmod 000 folder → needAdmin (\(withIssues.needAdmin))")
+    check(withIssues.missingRoots == [ghost.path], "walk issues: missing root → missingRoots")
+    check(!withIssues.rows.contains { $0.url.lastPathComponent == "hidden.bin" },
+          "walk issues: nothing invented from inside the unreadable folder")
     try? fm.removeItem(at: dbase)
     sem2.signal()
 }
@@ -1478,7 +1492,17 @@ do {
           "直装版照旧列 /Applications")
 
     // 残留页还是老口径：真孤儿照列，已装 App 的数据不算孤儿，Caches 里不带点的工具目录不当 App 数据。
-    let (orphans, _) = await scanOrphans()
+    let lockedLeft = uroot + "/Library/Application Support/com.orphan.locked"
+    ufile("Library/Application Support/com.orphan.locked/open.bin")
+    ufile("Library/Application Support/com.orphan.locked/secret/x.bin")
+    chmod(lockedLeft + "/secret", 0)
+    let orphanReport = await scanOrphansReport()
+    chmod(lockedLeft + "/secret", 0o700)
+    check(orphanReport.needAdmin.contains(lockedLeft + "/secret"),
+          "orphan issues: unreadable folder inside a leftover is reported (\(orphanReport.needAdmin))")
+    check(orphanReport.items.contains { $0.name == "com.orphan.locked" },
+          "orphan issues: the partly readable leftover is still listed")
+    let orphans = orphanReport.items
     check(orphans.contains { $0.name == "com.orphan.gone" }, "残留页仍然列出真孤儿")
     check(!orphans.contains { $0.name == "com.demo.notes" }, "已装 App 的数据不叫残留")
     check(!orphans.contains { $0.name == "toolcache" }, "Caches 里不带点的工具目录不当成 App 数据")

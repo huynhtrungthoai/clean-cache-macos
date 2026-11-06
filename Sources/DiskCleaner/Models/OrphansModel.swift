@@ -41,10 +41,11 @@ final class OrphansModel: ObservableObject, ScanStatusReporting {
         items = []
         progress = ScanProgress()
         task = Task {
-            let (list, apps) = await scanOrphans(progress: self.progress)
+            let r = await scanOrphansReport(progress: self.progress)
             if !Task.isCancelled {
-                self.items = list
-                self.appCount = apps
+                self.items = r.items
+                self.appCount = r.appCount
+                self.issues = permissionIssues(r.needFullDiskAccess + r.needAdmin)
                 self.scanning = false
                 self.scanState = .completed
                 self.scannedAt = Date()

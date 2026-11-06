@@ -64,6 +64,7 @@ final class BigFilesModel: ObservableObject, ScanStatusReporting {
                 self.count = r.matched
                 self.all = r.rows
                 self.applyLimit()
+                self.issues = walkIssues(r)
                 self.scanning = false
                 self.scanState = .completed
                 self.scannedAt = Date()

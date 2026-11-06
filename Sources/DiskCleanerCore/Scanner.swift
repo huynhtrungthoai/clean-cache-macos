@@ -42,7 +42,7 @@ public struct DirScan {
 }
 
 /// 目录能打开却读不出条目时返回 0；打不开时返回 errno。
-private func probeErrno(_ path: String) -> Int32 {
+func probeErrno(_ path: String) -> Int32 {
     guard let d = opendir(path) else { return errno }
     closedir(d)
     return 0

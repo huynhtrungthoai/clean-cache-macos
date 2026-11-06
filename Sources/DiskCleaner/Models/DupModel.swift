@@ -47,10 +47,10 @@ final class DupModel: ObservableObject, ScanStatusReporting {
             self.progress = ScanProgress()
             // 只留下我们删得动的：整盘扫描会走进 /Library、/opt 这些 root 地盘，
             // 那些重复归包管理器管，列出来只会让用户去点一个注定失败的勾选框。
-            let files = await walkFiles(dirs: targets, minSize: minB,
-                                        skipNames: ["node_modules", ".git", "Caches"],
-                                        progress: self.progress)
-                .rows.filter(\.deletable)
+            let walk = await walkFiles(dirs: targets, minSize: minB,
+                                       skipNames: ["node_modules", ".git", "Caches"],
+                                       progress: self.progress)
+            let files = walk.rows.filter(\.deletable)
             if Task.isCancelled { return }
             self.phase = LF("Comparing contents (%@ candidates)…", String(files.count))
             // 哈希是同步重活，扔后台线程做
@@ -64,6 +64,7 @@ final class DupModel: ObservableObject, ScanStatusReporting {
                 }.value
                 self.scanning = false
                 self.phase = ""
+                self.issues = walkIssues(walk)
                 self.scanState = .completed
                 self.scannedAt = Date()
             }

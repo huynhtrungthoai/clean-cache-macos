@@ -58,6 +58,7 @@ final class OldFilesModel: ObservableObject, ScanStatusReporting {
             if !Task.isCancelled {
                 self.count = r.matched
                 self.rows = r.rows
+                self.issues = walkIssues(r)
                 self.scanning = false
                 self.scanState = .completed
                 self.scannedAt = Date()

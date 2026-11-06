@@ -27,6 +27,13 @@ public struct FileRow: Identifiable {
 public struct WalkResult {
     public var rows: [FileRow]
     public var matched: Int
+    /// Folders that could not be listed: EPERM = missing Full Disk Access (TCC), EACCES =
+    /// owner/admin only. Only the top-most unreadable folder of a branch is listed (its
+    /// children are never reached). Results under them are missing, not "nothing there".
+    public var needFullDiskAccess: [String] = []
+    public var needAdmin: [String] = []
+    /// Scan roots that did not exist when the walk started.
+    public var missingRoots: [String] = []
 }
 
 /// 深度优先遍历。
@@ -61,6 +68,8 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
         (rootPaths[ri], deviceOf(URL(fileURLWithPath: rootPaths[ri])),
          nestedRoots(under: rootPaths[ri]), stationOf[ri])
     }
+    var needFDA: [String] = [], needAdmin: [String] = [], missing: [String] = []
+    let rootSet = Set(rootPaths)
     var n = 0
     /// 此刻量到清单上第几格、这一格累计了多少。走到根就换格，换格时把上一格收掉。
     var at = -1
@@ -73,7 +82,15 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
             atBytes = 0
             progress?.enter(stations[stn])
         }
-        guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { continue }
+        guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else {
+            switch probeErrno(dir) {
+            case EPERM: needFDA.append(dir)
+            case EACCES: needAdmin.append(dir)
+            case ENOENT where rootSet.contains(dir): missing.append(dir)
+            default: break        // vanished mid-walk / not a folder: not worth reporting
+            }
+            continue
+        }
         var dFiles = 0
         var dBytes: Int64 = 0
         for name in items {
@@ -112,7 +129,8 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
     if at >= 0 && at < stations.count { progress?.finish(stations[at], bytes: atBytes) }
     out.sort { $0.size > $1.size }
     if top > 0 { out = Array(out.prefix(top)) }
-    return WalkResult(rows: out, matched: matched)
+    return WalkResult(rows: out, matched: matched, needFullDiskAccess: needFDA,
+                      needAdmin: needAdmin, missingRoots: missing)
 }
 
 /// 各扫描页的默认根。
@@ -361,7 +379,22 @@ private let orphanGuess: [(kw: String, label: String)] = [
     ("dingtalk", "DingTalk"), ("qq", "QQ"), ("tencent", "Tencent app"),
 ]
 
+/// `scanOrphansReport` plus what could not be read.
+public struct OrphanScan {
+    public var items: [OrphanItem]
+    public var appCount: Int
+    /// Library locations or leftover folders that could not be (fully) read. A leftover whose
+    /// folder is partly unreadable is still listed, its size is then a lower bound.
+    public var needFullDiskAccess: [String] = []
+    public var needAdmin: [String] = []
+}
+
 public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanItem], appCount: Int) {
+    let r = await scanOrphansReport(progress: progress)
+    return (r.items, r.appCount)
+}
+
+public func scanOrphansReport(progress: ScanProgress? = nil) async -> OrphanScan {
     // 1. 盘点已装 App。跟卸载页走同一份（`inventoryApps`），两边对「装着什么」不许有两个答案。
     let inv = await inventoryApps(progress: progress)
     let home = homePath()
@@ -388,6 +421,7 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
     }
     // 2. 找孤儿
     var cands: [(label: String, level: String, path: String, stem: String)] = []
+    var unreadFDA: [String] = [], unreadAdmin: [String] = []
     let locStations = progress.map {
         $0.plan(appDataLocations.map { (home as NSString).appendingPathComponent($0.subpath) })
     } ?? []
@@ -395,6 +429,11 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
         if Task.isCancelled { break }
         progress?.enter(locStations[k])
         let root = (home as NSString).appendingPathComponent(loc.subpath)
+        switch probeErrno(root) {
+        case EPERM: unreadFDA.append(root)
+        case EACCES: unreadAdmin.append(root)
+        default: break        // 0 = readable, ENOENT = location not used on this Mac
+        }
         for e in firstLevelEntries(loc, root: root) {
             if related(e.stem) { continue }
             cands.append((loc.label, loc.level, e.path, e.stem))
@@ -405,29 +444,35 @@ public func scanOrphans(progress: ScanProgress? = nil) async -> (items: [OrphanI
     // 认不认得出来全靠它——「正在量哪一处」在这里比在任何一页都更该说得出来。
     let candStations = progress.map { $0.plan(cands.map(\.path)) } ?? []
     var items: [OrphanItem] = []
-    await withTaskGroup(of: OrphanItem?.self) { group in
+    await withTaskGroup(of: (OrphanItem?, [String], [String]).self) { group in
         for (k, c) in cands.enumerated() {
             group.addTask {
                 let station = k < candStations.count ? candStations[k] : nil
                 if let station { progress?.enter(station) }
                 defer { if let station { progress?.finish(station, bytes: 0) } }
-                if Task.isCancelled { return nil }
+                if Task.isCancelled { return (nil, [], []) }
                 let u = URL(fileURLWithPath: c.path)
                 let st = await pathStat(u, progress: progress)
                 if let station { progress?.finish(station, bytes: st.bytes) }
-                guard st.bytes > 0 else { return nil }
+                guard st.bytes > 0 || !st.needFullDiskAccess.isEmpty || !st.needAdmin.isEmpty else {
+                    return (nil, [], [])
+                }
                 let g = guess(c.stem)
-                return OrphanItem(
+                let item = st.bytes > 0 ? OrphanItem(
                     name: c.stem, loc: c.label, path: u, size: st.bytes, level: c.level,
-                    guess: g, files: st.files, newest: st.newest)
+                    guess: g, files: st.files, newest: st.newest) : nil
+                return (item, st.needFullDiskAccess, st.needAdmin)
             }
         }
-        for await r in group {
+        for await (r, fda, adm) in group {
             if let r = r { items.append(r) }
+            unreadFDA += fda
+            unreadAdmin += adm
         }
     }
     items.sort { ($0.size ?? 0) > ($1.size ?? 0) }
-    return (items, inv.appCount)
+    return OrphanScan(items: items, appCount: inv.appCount,
+                      needFullDiskAccess: unreadFDA, needAdmin: unreadAdmin)
 }
 
 // ══ node_modules：全盘找，聚合到项目级 ══

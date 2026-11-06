@@ -53,3 +53,9 @@ extension ScanStatusReporting {
 func permissionIssues(_ paths: [String]) -> [ScanIssue] {
     Array(Set(paths)).sorted().map { ScanIssue(root: $0, kind: .noPermission) }
 }
+
+/// Issues of a `walkFiles` pass: unreadable folders (sorted) then missing roots.
+func walkIssues(_ r: WalkResult) -> [ScanIssue] {
+    permissionIssues(r.needFullDiskAccess + r.needAdmin)
+        + Array(Set(r.missingRoots)).sorted().map { ScanIssue(root: $0, kind: .notFound) }
+}
