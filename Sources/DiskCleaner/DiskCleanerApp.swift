@@ -237,10 +237,6 @@ final class AppStore: ObservableObject {
 
     var trashedBytes: Int64 { trashHistory.reduce(0) { $0 + $1.size } }
 
-    func record(_ r: TrashRecord) {
-        trashHistory.append(r)
-    }
-
     // MARK: - C1/C2: confirmed trash plans and batch history (docs/enhance-feat.md §11)
 
     private let batchStore = TrashBatchStore()
@@ -401,30 +397,6 @@ final class AppStore: ObservableObject {
             trashHistory.append(last)
             return LF("Undo failed: %@", error.localizedDescription)
         }
-    }
-
-    /// 一次撤销一整批（首次清理那一步）。
-    ///
-    /// 倒序放回：这一批是同一屏上勾出来、按列表顺序搬走的，倒着退才能让「后搬进去的
-    /// 先回到原位」——同名的两处不会在放回途中互相占位。放回失败的**留在历史里**：
-    /// 那条记录还是真的，撤掉就等于对废纸篓页撒谎。返回真放回的那几条，
-    /// 调用方拿它把选择恢复成「还没清的样子」。
-    @discardableResult
-    func undoBatch(_ records: [TrashRecord]) -> (restored: [TrashRecord], failed: Int, firstError: String?) {
-        var restored: [TrashRecord] = []
-        var failed = 0
-        var firstError: String? = nil
-        for r in records.reversed() {
-            do {
-                try untrash(r)
-                restored.append(r)
-                trashHistory.removeAll { $0.inTrash.path == r.inTrash.path }
-            } catch {
-                failed += 1
-                if firstError == nil { firstError = error.localizedDescription }
-            }
-        }
-        return (restored, failed, firstError)
     }
 
     func clearHistory() {

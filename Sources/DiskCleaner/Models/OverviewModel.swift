@@ -608,54 +608,6 @@ final class OverviewModel: ObservableObject, ScanStatusReporting {
         usage.map { CostLedger(sums: costSumsBacking, total: $0.total) }
     }
 
-    /// Legacy (main thread, no preflight, old history): replaced by `trashClean(using:)`.
-    /// Removed once the Overview UI calls the batch API.
-    /// 真搬。一条一条走 `trashItem`，失败留在 `failures` 里点名。
-    ///
-    /// 搬走的当场从候选池里去掉；失败的那些留在池里，用户可以再试一次。
-    /// 记录由调用方写进 `AppStore`（模型摸不到 store），所以这里收一个闭包。
-    func performFirstClean(record: (TrashRecord) -> Void) -> CleanRun {
-        let before = usage?.available ?? 0
-        var records: [TrashRecord] = []
-        var receipts: [CleanReceipt] = []
-        var failures: [CleanFailure] = []
-        var bytes: Int64 = 0
-        cleanBusy = true
-        defer { cleanBusy = false }
-        for c in cleanSelected {
-            do {
-                let t = try trashItem(c.url)
-                let r = TrashRecord(original: c.url, inTrash: t, size: c.size,
-                                    displayName: c.url.lastPathComponent)
-                record(r)
-                records.append(r)
-                receipts.append(CleanReceipt(path: c.path, name: c.name, size: c.size,
-                                             tier: c.tier, appID: c.appID, brand: c.brand))
-                bytes += c.size
-            } catch {
-                failures.append(CleanFailure(path: c.path, name: c.name,
-                                             reason: error.localizedDescription))
-            }
-        }
-        return CleanRun(records: records, receipts: receipts, failures: failures,
-                        bytes: bytes, beforeAvailable: before)
-    }
-
-    func finishFirstClean(_ run: CleanRun) {
-        cleanRun = run
-        cleanBusy = false
-        cleanStage = .result
-        rebuildCleanCandidates()
-    }
-
-    /// 一处都没搬成：留在确认页，把原因摆在按钮旁边。不切结果页——
-    /// 结果页只该在真的搬走之后出现。
-    func noteFirstCleanFailure(_ run: CleanRun) {
-        cleanRun = run
-        cleanBusy = false
-        rebuildCleanCandidates()
-    }
-
     // MARK: C1/C2: first clean through the shared batch executor (docs/enhance-feat.md §11)
 
     /// Batch of the last first-clean run, for undo. nil before a run and after a full undo.
