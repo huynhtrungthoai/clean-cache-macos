@@ -1349,3 +1349,13 @@
 "Skip all and scan" = "Omitir todas y analizar";
 
 "Quit and scan" = "Cerrar y analizar";
+
+"Emptying the Trash…" = "Vaciando la papelera…";
+
+"Trash emptied" = "Papelera vaciada";
+
+"Couldn't empty the Trash" = "No se pudo vaciar la papelera";
+
+"The Trash has been emptied." = "Se ha vaciado la papelera.";
+
+"Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "Permite que CleanPilot controle el Finder en Ajustes del Sistema › Privacidad y seguridad › Automatización y vuelve a intentarlo.";

@@ -17,6 +17,17 @@ final class TrashModel: ObservableObject {
     @Published private(set) var emptying = false
     /// Localised reason from the last failed empty request; nil after success.
     @Published private(set) var lastError: String? = nil
+    /// Outcome of the last empty request, for a visible result even when the Trash cannot be
+    /// measured (no Full Disk Access): before this, success and failure both looked like nothing.
+    @Published var emptyOutcome: EmptyOutcome? = nil
+
+    enum EmptyOutcome: Identifiable {
+        case emptied
+        case failed(message: String, needsPermission: Bool)
+        var id: String {
+            switch self { case .emptied: return "ok"; case .failed(let m, _): return m }
+        }
+    }
     private var task: Task<Void, Never>? = nil
 
     /// Finder can be told to empty the Trash only outside the sandbox (App Store build:
@@ -49,13 +60,26 @@ final class TrashModel: ObservableObject {
         do {
             try emptyTrashViaFinder()
             lastError = nil
+            emptyOutcome = .emptied
             refresh()
             return true
         } catch let e as TrashError {
+            if case .finderCanceled = e { lastError = nil; return false }   // the user said no in Finder
             lastError = e.detail.isEmpty ? L(e.reasonKey) : LF("%@: %@", L(e.reasonKey), e.detail)
+            var permission = false
+            if case .automationDenied = e { permission = true }
+            emptyOutcome = .failed(message: lastError ?? "", needsPermission: permission)
         } catch {
             lastError = error.localizedDescription
+            emptyOutcome = .failed(message: lastError ?? "", needsPermission: false)
         }
         return false
+    }
+
+    /// System Settings › Privacy & Security › Automation, where "CleanPilot → Finder" is allowed.
+    func openAutomationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }

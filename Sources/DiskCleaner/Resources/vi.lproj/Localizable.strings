@@ -1349,3 +1349,13 @@
 "Skip all and scan" = "Bỏ qua tất cả và quét";
 
 "Quit and scan" = "Đóng và quét";
+
+"Emptying the Trash…" = "Đang dọn sạch Thùng rác…";
+
+"Trash emptied" = "Đã dọn sạch Thùng rác";
+
+"Couldn't empty the Trash" = "Không dọn được Thùng rác";
+
+"The Trash has been emptied." = "Thùng rác đã được dọn sạch.";
+
+"Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "Hãy cho phép CleanPilot điều khiển Finder trong Cài đặt hệ thống › Quyền riêng tư & Bảo mật › Tự động hóa, rồi thử lại.";

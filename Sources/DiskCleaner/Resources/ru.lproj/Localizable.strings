@@ -1349,3 +1349,13 @@
 "Skip all and scan" = "Пропустить все и сканировать";
 
 "Quit and scan" = "Закрыть и сканировать";
+
+"Emptying the Trash…" = "Очистка корзины…";
+
+"Trash emptied" = "Корзина очищена";
+
+"Couldn't empty the Trash" = "Не удалось очистить корзину";
+
+"The Trash has been emptied." = "Корзина очищена.";
+
+"Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "Разрешите CleanPilot управлять Finder в Системных настройках › Конфиденциальность и безопасность › Автоматизация, затем повторите попытку.";

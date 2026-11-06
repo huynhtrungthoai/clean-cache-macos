@@ -1349,3 +1349,13 @@
 "Skip all and scan" = "Skip all and scan";
 
 "Quit and scan" = "Quit and scan";
+
+"Emptying the Trash…" = "Emptying the Trash…";
+
+"Trash emptied" = "Trash emptied";
+
+"Couldn't empty the Trash" = "Couldn't empty the Trash";
+
+"The Trash has been emptied." = "The Trash has been emptied.";
+
+"Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again.";

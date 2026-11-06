@@ -1349,3 +1349,13 @@
 "Skip all and scan" = "모두 건너뛰고 스캔";
 
 "Quit and scan" = "종료하고 스캔";
+
+"Emptying the Trash…" = "휴지통 비우는 중…";
+
+"Trash emptied" = "휴지통을 비웠습니다";
+
+"Couldn't empty the Trash" = "휴지통을 비우지 못했습니다";
+
+"The Trash has been emptied." = "휴지통을 비웠습니다.";
+
+"Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "시스템 설정 › 개인정보 보호 및 보안 › 자동화에서 CleanPilot이 Finder를 제어하도록 허용한 뒤 다시 시도하세요.";

@@ -1349,3 +1349,13 @@
 "Skip all and scan" = "Alle überspringen und scannen";
 
 "Quit and scan" = "Beenden und scannen";
+
+"Emptying the Trash…" = "Papierkorb wird entleert …";
+
+"Trash emptied" = "Papierkorb entleert";
+
+"Couldn't empty the Trash" = "Papierkorb konnte nicht entleert werden";
+
+"The Trash has been emptied." = "Der Papierkorb wurde entleert.";
+
+"Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "Erlaube CleanPilot in den Systemeinstellungen › Datenschutz & Sicherheit › Automation, den Finder zu steuern, und versuche es erneut.";

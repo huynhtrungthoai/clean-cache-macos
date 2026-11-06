@@ -131,9 +131,39 @@ struct TrashView: View {
                 Button(L("Refresh")) { model.refresh() }.disabled(model.measuring || model.emptying)
                 Spacer()
                 Button(L("Open in Finder")) { model.openInFinder() }
+                if model.emptying {
+                    ProgressView().controlSize(.small)
+                    Text(L("Emptying the Trash…")).font(theme.bodyFont(.callout))
+                }
                 if model.canAskFinderToEmpty {
                     Button(L("Empty Trash"), role: .destructive) { confirmEmpty = true }
                         .disabled(store.isTrashing || model.emptying || model.measuring)
+                }
+            }
+            // Always say what happened: without Full Disk Access the Trash card reads "Cannot
+            // measure", so a successful empty used to look exactly like a button that did nothing.
+            .alert(model.emptyOutcome.map(outcomeTitle) ?? "",
+                   isPresented: Binding(get: { model.emptyOutcome != nil },
+                                        set: { if !$0 { model.emptyOutcome = nil } }),
+                   presenting: model.emptyOutcome) { outcome in
+                switch outcome {
+                case .emptied:
+                    Button(L("Close"), role: .cancel) { }
+                case .failed(_, let needsPermission):
+                    if needsPermission {
+                        Button(L("Open System Settings")) { model.openAutomationSettings() }
+                    }
+                    Button(L("Open in Finder")) { model.openInFinder() }
+                    Button(L("Close"), role: .cancel) { }
+                }
+            } message: { outcome in
+                switch outcome {
+                case .emptied:
+                    Text(L("The Trash has been emptied."))
+                case .failed(let message, let needsPermission):
+                    Text(needsPermission
+                         ? L("Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again.") + "\n\n" + message
+                         : message)
                 }
             }
             Text(L("Empty the Trash in Finder after reviewing its contents. Emptying cannot be undone."))
@@ -143,6 +173,11 @@ struct TrashView: View {
         .padding(.horizontal, 24).padding(.vertical, 12)
         .background(theme.palette.surface)
         .overlay(alignment: .top) { Divider() }
+    }
+
+    private func outcomeTitle(_ outcome: TrashModel.EmptyOutcome) -> String {
+        if case .emptied = outcome { return L("Trash emptied") }
+        return L("Couldn't empty the Trash")
     }
 
     private func sourceTitle(_ source: String) -> String {

@@ -1349,3 +1349,13 @@
 "Skip all and scan" = "すべてスキップしてスキャン";
 
 "Quit and scan" = "終了してスキャン";
+
+"Emptying the Trash…" = "ゴミ箱を空にしています…";
+
+"Trash emptied" = "ゴミ箱を空にしました";
+
+"Couldn't empty the Trash" = "ゴミ箱を空にできませんでした";
+
+"The Trash has been emptied." = "ゴミ箱を空にしました。";
+
+"Allow CleanPilot to control Finder in System Settings › Privacy & Security › Automation, then try again." = "システム設定 › プライバシーとセキュリティ › オートメーション で CleanPilot に Finder の制御を許可してから、もう一度お試しください。";
