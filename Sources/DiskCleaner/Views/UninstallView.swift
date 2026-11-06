@@ -243,7 +243,7 @@ struct UninstallView: View {
                 Text(L("App plus ticked data"))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
-                SizeNumber(shown: uiHuman(model.totalBytes), size: 26)
+                SizeNumber(shown: planSizeText, size: 26)
             }
         }
         .padding(16)
@@ -257,7 +257,7 @@ struct UninstallView: View {
                     icon: .path(app.path),
                     name: app.name,
                     sub: L("App bundle · always moved"),
-                    sizeText: uiHuman(model.bundleBytes ?? 0),
+                    sizeText: model.bundleBytes.map(uiHuman) ?? L("Unknown"),
                     fraction: fraction(model.bundleBytes ?? 0),
                     selectable: false,
                     lit: true,
@@ -272,7 +272,7 @@ struct UninstallView: View {
                         icon: .path(it.path),
                         name: it.name,
                         sub: it.loc,
-                        sizeText: uiHuman(it.size ?? 0),
+                        sizeText: it.size.map(uiHuman) ?? L("Unknown"),
                         fraction: fraction(it.size ?? 0),
                         badge: verdictBadge(it.level == "warn" ? .risky : .safe),
                         lit: it.level != "warn") {
@@ -292,6 +292,14 @@ struct UninstallView: View {
 
     @ViewBuilder private func notes(_ app: InstalledApp) -> some View {
         if !model.sharedPaths.isEmpty {
+            DisclosureGroup(L("Excluded shared data")) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(model.sharedPaths, id: \.path) { path in
+                        Text(displayPath(path)).font(theme.bodyFont(.caption))
+                            .foregroundStyle(theme.palette.inkSecondary).textSelection(.enabled)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }
             ListNote(text: LF("%1$@ (%2$@) also belong to another installed app, so they are neither listed nor deleted.",
                               cnt(model.sharedPaths.count, "spots"),
                               model.sharedPaths.prefix(3).map(\.lastPathComponent)
@@ -367,7 +375,9 @@ private struct UninstallConfirmationSheet: View {
         TrashReviewSheet(items: plan.map(TrashReviewItem.init),
                          bytes: uiHuman(plan.reduce(0) { $0 + $1.bytes }),
                          consequence: L("The app and selected private data will move to the Trash. Shared data is excluded."),
-                         busy: store.isTrashing || quitting, dismissOnConfirm: false) {
+                         busy: store.isTrashing || quitting,
+                         busyText: quitting ? L("Waiting for the app to quit…") : L("Moving to Trash…"),
+                         dismissOnConfirm: false) {
             Task { await performUninstall() }
         }
         .alert(LF("%@ is running. Quit it and uninstall?", model.current?.name ?? ""), isPresented: $quitPrompt) {

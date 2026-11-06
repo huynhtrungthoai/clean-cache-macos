@@ -160,7 +160,7 @@ struct CachesView: View {
                            hint: L("Review the scan scope or scan again."))
                     .frame(maxHeight: .infinity)
             } else {
-                PageLedger(tiers: tiers, rows: measured.count, note: ledgerNote)
+                if let note = ledgerNote { ListNote(text: note) }
                 List($model.items) { $item in
                     ItemRow(selected: $item.selected,
                             icon: rowIcon(item.resolvedPaths, "sparkles"),

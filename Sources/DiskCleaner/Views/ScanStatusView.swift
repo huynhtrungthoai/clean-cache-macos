@@ -59,7 +59,7 @@ struct ScanStatusView: View {
 
     private func issueReason(_ issue: ScanIssue) -> String {
         switch issue.kind {
-        case .noPermission: return L("Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again.")
+        case .noPermission: return L("Access denied. Check folder permissions or Full Disk Access in System Settings > Privacy & Security, then scan again.")
         case .notFound: return L("Location not found")
         case .error(let detail): return LF("Scan failed: %@", detail)
         }

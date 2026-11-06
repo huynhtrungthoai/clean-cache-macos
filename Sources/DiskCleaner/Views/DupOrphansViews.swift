@@ -166,7 +166,8 @@ private struct DupFileRow: View {
             if let date {
                 Text(date, format: .dateTime.day().month().year().hour().minute())
                     .font(theme.bodyFont(.caption2)).monospacedDigit()
-                    .accessibilityLabel(LF("Modified: %@", date.formatted()))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .accessibilityLabel(LF("Modified: %@", date.formatted(.dateTime.locale(Locale(identifier: L10n.active.code)))))
             }
             Text(displayPath(url))
                 .font(theme.bodyFont(.caption2))

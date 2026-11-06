@@ -309,6 +309,7 @@ struct ThemeButton: View {
             .contentShape(theme.controlShape())
         }
         .buttonStyle(.plain)
+        .focusable(true)
         .modifier(ThemeButtonVisual(kind: kind))
         .disabled(isDisabled)
         .keyboardShortcut(shortcut)
@@ -487,12 +488,13 @@ private struct ThemeButtonVisual: ViewModifier {
 struct ThemeCheckStyle: ToggleStyle {
     @Environment(\.theme) private var theme
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var side: CGFloat = 18
 
     func makeBody(configuration: Configuration) -> some View {
         Button {
             guard isEnabled else { return }
-            withAnimation(theme.animation) { configuration.isOn.toggle() }
+            withAnimation(reduceMotion ? nil : theme.animation) { configuration.isOn.toggle() }
         } label: {
             HStack(spacing: 10) {
                 box(on: configuration.isOn)
@@ -501,6 +503,7 @@ struct ThemeCheckStyle: ToggleStyle {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(true)
     }
 
     @ViewBuilder

@@ -1274,13 +1274,14 @@ struct ThemeStepper: View {
 /// 皮肤化开关
 struct ThemeSwitch: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var label: String
     var isOn: Binding<Bool>
     var onCommit: (() -> Void)? = nil
 
     var body: some View {
         Button {
-            withAnimation(theme.animation) { isOn.wrappedValue.toggle() }
+            withAnimation(reduceMotion ? nil : theme.animation) { isOn.wrappedValue.toggle() }
             onCommit?()
         } label: {
             HStack(spacing: 7) {
@@ -1300,6 +1301,8 @@ struct ThemeSwitch: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .focusable(true)
+        .accessibilityLabel(label)
         .accessibilityValue(isOn.wrappedValue ? L("On") : L("Off"))
     }
 }

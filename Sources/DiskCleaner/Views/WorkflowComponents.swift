@@ -123,6 +123,7 @@ struct TrashReviewSheet: View {
     var bytes: String
     var consequence: String = L("Items move to the Trash. Free space may not increase until it is emptied.")
     var busy = false
+    var busyText = L("Moving to Trash…")
     var dismissOnConfirm = true
     var confirm: (() -> Void)? = nil
 
@@ -155,6 +156,12 @@ struct TrashReviewSheet: View {
                 .accessibilityElement(children: .combine)
             }
             .listStyle(.plain).scrollContentBackground(.hidden)
+            if busy {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(busyText).font(theme.bodyFont(.callout))
+                }.accessibilityElement(children: .combine)
+            }
             if confirm == nil {
                 Label(L("Moving items is currently unavailable. Your files have not been changed."),
                       systemImage: "info.circle")

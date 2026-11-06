@@ -817,6 +817,7 @@ private struct SidebarRow: View {
             .contentShape(theme.controlShape())
         }
         .buttonStyle(.plain)
+        .focusable(true)
         .accessibilityLabel(panel.title)
         .onHover { hovering = $0 }
         .accessibilityAddTraits(isSelected ? .isSelected : [])

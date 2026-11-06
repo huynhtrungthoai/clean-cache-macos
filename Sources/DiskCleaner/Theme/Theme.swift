@@ -296,6 +296,7 @@ extension View {
     /// The skin page's mini previews use this to render a whole subtree in another skin
     func themed(_ theme: Theme) -> some View {
         environment(\.theme, theme)
+            .environment(\.locale, Locale(identifier: L10n.active.code))
     }
 }
 
