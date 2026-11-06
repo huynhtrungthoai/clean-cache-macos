@@ -612,7 +612,7 @@ struct ContentView: View {
     private var sidebarTheme: Theme { theme }
 
     private var sidebar: some View {
-        ScrollView {
+        SidebarScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 10) {
                     BrandLogo(size: 38)
@@ -638,6 +638,8 @@ struct ContentView: View {
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)
+            .themed(theme)
+            .environment(\.colorScheme, colorScheme)
         }
         .background(SidebarMaterial().ignoresSafeArea())
         .disabled(grant.needsGrant)
