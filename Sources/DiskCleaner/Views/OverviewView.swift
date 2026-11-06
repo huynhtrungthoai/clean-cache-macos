@@ -748,7 +748,7 @@ struct OverviewView: View {
     private func takeTargets(_ seg: GaugeSegment) -> Int64 {
         let r = moveTargets(seg.targets)
         var line = LF("Moved %2$@ from “%1$@” (%3$@) to the Trash. Those bytes still sit on the disk — empty the Trash in Finder and the space actually comes back.",
-                      seg.label, cnt(r.ok, "spots"), human(r.bytes))
+                      seg.label, cnt(r.ok, "spots"), uiHuman(r.bytes))
         line += failTail(r)
         store.notice = line
         return r.bytes
@@ -768,7 +768,7 @@ struct OverviewView: View {
             if all.why.isEmpty { all.why = r.why }
         }
         var line = LF("Moved everything this ring could give up — %1$@ (%2$@) — to the Trash. Those bytes still sit on the disk; empty the Trash in Finder and the space actually comes back.",
-                      cnt(all.ok, "spots"), human(all.bytes))
+                      cnt(all.ok, "spots"), uiHuman(all.bytes))
         line += failTail(all)
         store.notice = line
         return all.bytes
@@ -836,7 +836,7 @@ struct OverviewView: View {
         guard !targets.isEmpty else { return nil }
         let bytes = targets.reduce(Int64(0)) { $0 + $1.size }
         return LF("Moving to Trash: %1$@ %2$@ · %3$@ (%4$@)",
-                  label, cnt(targets.count, "spots"), human(bytes), namesTail(targets))
+                  label, cnt(targets.count, "spots"), uiHuman(bytes), namesTail(targets))
     }
 
     /// 头几处的名字，拼成「A、B、C…」。超过三处只念前三、尾巴一个省略号。
@@ -935,6 +935,12 @@ struct OverviewView: View {
                     // 「没量到的地方」和「最占地方的文件夹」从前是它下面的另两段，
                     // 讲的却就是这本账里两段的明细——搬进它们各自那一行之后整段删掉。
                     if let u = model.usage {
+                        if !model.scanning && model.started {
+                            SummaryCards(metrics: [
+                                .init(title: L("Available now"), value: uiHuman(u.available), detail: L("Overview"), symbol: "internaldrive"),
+                                .init(title: L("Listed items"), value: String(model.done), detail: uiHuman(model.covered), symbol: "folder")
+                            ]).padding(.horizontal, Self.pagePad)
+                        }
                         heroCard(u, avail: gate.size.width - 2 * Self.pagePad,
                                 viewportH: gate.size.height)
                             .padding(.horizontal, Self.pagePad)
@@ -951,7 +957,16 @@ struct OverviewView: View {
     var body: some View {
         Group {
             if let stage = model.cleanStage {
-                firstCleanPage(stage)
+                if stage == .result, let run = model.cleanRun {
+                    OperationResultView(
+                        moved: run.records.map { $0.displayName + " · " + $0.original.path },
+                        skipped: [], failed: run.failures.map { LF("%@: %@", $0.name, $0.reason) },
+                        reportsSkipped: false,
+                        undo: run.records.isEmpty ? nil : { undoFirstClean() },
+                        done: { closeCleanPage() })
+                } else {
+                    firstCleanPage(stage)
+                }
             } else {
                 overviewPage
             }
@@ -1008,7 +1023,7 @@ struct OverviewView: View {
         model.finishFirstClean(run)
         syncMovedLedger()
         store.notice = run.failures.isEmpty
-            ? LF("Moved %1$d locations to Trash, %2$@ total", run.records.count, human(run.bytes))
+            ? LF("Moved %1$d locations to Trash, %2$@ total", run.records.count, uiHuman(run.bytes))
             : LF("Moved %1$d locations, %2$d weren't moved", run.records.count, run.failures.count)
         model.refreshUsage()
     }
@@ -1114,7 +1129,7 @@ struct OverviewView: View {
 
     private func cleanTitle(_ stage: CleanStage) -> String {
         switch stage {
-        case .candidates: return LF("%1$@ reclaimable", human(model.cleanPoolBytes))
+        case .candidates: return LF("%1$@ reclaimable", uiHuman(model.cleanPoolBytes))
         case .confirm: return LF("Confirm these %d locations", model.cleanSelected.count)
         case .result: return L("Moved to Trash")
         }
@@ -1143,13 +1158,13 @@ struct OverviewView: View {
                     return LF("%d locations weren't moved — reasons are listed on the right. The bytes are still on disk; space frees up only once you empty the Trash.", n)
                 }
                 return LF("%1$d locations weren't moved — reasons are listed on the right. The bytes are still on disk; available only changes from %2$@ to %3$@ after you empty the Trash.",
-                          n, human(before), after)
+                          n, uiHuman(before), after)
             }
             guard let after else {
                 return L("The bytes are still on disk — emptying the Trash is what actually frees the space.")
             }
             return LF("The bytes are still on disk — empty the Trash and available goes from %1$@ to %2$@.",
-                      human(before), after)
+                      uiHuman(before), after)
         }
     }
 
@@ -1159,8 +1174,8 @@ struct OverviewView: View {
     /// 「可用才会从 117.3 GB 变成 117.3 GB」（2026-10-19 实拍命中）。字节是真的涨了，
     /// 只是不到这块盘的显示精度——此时该说的是「清空后才会腾出来」，不是报一个假变化。
     private func afterShown(_ before: Int64, plus bytes: Int64) -> String? {
-        let a = human(before)
-        let b = human(before + bytes)
+        let a = uiHuman(before)
+        let b = uiHuman(before + bytes)
         return a == b ? nil : b
     }
 
@@ -1237,7 +1252,7 @@ struct OverviewView: View {
 
     private func cleanCenterValue(_ stage: CleanStage, _ acct: RingAccount) -> String {
         switch stage {
-        case .candidates, .confirm: return human(model.cleanSelectedBytes)
+        case .candidates, .confirm: return uiHuman(model.cleanSelectedBytes)
         case .result: return acct.availableShown
         }
     }
@@ -1262,7 +1277,7 @@ struct OverviewView: View {
             after = afterShown(cleanAvailable, plus: model.cleanSelectedBytes)
         case .result:
             lines = [LF("Disk %1$@ · %2$@ used", acct.totalShown, acct.usedShown),
-                     LF("This move %@", human(model.cleanRun?.bytes ?? 0))]
+                     LF("This move %@", uiHuman(model.cleanRun?.bytes ?? 0))]
             after = afterShown(model.cleanRun?.beforeAvailable ?? acct.available,
                                plus: model.cleanRun?.bytes ?? 0)
         }
@@ -1313,7 +1328,7 @@ struct OverviewView: View {
                 Text("·")
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkTertiary)
-                Text(human(model.cleanPoolBytes))
+                Text(uiHuman(model.cleanPoolBytes))
                     .font(theme.numeric(size: 11.5))
                     .monospacedDigit()
                     .foregroundStyle(theme.palette.inkSecondary)
@@ -1375,7 +1390,7 @@ struct OverviewView: View {
             Text("·")
                 .font(theme.bodyFont(.caption2))
                 .foregroundStyle(theme.palette.inkTertiary)
-            Text(human(g.bytes))
+            Text(uiHuman(g.bytes))
                 .font(theme.numeric(size: 10.5))
                 .monospacedDigit()
                 .foregroundStyle(theme.palette.inkTertiary)
@@ -1431,7 +1446,7 @@ struct OverviewView: View {
                     Text("·")
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkTertiary)
-                    Text(human(model.cleanSelectedBytes))
+                    Text(uiHuman(model.cleanSelectedBytes))
                         .font(theme.numeric(size: 11.5))
                         .monospacedDigit()
                         .foregroundStyle(theme.palette.inkSecondary)
@@ -1483,7 +1498,7 @@ struct OverviewView: View {
                 if let b = verdictBadge(c.tier) {
                     ThemeBadge(text: b.text, tone: b.tone)
                 }
-                Text(human(c.size))
+                Text(uiHuman(c.size))
                     .font(theme.numeric(size: 12))
                     .monospacedDigit()
                     .foregroundStyle(theme.palette.ink)
@@ -1515,7 +1530,7 @@ struct OverviewView: View {
                     if let b = verdictBadge(tier.0) {
                         ThemeBadge(text: b.text, tone: b.tone)
                     }
-                    Text(LF("%1$@ · %2$d locations", human(stats.bytes), stats.n))
+                    Text(LF("%1$@ · %2$d locations", uiHuman(stats.bytes), stats.n))
                         .font(theme.bodyFont(.caption))
                         .monospacedDigit()
                         .foregroundStyle(theme.palette.inkSecondary)
@@ -1537,7 +1552,7 @@ struct OverviewView: View {
             HStack(alignment: .top, spacing: 0) {
                 cleanStep(L("Now"),
                           LF("%d locations still on disk", model.cleanSelected.count),
-                          LF("Available stays %@", human(cleanAvailable)),
+                          LF("Available stays %@", uiHuman(cleanAvailable)),
                           ink: theme.palette.inkSecondary)
                 Rectangle()
                     .fill(theme.palette.separator)
@@ -1552,7 +1567,7 @@ struct OverviewView: View {
                     .frame(width: 1)
                     .padding(.horizontal, 12)
                 cleanStep(L("After emptying"),
-                          LF("%@ free", human(cleanAvailable + model.cleanSelectedBytes)),
+                          LF("%@ free", uiHuman(cleanAvailable + model.cleanSelectedBytes)),
                           L("Emptying can't be undone"),
                           ink: theme.palette.danger)
             }
@@ -1603,7 +1618,7 @@ struct OverviewView: View {
                     Text("·")
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkTertiary)
-                    Text(human(bytes))
+                    Text(uiHuman(bytes))
                         .font(theme.numeric(size: 11.5))
                         .monospacedDigit()
                         .foregroundStyle(theme.palette.inkSecondary)
@@ -1611,27 +1626,27 @@ struct OverviewView: View {
                 }
                 .padding(.bottom, 1)
 
-                cleanResultCard(L("Moved to Trash"), human(bytes),
+                cleanResultCard(L("Moved to Trash"), uiHuman(bytes),
                                 LF("%d locations · freed only after emptying", receipts.count),
                                 link: receipts.isEmpty ? nil : L("Empty →")) {
                     store.jumpTo = .trash
                     closeCleanPage()
                 }
 
-                cleanResultCard(L("Available now"), human(before),
+                cleanResultCard(L("Available now"), uiHuman(before),
                                 L("Unchanged — the bytes are still in the Trash"), link: nil, action: nil)
 
-                cleanResultCard(L("After emptying Trash"), human(after),
-                                LF("+%@ truly returns once emptied", human(bytes)), link: nil, action: nil)
+                cleanResultCard(L("After emptying Trash"), uiHuman(after),
+                                LF("+%@ truly returns once emptied", uiHuman(bytes)), link: nil, action: nil)
 
                 if !remain.isEmpty {
                     HStack(spacing: 6) {
                         Text(remain.count == 1
                              ? LF("%1$@ more reclaimable · %2$d locations (%3$@)",
-                                  human(model.cleanPoolBytes), remain.count,
+                                  uiHuman(model.cleanPoolBytes), remain.count,
                                   remain.first?.name ?? "")
                              : LF("%1$@ more reclaimable · %2$d locations",
-                                  human(model.cleanPoolBytes), remain.count))
+                                  uiHuman(model.cleanPoolBytes), remain.count))
                             .font(theme.bodyFont(.caption))
                             .foregroundStyle(theme.palette.inkSecondary)
                             .lineLimit(1)
@@ -1751,7 +1766,7 @@ struct OverviewView: View {
                 Text(r.tier == .safe ? L("Harmless") : L("Downloads again"))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(r.tier == .safe ? theme.palette.safeFG : theme.palette.warnFG)
-                Text(human(r.size))
+                Text(uiHuman(r.size))
                     .font(theme.numeric(size: 11.5))
                     .monospacedDigit()
                     .foregroundStyle(theme.palette.inkSecondary)
@@ -1802,11 +1817,11 @@ struct OverviewView: View {
             let redo = cleanTierStats(.redo, in: model.cleanSelected)
             let risky = cleanTierStats(.risky, in: model.cleanSelected)
             VStack(alignment: .leading, spacing: 2) {
-                Text(LF("%1$d selected · %2$@", n, human(model.cleanSelectedBytes)))
+                Text(LF("%1$d selected · %2$@", n, uiHuman(model.cleanSelectedBytes)))
                     .font(theme.prose(size: 13, weight: .medium))
                     .foregroundStyle(theme.palette.ink)
                 Text(LF("Harmless %1$@ · downloads again %2$@ · loses data %3$@",
-                        human(safe.bytes), human(redo.bytes), human(risky.bytes)))
+                        uiHuman(safe.bytes), uiHuman(redo.bytes), uiHuman(risky.bytes)))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .lineLimit(1)
@@ -1814,10 +1829,10 @@ struct OverviewView: View {
         case .confirm:
             VStack(alignment: .leading, spacing: 2) {
                 Text(LF("These %1$d locations · %2$@", model.cleanSelected.count,
-                        human(model.cleanSelectedBytes)))
+                        uiHuman(model.cleanSelectedBytes)))
                     .font(theme.prose(size: 13, weight: .medium))
                     .foregroundStyle(theme.palette.ink)
-                Text(LF("Not deleted — moved to Trash · Available now %@", human(cleanAvailable)))
+                Text(LF("Not deleted — moved to Trash · Available now %@", uiHuman(cleanAvailable)))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .lineLimit(1)
@@ -1828,11 +1843,11 @@ struct OverviewView: View {
             let bytes = run?.bytes ?? 0
             let before = run?.beforeAvailable ?? cleanAvailable
             VStack(alignment: .leading, spacing: 2) {
-                Text(LF("Moved %1$d locations · %2$@", n, human(bytes)))
+                Text(LF("Moved %1$d locations · %2$@", n, uiHuman(bytes)))
                     .font(theme.prose(size: 13, weight: .medium))
                     .foregroundStyle(theme.palette.ink)
                 Text(LF("Available stays %1$@ · after emptying %2$@",
-                        human(before), human(before + bytes)))
+                        uiHuman(before), uiHuman(before + bytes)))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .lineLimit(1)
@@ -1853,7 +1868,7 @@ struct OverviewView: View {
             }
         case .confirm:
             ThemeButton(kind: .lamp,
-                        title: LF("Move to Trash · %@ →", human(model.cleanSelectedBytes)),
+                        title: LF("Move to Trash · %@ →", uiHuman(model.cleanSelectedBytes)),
                         isDisabled: model.cleanBusy || model.cleanSelected.isEmpty) {
                 runFirstClean()
             }
@@ -1870,10 +1885,10 @@ struct OverviewView: View {
         switch stage {
         case .candidates:
             VStack(alignment: .trailing, spacing: 2) {
-                Text(LF("%@ in Trash", human(model.moved.reduce(Int64(0)) { $0 + $1.bytes })))
+                Text(LF("%@ in Trash", uiHuman(model.moved.reduce(Int64(0)) { $0 + $1.bytes })))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
-                Text(LF("Available now %@", human(cleanAvailable)))
+                Text(LF("Available now %@", uiHuman(cleanAvailable)))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkSecondary)
             }
@@ -1889,7 +1904,7 @@ struct OverviewView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                Text(LF("%@ in Trash", human(model.moved.reduce(Int64(0)) { $0 + $1.bytes })))
+                Text(LF("%@ in Trash", uiHuman(model.moved.reduce(Int64(0)) { $0 + $1.bytes })))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
             }
@@ -1923,7 +1938,7 @@ struct OverviewView: View {
         case .confirm: return L("Moves to Trash, doesn't delete · space frees on emptying")
         case .result:
             return LF("%@ truly returns as available after emptying",
-                      human(model.cleanRun?.bytes ?? 0))
+                      uiHuman(model.cleanRun?.bytes ?? 0))
         }
     }
 
@@ -1992,6 +2007,10 @@ struct OverviewView: View {
             }
 
             scrollContent
+            ToolFooter(text: L("Items move to the Trash. Free space may not increase until it is emptied.")) {
+                Button(L("App Caches")) { store.arrive(NavStop(panel: .caches)) }
+                Button(L("Saved activity")) { store.arrive(NavStop(panel: .trash)) }
+            }
         }
         // 整页封顶宽并居中。稿子那一屏是定宽的（`.ringbox{width:420px;flex:none}` +
         // `.sidecol{width:364px;flex:none}`），窗口拉宽多出来的份在稿子里是**留白**，不是
@@ -2442,7 +2461,7 @@ struct OverviewView: View {
                 Group {
                     if model.scanning {
                         Text(LF("Read %1$@ / %2$@ · read-only",
-                                human(model.covered), human(acct.total)))
+                                uiHuman(model.covered), uiHuman(acct.total)))
                     } else {
                         Text(lampRun(LF("Segments add up to %1$@", segmentsSumText(acct)),
                                      segmentsSumText(acct),
@@ -2459,7 +2478,7 @@ struct OverviewView: View {
                 // `CostLedger` 把多出来的那截记在 `overdrawn` 上而不是印一个负的「不碰」，
                 // 那这里就得把多出来的数说出来——不说，这一列就是一张加不起来的图。
                 if costReading, let led = model.costLedger, !led.balanced {
-                    Text(LF("Usage and the scan snapshot disagree: the four classes exceed the disk by %@.", human(led.overdrawn)))
+                    Text(LF("Usage and the scan snapshot disagree: the four classes exceed the disk by %@.", uiHuman(led.overdrawn)))
                         .font(theme.bodyFont(.caption2))
                         .foregroundStyle(theme.palette.warnFG)
                         .fixedSize(horizontal: false, vertical: true)
@@ -2528,7 +2547,7 @@ struct OverviewView: View {
         // 「比现在多」拿**印出来的**两个数相减，与盘心那两行同源：各按字节四舍五入一次，
         // 这一条就跟盘心差出 0.1（`RingAccount` 上面记着这类实拍）。
         let more = diffShown(acct.afterClearShown, acct.availableShown)
-            ?? human(acct.reclaimable + acct.inBin)
+            ?? uiHuman(acct.reclaimable + acct.inBin)
         // 竖着排：这一条只有环那么宽（`maxWidth: ring`，最小那档实测 236 pt），
         // 横排的两句话加两颗钮在那个宽度里一定折，折了就说不完这句话。
         return VStack(alignment: .leading, spacing: 8) {
@@ -2550,7 +2569,7 @@ struct OverviewView: View {
                 // 跟单条弧上膛那份名单同一条道理，只是整圈这一档的名单由这条浮着的预演条念，
                 // 不由环底下那一格念（那一格在整圈档让位，见 `ringBelow`）。
                 Text(LF("The %1$@ · %2$@ (%3$@) named by this step can all be undone on the Trash page",
-                        cnt(acct.places, "spots"), human(acct.reclaimable),
+                        cnt(acct.places, "spots"), uiHuman(acct.reclaimable),
                         namesTail(acct.hot.flatMap { $0.targets })))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
@@ -2655,7 +2674,7 @@ struct OverviewView: View {
                 // 东西都在，是人自己在清单里把它们都拿掉了。这里必须还能点开那张清单。
                 return L("Open the cleanup list to pick what to clean →")
             }
-            return sub ? LF("View the %1$d you picked, %2$@ in all →", count, human(live.bytes))
+            return sub ? LF("View the %1$d you picked, %2$@ in all →", count, uiHuman(live.bytes))
                        : LF("See %d reclaimable locations →", count)
         }
 
@@ -2747,8 +2766,8 @@ struct OverviewView: View {
                 .clipShape(Capsule())
             }
             .frame(height: 4)
-            Text(LF("%1$@ / %2$@", human(acct.inBin),
-                    human(acct.reclaimable + acct.inBin)))
+            Text(LF("%1$@ / %2$@", uiHuman(acct.inBin),
+                    uiHuman(acct.reclaimable + acct.inBin)))
                 .font(theme.numeric(size: 10.5))
                 .monospacedDigit()
                 .foregroundStyle(has ? SweepRing.lampHot(theme.palette.tint)
@@ -2799,7 +2818,7 @@ struct OverviewView: View {
         let rest = max(0, whole - rows.reduce(Int64(0)) { $0 + $1.size })
         // 整列连尾巴那句一起过一次统一分档，钉在父行那个数上：这一列 ＋ 那句 = 上面
         // 那一行。逐行 `human()` 会各飘 0.1，那句对账就永远加不回来。
-        let texts = addableHumanColumn(rows.map { $0.size } + [rest], total: whole)
+        let texts = uiAddableHumanColumn(rows.map { $0.size } + [rest], total: whole)
         return VStack(alignment: .leading, spacing: 5) {
             if busy && rows.isEmpty {
                 busyLine(LF("Measuring what's inside “%@”", title))
@@ -2841,19 +2860,19 @@ struct OverviewView: View {
         let total = restArcValue ?? listed + small
         // 尾巴那句里「这几处」那个数取**印出来的这几行**之和（`sumShown`），不拿字节加：
         // 人核对的是屏幕上这一列，差的那 0.1 要记在「每行都各自四舍五入过」上。
-        let texts = addableHumanColumn(nets + [small], total: total)
-        let listedText = sumShown(Array(texts.prefix(rows.count))) ?? human(listed)
+        let texts = uiAddableHumanColumn(nets + [small], total: total)
+        let listedText = sumShown(Array(texts.prefix(rows.count))) ?? uiHuman(listed)
         var parts: [String] = []
         if !rows.isEmpty {
             parts.append(LF("these %1$d here, %2$@", rows.count, listedText))
         }
         if rows.isEmpty || small > 0 {
             parts.append(LF("small folders under %2$@ (%1$d): %3$@", model.unlistedCount,
-                            human(OverviewModel.sizeFloor), texts[rows.count]))
+                            uiHuman(OverviewModel.sizeFloor), texts[rows.count]))
         }
         let note = parts.isEmpty ? nil
             : LF("The “Other counted” slice on the ring — %1$@ — is exactly these parts added up: %2$@.",
-                 human(total), parts.joined(separator: " ＋ "))
+                 uiHuman(total), parts.joined(separator: " ＋ "))
         return VStack(alignment: .leading, spacing: 5) {
             ForEach(Array(rows.enumerated()), id: \.element.path) { i, r in
                 DrillRow(icon: .path(URL(fileURLWithPath: r.path)),
@@ -2896,7 +2915,7 @@ struct OverviewView: View {
                                                                 ? theme.palette.tintSoft
                                                                 : theme.palette.surfaceAlt))
                                 Spacer(minLength: 8)
-                                Text(human(row.bytes))
+                                Text(uiHuman(row.bytes))
                                     .font(theme.numeric(size: 13))
                                     .monospacedDigit()
                                     .foregroundStyle(theme.palette.inkSecondary)
@@ -2964,8 +2983,8 @@ struct OverviewView: View {
         if let armed = model.armedPath {
             // 上膛那一刻圆心写的是**这一按真会搬走的量**，不是那条弧的体积：
             // 「确认移入废纸篓 23.2 GB」而它名下只有 13 GB 收得走，那一按下去数对不上。
-            if armed == SweepRing.armAll { return human(acct.reclaimable) }
-            return acct.segs.first { $0.armKey == armed }?.reclaimShown ?? human(0)
+            if armed == SweepRing.armAll { return uiHuman(acct.reclaimable) }
+            return acct.segs.first { $0.armKey == armed }?.reclaimShown ?? uiHuman(0)
         }
         return acct.availableShown
     }
@@ -3041,17 +3060,17 @@ struct OverviewView: View {
         let pct = Int((Double(model.covered) / Double(max(1, u.used)) * 100).rounded())
         // 「已用 = 量到 + 量不到」是这一句自己许的账，所以三个数由**印出来的字**互相加减，
         // 不各拿字节四舍五入（那样三项能差出 0.1）。已用那格还跟圆心共用同一条算法。
-        let availT = human(u.available), usedT = diffShown(human(u.total), availT) ?? human(u.used)
-        let gapT = human(max(0, u.used - model.covered))
+        let availT = uiHuman(u.available), usedT = diffShown(uiHuman(u.total), availT) ?? uiHuman(u.used)
+        let gapT = uiHuman(max(0, u.used - model.covered))
         let tail = LF("%1$@ used. This pass measured %2$@ of it (%3$d%%); the remaining %4$@ is itemised inside the “Not measured” row.",
-                      usedT, diffShown(usedT, gapT) ?? human(model.covered), pct, gapT)
+                      usedT, diffShown(usedT, gapT) ?? uiHuman(model.covered), pct, gapT)
         let text: String
         if u.purgeable > 0 {
             text = LF("The whole disk is %1$@: %2$@ available (%3$@ free + %4$@ the system can purge), ",
-                      human(u.total), availT, human(u.free), human(u.purgeable)) + tail
+                      uiHuman(u.total), availT, uiHuman(u.free), uiHuman(u.purgeable)) + tail
         } else {
             text = LF("The whole disk is %1$@: %2$@ available, all of it genuinely free. ",
-                      human(u.total), availT) + tail
+                      uiHuman(u.total), availT) + tail
         }
         return Text(text)
             .font(theme.bodyFont(.caption))
@@ -3213,16 +3232,16 @@ struct OverviewView: View {
         // 实拍那一屏印的是「可用 14.2」「可回收 18.6」「全部清空后可用 32.7」：
         // 真值各自偏低（14.1x ＋ 18.5x = 32.7x），字节加法一步没错，错在屏幕上
         // 那三串字加不起来。差 0.1 要记在「每项都各自四舍五入过」上，不能记成两个口径。
-        var totalShown: String { human(total) }
-        var availableShown: String { human(available) }
-        var usedShown: String { diffShown(totalShown, availableShown) ?? human(used) }
+        var totalShown: String { uiHuman(total) }
+        var availableShown: String { uiHuman(available) }
+        var usedShown: String { diffShown(totalShown, availableShown) ?? uiHuman(used) }
         /// 导语里「没量到的另算」那个数：拿**那一行印出来的字**，不拿字节现算。
         /// 这一列是按最大余数分到「各行相加 = 整块盘」上的，哪一行都可能比裸 `human()`
         /// 多或少 0.1；导语自己 `human()` 一次，同一屏就会长出两个数。
         /// 2026-09-28 实拍命中：搬走一项后「本次移入废纸篓」进了列、拿走那份余数，
         /// 导语印 32.6 而「没量到」那行印 32.7。
         var untouchedShown: String {
-            segs.first { $0.drill == .gapRows }?.sizeShown ?? human(untouched)
+            segs.first { $0.drill == .gapRows }?.sizeShown ?? uiHuman(untouched)
         }
         /// 导语里「已量到的其余先不动」那个数：从**印出来的**整盘往下减，减到只剩这一笔。
         /// 导语那三个数自己就得加得起来（动得了 + 其余 + 没量到 + 已在废纸篓 + 可用 = 整盘），
@@ -3230,13 +3249,13 @@ struct OverviewView: View {
         /// 13.4 + 6.3 + 5.1 + 24.3 − 10.4 = 38.7，而导语印 38.6。
         var measuredIdleShown: String {
             var left: String? = usedShown
-            for p in [untouchedShown, human(inBin), human(reclaimable)] {
+            for p in [untouchedShown, uiHuman(inBin), uiHuman(reclaimable)] {
                 left = left.flatMap { diffShown($0, p) }
             }
-            return left ?? human(measuredIdle)
+            return left ?? uiHuman(measuredIdle)
         }
         var afterClearShown: String {
-            sumShown([availableShown, human(reclaimable), human(inBin)]) ?? human(afterClear)
+            sumShown([availableShown, uiHuman(reclaimable), uiHuman(inBin)]) ?? uiHuman(afterClear)
         }
         /// 动得了的那几段
         var hot: [GaugeSegment] { segs.filter { $0.reclaim > 0 } }
@@ -3285,7 +3304,7 @@ struct OverviewView: View {
             out.append(GaugeSegment(
                 label: h.name, value: h.size,
                 color: measured, tone: .neutral,
-                sub: can > 0 ? LF("Measured · %1$@ reclaimable", human(can))
+                sub: can > 0 ? LF("Measured · %1$@ reclaimable", uiHuman(can))
                              : L("Measured · not moved as a whole"),
                 path: h.path))
         }
@@ -3316,7 +3335,7 @@ struct OverviewView: View {
                                 tone: .neutral, sub: L("Queued")))
         out.append(GaugeSegment(label: L("Free"), value: 0, color: ghost,
                                 tone: .neutral, sub: L("Queued")))
-        for i in out.indices { out[i].sizeText = out[i].value > 0 ? human(out[i].value) : "—" }
+        for i in out.indices { out[i].sizeText = out[i].value > 0 ? uiHuman(out[i].value) : "—" }
         // 整圈一段透明：环上此刻只该有暗轨。`label` 留空，弧上那枚数与命中映射本就
         // 按「有没有名字」筛（`Components.swift` 的 `arcLabel` 门槛），所以不会有人
         // 在半圈空气上读到一个 500 GB。
@@ -3458,7 +3477,7 @@ struct OverviewView: View {
         // 交给 Core 把整列统一到总数的单位、按最大余数分掉那几格；传 `u.total` 而不是
         // 各行之和，是在这里顺手验一次那条恒等式——不成立就整列退回逐行 `human()`，
         // 宁可各说各的，也不许凑出一列加得起来的假账。
-        let sizeTexts = addableHumanColumn(out.map { $0.value }, total: u.total)
+        let sizeTexts = uiAddableHumanColumn(out.map { $0.value }, total: u.total)
         for i in out.indices { out[i].sizeText = sizeTexts[i] }
         // 「这一笔」的两个数由 `pickedTotals` 现读池子：清单里取消过的项关掉再回来
         // 还得算数，这本账不替它缓存一份旧值。
@@ -3508,7 +3527,7 @@ struct OverviewView: View {
                          sub: freePickable >= freeBytes
                               ? L("Caches and build output · all can go in one click; they grow back")
                               : LF("Caches and build output · %1$@ of it can go in this batch; it grows back",
-                                   human(freePickable)),
+                                   uiHuman(freePickable)),
                          reclaim: freePickable, targets: freeTargets,
                          hint: L("Zero cost: caches and build output grow back after deletion. Check it to include in this batch."),
                          costClass: true),
@@ -3534,7 +3553,7 @@ struct OverviewView: View {
                          hint: L("Free: empty space, not a file."),
                          costClass: true),
         ]
-        let sizeTexts = addableHumanColumn(out.map { $0.value }, total: u.total)
+        let sizeTexts = uiAddableHumanColumn(out.map { $0.value }, total: u.total)
         for i in out.indices { out[i].sizeText = sizeTexts[i] }
         model.recordHoverLabels(out.filter { $0.value > 0 }.map(\.label))
         return RingAccount(segs: out, reclaimable: freePickable + redoPickable,
@@ -3549,7 +3568,7 @@ struct OverviewView: View {
     private func costRedoNote(_ pickable: Int64, of bytes: Int64) -> String {
         if pickable <= 0 { return L("Must re-download or rebuild · not in this batch") }
         if pickable >= bytes { return L("Must re-download or rebuild · all can go in one click") }
-        return LF("Must re-download · %1$@ of it can go in this batch; the rest stays out", human(pickable))
+        return LF("Must re-download · %1$@ of it can go in this batch; the rest stays out", uiHuman(pickable))
     }
 
     /// 四类的颜色。用皮肤自己的语义色，六套皮各自成立：绿=删了会自己长回来，
@@ -3567,8 +3586,8 @@ struct OverviewView: View {
     /// 行尾「各段之和」印什么。代价四类相加是 `CostLedger.accounted`：平时恒等于整盘，
     /// 用量快照落后时才会多出来（多出多少由紧挨着的那行警告说明）。
     private func segmentsSumText(_ acct: RingAccount) -> String {
-        if costReading, let led = model.costLedger { return human(led.accounted) }
-        return human(acct.total)
+        if costReading, let led = model.costLedger { return uiHuman(led.accounted) }
+        return uiHuman(acct.total)
     }
 
     /// 前几名各自那一行小字。三种情况三句话说，别拿一句套三种：
@@ -3581,7 +3600,7 @@ struct OverviewView: View {
     private func hotArcNote(can: Int64, text: String, movedOut: Int64) -> String {
         if can <= 0 { return L("Not deleted as a whole · open the row to itemise it") }
         if movedOut > 0 {
-            return LF("%1$@ reclaimable · %2$@ already moved", text, human(movedOut))
+            return LF("%1$@ reclaimable · %2$@ already moved", text, uiHuman(movedOut))
         }
         return LF("%1$@ reclaimable", text)
     }
@@ -3637,7 +3656,7 @@ private struct DrillRow: View {
     /// 是勾选那一栏，那在文件夹详情页，那儿由页尾那句一次说清。
     private var verdictCell: String {
         if !isDeletable(URL(fileURLWithPath: path)) { return L("Not ours to touch") }
-        if reclaim > 0 { return LF("%1$@ reclaimable", human(reclaim, inRulerOf: ruler)) }
+        if reclaim > 0 { return LF("%1$@ reclaimable", uiHuman(reclaim, inRulerOf: ruler)) }
         guard size >= GB else { return "" }
         return VerdictIndex.shared.verdict(for: path).known ? "" : L("Not in the knowledge base")
     }
@@ -3794,7 +3813,7 @@ private struct CleanPickRow: View {
 
                     Spacer(minLength: 8)
 
-                    Text(human(candidate.size))
+                    Text(uiHuman(candidate.size))
                         .font(theme.numeric(size: 12.5))
                         .monospacedDigit()
                         .foregroundStyle(theme.palette.ink)

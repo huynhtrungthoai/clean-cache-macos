@@ -55,6 +55,12 @@ struct AgentPageView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
+                        if !totals.isEmpty {
+                            SummaryCards(metrics: [
+                                .init(title: L("Moved to Trash"), value: uiHuman(totals.bytes), detail: cnt(totals.operations, "operations"), symbol: "trash"),
+                                .init(title: L("Restored"), value: uiHuman(totals.restoredBytes), detail: L("Agent activity"), symbol: "arrow.uturn.backward")
+                            ])
+                        }
                         connectCard
                         recordCard
                     }
@@ -68,6 +74,10 @@ struct AgentPageView: View {
             }
             .pagePadding()
             .padding(.top, 14)
+            ToolFooter(text: L("Items move to the Trash. Free space may not increase until it is emptied.")) {
+                Button(L("Refresh")) { reload() }.disabled(undoing != nil)
+                Button(L("Saved activity")) { store.arrive(NavStop(panel: .trash)) }
+            }
         }
         .frame(maxWidth: .infinity)
         .onAppear {
@@ -108,7 +118,6 @@ struct AgentPageView: View {
                 if let flag = clientFlag(client) {
                     AgentFlag(text: flag)
                 }
-                demoBlock
                 AgentNote(text: L("Every path above is built from where the app is actually installed; switching clients only swaps the outer dialect — the path and the `mcp` argument are the same value for all eight. Installed via Homebrew? Replace it with `/opt/homebrew/bin/diskwise`."),
                           top: true)
             case .missing:
@@ -212,116 +221,6 @@ struct AgentPageView: View {
 
     /// 一段真跑过的对话（数字与 `docs/AGENTS-CLI.md` 里那次实录一致）。
     /// 顶上明写「示例」：这些数是他人的机器上的，不是眼前这台盘的账。
-    private var demoBlock: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(L("Example conversation — this is what it looks like once it's connected"))
-                .font(theme.bodyFont(.caption2).weight(.semibold))
-                .foregroundStyle(theme.palette.inkTertiary)
-                .padding(.bottom, 6)
-            VStack(alignment: .leading, spacing: 2) {
-                termLine(L("Show me what I can clean up on my Mac"))
-                termTool("diskwise · scan_disk", tail: "(category: \"all\")")
-                termDim(L("30 spots in total · the agent can act on 23 of them, about 57.7 GB"))
-                termNo(L("The iOS Simulator runtime, 16.6 GB, sits in the system area: outside_allowed, so I won't touch it"))
-                termLine(L("Clean out the Ollama and oMLX models"))
-                termTool("plan_cleanup", tail: L("Plan ready: 2 items, 31.4 GB in total, headed for the Trash. Run it?"))
-                termLine(L("Go ahead"))
-                termTool("execute_cleanup")
-                termOk(L("31.4 GB moved to the Trash — undo brings the whole run back"))
-            }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 11)
-            // 撑宽必须排在铺色**前面**：反过来写时 `background` 只盖到内容的理想宽度，
-            // 多出来的那一段是透明的，实拍出来那块「终端」就只包到最后一行字的尾巴。
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.cardShape().fill(agentTerminalInk))
-            // 深色皮肤上 #17191F 和卡片底色差不到一档，那块「终端」会化进卡里看不见边界；
-            // 描一道和卡片同款的 separator，浅皮上等于没有，暗皮上才有那一框。
-            .overlay(theme.cardShape().stroke(theme.palette.separator, lineWidth: theme.metric.stroke))
-        }
-        .padding(.top, 10)
-    }
-
-    /// 终端那一块的底色：深色画面压在浅色皮肤上也得是深色，字色才配得对。
-    private var agentTerminalInk: Color { Color(red: 23 / 255, green: 25 / 255, blue: 31 / 255) }
-
-    /// 这一块的字号**不借皮肤的 face**，整页只有这一处例外。
-    ///
-    /// 样稿 `.term{font-family:var(--m)}` 排的是等宽：这是一幅终端画面，
-    /// 圆体/衬体一上去，「接上之后长这样」这句话就只剩文字没有样子了。
-    /// 中文本来就没有 SF Mono 字形，系统自动回落 PingFang，落点仍然对齐。
-    private var agentTermFont: Font { .system(size: 10.5, design: .monospaced) }
-
-    /// 终端里的一条对话。
-    ///
-    /// 三个零件对齐靠一颗**定宽的记号列**（`agentTermMark`，14 pt）＋ 6 pt 间距，
-    /// 没有记号的那两行就缩进 20 pt。缩进一律用 `padding`，不写前导空格：
-    /// `Text` 会把连续空格压成一个，「  」这种前缀在屏幕上压根不存在，
-    /// 整块会塌成齐平的一列。
-    private func termLine(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            agentTermMark(Text("›").foregroundStyle(Color(red: 127 / 255, green: 178 / 255, blue: 1.0)))
-            Text(text).foregroundStyle(Color(red: 214 / 255, green: 218 / 255, blue: 227))
-        }
-        .font(agentTermFont)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    /// 工具调用那一行。只有**工具名**是紫的，参数与后面的回答回到正文色——
-    /// 整行涂紫会把「它调了什么」和「它说了什么」压成同一种东西（样稿同一条口径）。
-    /// `tail` 是它后面跟的回答，没有就只印工具名。
-    private func termTool(_ tool: String, tail: String? = nil) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            agentTermMark(Text("⏺").foregroundStyle(Color(red: 123 / 255, green: 130 / 255, blue: 143)))
-            Text(tool).foregroundStyle(Color(red: 201 / 255, green: 166 / 255, blue: 1.0))
-            if let tail {
-                Text(tail).foregroundStyle(Color(red: 214 / 255, green: 218 / 255, blue: 227))
-            }
-        }
-        .font(agentTermFont)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    /// 工具吐出来的读账结果：没有落点，收成灰色缩进。
-    private func termDim(_ text: String) -> some View {
-        Text(text)
-            .font(agentTermFont)
-            .foregroundStyle(Color(red: 123 / 255, green: 130 / 255, blue: 143))
-            .padding(.leading, 20)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    /// 「这一处我不碰」——拒绝那一行是珊瑚色（样稿 `.no` #FF9E8A），
-    /// 和「办成了」那枚绿分开两档，免得两种结论读成一种。
-    private func termNo(_ text: String) -> some View {
-        Text(text)
-            .font(agentTermFont)
-            .foregroundStyle(Color(red: 1.0, green: 158 / 255, blue: 138 / 255))
-            .padding(.leading, 20)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func termOk(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            agentTermMark(
-                Image(systemName: "checkmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Color(red: 95 / 255, green: 208 / 255, blue: 138 / 255)))
-            Text(text)
-                .font(agentTermFont)
-                .foregroundStyle(Color(red: 95 / 255, green: 208 / 255, blue: 138 / 255))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .font(agentTermFont)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    /// 记号列：「›」「⏺」和对勾都钉在同一个 14 pt 宽的槽里，
-    /// 右边留 6 pt 间距，正文才会在三行、五种记号下对齐成一条竖线。
-    private func agentTermMark<V: View>(_ mark: V) -> some View {
-        mark.frame(width: 14, alignment: .leading)
-    }
-
     // MARK: Agent 操作记录
 
     @ViewBuilder private var recordCard: some View {
@@ -352,10 +251,10 @@ struct AgentPageView: View {
         HStack(alignment: .firstTextBaseline, spacing: 7) {
             Text(cnt(totals.operations, "operations"))
                 + Text(" · ") + Text(cnt(totals.items, "items"))
-                + Text(" · ") + Text(LF("%@ moved to the Trash in total", human(totals.bytes)))
+                + Text(" · ") + Text(LF("%@ moved to the Trash in total", uiHuman(totals.bytes)))
             if totals.restoredBytes > 0 {
                 Text("|").foregroundStyle(theme.palette.separator)
-                Text(LF("%@ of it restored", human(totals.restoredBytes)))
+                Text(LF("%@ of it restored", uiHuman(totals.restoredBytes)))
             }
             Spacer(minLength: 8)
             ThemeButton(kind: .ghost, symbol: "arrow.clockwise", title: L("Refresh")) { reload() }
@@ -406,7 +305,7 @@ struct AgentPageView: View {
                 .buttonStyle(.plain)
 
                 VStack(alignment: .trailing, spacing: 5) {
-                    Text(human(agentOperationBytes(op)))
+                    Text(uiHuman(agentOperationBytes(op)))
                         .font(theme.bodyFont(.body).weight(.semibold))
                         .monospacedDigit()
                         .foregroundStyle(undone || hopeless ? theme.palette.inkTertiary
@@ -432,7 +331,7 @@ struct AgentPageView: View {
                             // 缩写了就点不动（各页展开行同一个口径）
                             PathLine(path: item.original)
                             Spacer(minLength: 6)
-                            Text(human(item.bytes))
+                            Text(uiHuman(item.bytes))
                                 .font(theme.bodyFont(.caption2).monospacedDigit())
                                 .foregroundStyle(theme.palette.inkTertiary)
                                 .fixedSize()
@@ -604,7 +503,7 @@ struct AgentPageView: View {
             return L("Nothing came back")
         }
         if t.gone + t.failed == 0 {
-            return LF("%@ back where they came from · %@", human(t.restoredBytes), cnt(t.restored, "items"))
+            return LF("%@ back where they came from · %@", uiHuman(t.restoredBytes), cnt(t.restored, "items"))
         }
         return LF("%@ restored · %@ can't come back",
                   cnt(t.restored, "items"), cnt(t.gone + t.failed, "items"))
