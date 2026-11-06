@@ -69,7 +69,7 @@ struct SmartScanView: View {
                                 if let usage {
                                     HStack(spacing: 6) {
                                         Image(systemName: "internaldrive")
-                                        Text(LF("%@ free of %@", human(usage.free + usage.purgeable), human(usage.total)))
+                                        Text(LF("%@ free of %@", uiHuman(usage.free + usage.purgeable), uiHuman(usage.total)))
                                     }
                                     .font(theme.prose(size: 12, weight: .medium))
                                     .foregroundStyle(theme.palette.inkSecondary)
@@ -97,6 +97,10 @@ struct SmartScanView: View {
                         }
 
                         status
+                        if model.started {
+                            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt,
+                                           rescan: { model.load(force: true) })
+                        }
                     }
                     .foregroundStyle(theme.palette.ink)
                     .padding(.horizontal, 32).padding(.vertical, 22)
@@ -194,7 +198,7 @@ struct SmartScanView: View {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 28))
                     .foregroundStyle(theme.palette.tint)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(LF("Found %@ of recommended caches to clear", human(model.selectableBytes)))
+                    Text(LF("Found %@ of recommended caches to clear", uiHuman(model.selectableBytes)))
                         .font(theme.prose(size: 17, weight: .semibold))
                     Text(L("Only no-impact items are counted here. Items requiring re-download or risking data loss are listed separately."))
                         .font(theme.prose(size: 11)).foregroundStyle(theme.palette.inkSecondary)

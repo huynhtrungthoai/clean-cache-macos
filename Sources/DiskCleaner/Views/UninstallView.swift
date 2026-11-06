@@ -243,7 +243,7 @@ struct UninstallView: View {
                 Text(L("App plus ticked data"))
                     .font(theme.bodyFont(.caption2))
                     .foregroundStyle(theme.palette.inkTertiary)
-                SizeNumber(shown: human(model.totalBytes), size: 26)
+                SizeNumber(shown: uiHuman(model.totalBytes), size: 26)
             }
         }
         .padding(16)
@@ -257,7 +257,7 @@ struct UninstallView: View {
                     icon: .path(app.path),
                     name: app.name,
                     sub: L("App bundle · always moved"),
-                    sizeText: human(model.bundleBytes ?? 0),
+                    sizeText: uiHuman(model.bundleBytes ?? 0),
                     fraction: fraction(model.bundleBytes ?? 0),
                     selectable: false,
                     lit: true,
@@ -272,7 +272,7 @@ struct UninstallView: View {
                         icon: .path(it.path),
                         name: it.name,
                         sub: it.loc,
-                        sizeText: human(it.size ?? 0),
+                        sizeText: uiHuman(it.size ?? 0),
                         fraction: fraction(it.size ?? 0),
                         badge: verdictBadge(it.level == "warn" ? .risky : .safe),
                         lit: it.level != "warn") {
@@ -318,7 +318,7 @@ struct UninstallView: View {
     private var planSizeText: String {
         if model.planning { return L("Counting…") }
         if model.current != nil && model.bundleBytes == nil { return L("Unknown") }
-        return human(model.totalBytes)
+        return uiHuman(model.totalBytes)
     }
 
     private func fraction(_ bytes: Int64) -> Double {
@@ -365,7 +365,7 @@ private struct UninstallConfirmationSheet: View {
 
     var body: some View {
         TrashReviewSheet(items: plan.map(TrashReviewItem.init),
-                         bytes: human(plan.reduce(0) { $0 + $1.bytes }),
+                         bytes: uiHuman(plan.reduce(0) { $0 + $1.bytes }),
                          consequence: L("The app and selected private data will move to the Trash. Shared data is excluded."),
                          busy: store.isTrashing || quitting, dismissOnConfirm: false) {
             Task { await performUninstall() }

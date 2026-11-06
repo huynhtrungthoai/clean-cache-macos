@@ -212,11 +212,11 @@ struct FirstRunView: View {
         VStack(spacing: 14) {
             SweepRing(segments: sampleSegments,
                       centerTop: L("Available"),
-                      centerValue: human(sampleFree),
+                      centerValue: uiHuman(sampleFree),
                       // The two center lines reuse the Overview page's keys, no new strings: if "Whole disk /
                       // Used / Available after cleaning everything" were worded differently in two places on one screen, people would read two ledgers.
-                      centerCap: LF("Disk %1$@ · %2$@ used", human(sampleTotal), human(sampleUsed))
-                          + "\n" + LF("%1$@ free once it's all cleared", human(sampleAfterClear)),
+                      centerCap: LF("Disk %1$@ · %2$@ used", uiHuman(sampleTotal), uiHuman(sampleUsed))
+                          + "\n" + LF("%1$@ free once it's all cleared", uiHuman(sampleAfterClear)),
                       diameter: diameter)
                 .frame(width: diameter, height: diameter)
 

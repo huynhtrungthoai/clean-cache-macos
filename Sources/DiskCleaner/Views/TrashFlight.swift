@@ -221,11 +221,11 @@ extension TrashFlight {
         guard !sources.isEmpty else { return [] }
         if sources.count <= perRowLimit {
             return sources.enumerated().map { i, s in
-                TrashFlight(text: human(s.bytes), from: s.point, to: to, delay: Double(i) * 0.08)
+                TrashFlight(text: uiHuman(s.bytes), from: s.point, to: to, delay: Double(i) * 0.08)
             }
         }
         let total = sources.reduce(Int64(0)) { $0 + $1.bytes }
-        return [TrashFlight(text: human(total), from: sources[0].point, to: to)]
+        return [TrashFlight(text: uiHuman(total), from: sources[0].point, to: to)]
     }
 
     /// 把起点终点从屏幕全局坐标换算到飞行图层自己的局部坐标。

@@ -88,7 +88,7 @@ struct SimDeviceRows: View {
                 .foregroundStyle(theme.palette.inkTertiary)
                 .lineLimit(1)
                 .frame(width: 236, alignment: .leading)
-            Text(human(d.size))
+            Text(uiHuman(d.size))
                 .font(theme.bodyFont(.caption).monospacedDigit())
                 .foregroundStyle(theme.palette.inkSecondary)
                 .frame(width: 74, alignment: .trailing)
@@ -148,8 +148,8 @@ struct CachesView: View {
             if !model.scanning && !model.items.isEmpty {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(model.items.count), detail: L("Known cache locations in the home folder"), symbol: "list.bullet"),
-                    .init(title: L("Bulk selection"), value: human(model.selectableBytes), detail: L("Only eligible items are included"), symbol: "checklist"),
-                    .init(title: L("Selected"), value: human(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
+                    .init(title: L("Bulk selection"), value: uiHuman(model.selectableBytes), detail: L("Only eligible items are included"), symbol: "checklist"),
+                    .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
                 ]).pagePadding().padding(.bottom, 12)
             }
 
@@ -196,7 +196,7 @@ struct CachesView: View {
 
             Spacer(minLength: 0)
 
-            SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
+            SelectionActionBar(count: model.selected.count, bytes: uiHuman(model.selectedBytes),
                                selection: model.selectAll, busy: model.scanning || store.isTrashing) {
                 let plan = model.trashPlan()
                 if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
@@ -212,7 +212,7 @@ struct CachesView: View {
     private func cacheSize(_ item: CacheItem) -> String {
         switch model.rowState(item.id) {
         case .measuring: return L("Counting…")
-        case .measured(let bytes): return shown[item.id] ?? human(bytes)
+        case .measured(let bytes): return shown[item.id] ?? uiHuman(bytes)
         case .unmeasurable: return L("Cannot measure (access required)")
         }
     }
@@ -261,7 +261,7 @@ struct CachesView: View {
 
         model.overlapCount > 0
             ? LF(" %1$d of these paths sit inside another entry, so Select all actually takes %2$@ — not whatever this column adds up to.",
-                 model.overlapCount, human(model.selectableBytes))
+                 model.overlapCount, uiHuman(model.selectableBytes))
             : nil
     }
 

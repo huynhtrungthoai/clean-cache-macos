@@ -611,7 +611,7 @@ struct ContentView: View {
     private var sidebarTheme: Theme { theme }
 
     private var sidebar: some View {
-        List {
+        ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 10) {
                     BrandLogo(size: 38)
@@ -636,12 +636,8 @@ struct ContentView: View {
             .padding(.horizontal, 8)
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+            .accessibilityElement(children: .contain)
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
         .background(SidebarMaterial().ignoresSafeArea())
         .disabled(grant.needsGrant)
         .opacity(grant.needsGrant ? 0.4 : 1)
@@ -821,6 +817,7 @@ private struct SidebarRow: View {
             .contentShape(theme.controlShape())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(panel.title)
         .onHover { hovering = $0 }
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

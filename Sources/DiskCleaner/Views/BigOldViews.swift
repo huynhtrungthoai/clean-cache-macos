@@ -20,7 +20,7 @@ private func fileVerdictNote(_ rows: [FileRow], ruler: Int64) -> String? {
     var parts: [String] = []
     if safe > 0 {
         parts.append(LF("%1$@ with no impact, %2$@ in total",
-                        cnt(safe, "items"), human(safeBytes, inRulerOf: ruler)))
+                        cnt(safe, "items"), uiHuman(safeBytes, inRulerOf: ruler)))
     }
     if redo > 0 { parts.append(LF("%1$@ need re-downloading", cnt(redo, "items"))) }
     if risky > 0 { parts.append(LF("%1$@ would lose data if deleted", cnt(risky, "items"))) }
@@ -86,8 +86,8 @@ struct BigFilesView: View {
                     .frame(maxHeight: .infinity)
             } else {
                 SummaryCards(metrics: [
-                    .init(title: L("Listed items"), value: String(model.rows.count), detail: human(listedTotal), symbol: "doc.on.doc"),
-                    .init(title: L("Selected"), value: human(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
+                    .init(title: L("Listed items"), value: String(model.rows.count), detail: uiHuman(listedTotal), symbol: "doc.on.doc"),
+                    .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
                 ]).pagePadding().padding(.bottom, 12)
                 if let note = ledgerNote { ListNote(text: note) }
                 List($model.rows) { $r in
@@ -97,7 +97,7 @@ struct BigFilesView: View {
                             sub: displayPath(r.url.deletingLastPathComponent()) + " · " + r.dateStr,
 
                             hint: verdictHint(for: r.url.path),
-                            sizeText: shown[r.id] ?? human(r.size),
+                            sizeText: shown[r.id] ?? uiHuman(r.size),
                             fraction: Double(r.size) / Double(maxSize),
                             badge: r.deletable ? nil : ItemBadge(text: L("Not ours to touch"), tone: .neutral),
 
@@ -123,7 +123,7 @@ struct BigFilesView: View {
 
             Spacer(minLength: 0)
 
-            SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
+            SelectionActionBar(count: model.selected.count, bytes: uiHuman(model.selectedBytes),
                                selection: model.selectAll, busy: model.scanning || store.isTrashing) {
                 let plan = model.trashPlan()
                 if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
@@ -203,7 +203,7 @@ struct OldFilesView: View {
                                    fillsRow: true)
                     } else {
                         Text(LF("%1$@, %2$@ in total", cnt(model.rows.count, "files"),
-                                human(model.totalBytes)))
+                                uiHuman(model.totalBytes)))
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -224,8 +224,8 @@ struct OldFilesView: View {
                     .frame(maxHeight: .infinity)
             } else {
                 SummaryCards(metrics: [
-                    .init(title: L("Listed items"), value: String(model.rows.count), detail: human(model.totalBytes), symbol: "doc.on.doc"),
-                    .init(title: L("Selected"), value: human(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
+                    .init(title: L("Listed items"), value: String(model.rows.count), detail: uiHuman(model.totalBytes), symbol: "doc.on.doc"),
+                    .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
                 ]).pagePadding().padding(.bottom, 12)
                 if let note = ledgerNote { ListNote(text: note) }
                 List($model.rows) { $r in
@@ -235,7 +235,7 @@ struct OldFilesView: View {
                             sub: displayPath(r.url.deletingLastPathComponent()) + " · " + r.dateStr,
 
                             hint: verdictHint(for: r.url.path),
-                            sizeText: shown[r.id] ?? human(r.size),
+                            sizeText: shown[r.id] ?? uiHuman(r.size),
                             fraction: Double(r.size) / Double(maxSize),
                             badge: r.deletable ? nil : ItemBadge(text: L("Not ours to touch"), tone: .neutral),
 
@@ -261,7 +261,7 @@ struct OldFilesView: View {
 
             Spacer(minLength: 0)
 
-            SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
+            SelectionActionBar(count: model.selected.count, bytes: uiHuman(model.selectedBytes),
                                selection: model.selectAll, busy: model.scanning || store.isTrashing) {
                 let plan = model.trashPlan()
                 if !plan.isEmpty { review = TrashReviewPlan(items: plan) }

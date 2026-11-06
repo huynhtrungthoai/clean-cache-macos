@@ -17,11 +17,11 @@ struct TrashView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     SummaryCards(metrics: [
-                        .init(title: L("Trash"), value: model.measuring ? L("Counting…") : model.summary.map { human($0.bytes) } ?? L("Cannot measure"),
+                        .init(title: L("Trash"), value: model.measuring ? L("Counting…") : model.summary.map { uiHuman($0.bytes) } ?? L("Cannot measure"),
                               detail: model.summary.map { LF("%d items", $0.items) } ?? L("Open Finder to inspect the current contents of the Trash."), symbol: "trash"),
-                        .init(title: L("Moved to Trash"), value: human(store.batches.reduce(0) { $0 + $1.movedBytes }),
+                        .init(title: L("Moved to Trash"), value: uiHuman(store.batches.reduce(0) { $0 + $1.movedBytes }),
                               detail: L("Recorded batches; includes items later restored"), symbol: "clock.arrow.circlepath"),
-                        .init(title: L("Restored"), value: human(restoredBytes),
+                        .init(title: L("Restored"), value: uiHuman(restoredBytes),
                               detail: L("Recorded restore results"), symbol: "arrow.uturn.backward")
                     ])
                     ThemedCard {
@@ -33,6 +33,20 @@ struct TrashView: View {
                     if let error = model.lastError {
                         Label(error, systemImage: "exclamationmark.triangle")
                             .font(theme.bodyFont(.callout)).textSelection(.enabled)
+                    }
+                    if !legacyRecords.isEmpty {
+                        SectionLabel(text: L("Other moves this session"), detail: L("Newest first"))
+                        ThemedCard {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(Array(legacyRecords.reversed().enumerated()), id: \.offset) { _, record in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(record.displayName).fontWeight(.medium)
+                                        Text(record.original.path).textSelection(.enabled)
+                                        Text(uiHuman(record.size)).monospacedDigit()
+                                    }.font(theme.bodyFont(.caption)).accessibilityElement(children: .combine)
+                                }
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                     if store.batches.isEmpty {
                         EmptyState(symbol: "clock.arrow.circlepath", title: L("No recorded batches"),
@@ -59,6 +73,14 @@ struct TrashView: View {
         } message: {
             Text(L("All items in the Trash will be permanently deleted. This cannot be undone."))
         }
+    }
+
+    private var legacyRecords: [TrashRecord] {
+        let recorded = Set(store.batches.flatMap(\.moved).compactMap { entry -> String? in
+            if case .moved(let path, _, _) = entry.outcome { return path }
+            return nil
+        })
+        return store.trashHistory.filter { !recorded.contains($0.inTrash.path) }
     }
 
     private var restoredBytes: Int64 {

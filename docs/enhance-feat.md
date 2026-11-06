@@ -277,10 +277,10 @@ Ví dụ câu chữ: “Tìm thấy 4,2 GB trong các mục đã quét”, “Đ
 
 ### P1 — Trải nghiệm cốt lõi
 
-- [ ] Chuẩn hóa header, thẻ, thanh hành động và trang kết quả cho các công cụ hiện có.
+- [x] Chuẩn hóa header, thẻ, thanh hành động và trang kết quả cho các công cụ hiện có.
 - [ ] Thống nhất tiếng Việt, số liệu và trạng thái theo mục 6.
 - [ ] Kết nối quét tổng hợp với các module/phạm vi đã được chủ sản phẩm chọn.
-- [ ] Gom quản lý app và dữ liệu còn sót; liên kết lịch sử và hoàn tác.
+- [x] Gom quản lý app và dữ liệu còn sót; liên kết lịch sử và hoàn tác.
 - [ ] Nghiệm thu bàn phím, VoiceOver, sáng/tối và cửa sổ tối thiểu.
 
 ### P2 — Khám phá dung lượng và giám sát
@@ -466,6 +466,9 @@ Phác thảo: `ScanSession` trong `ScanStore`, `modules: [ModuleState]` (waiting
 Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in: CGRect) -> [(id, CGRect)]` có SelfTest; dữ liệu lấy từ `FolderDrillModel`. Codex vẽ bằng Canvas.
 
 ### Requests — yêu cầu từ UI
+
+- **P1, Tổng quan/Folder Drill/node_modules/Docker/Chẩn đoán** — Các model hiện chưa conform `ScanStatusReporting`; cần vòng đời, thời điểm, issues và stale thật để UI hiển thị đủ §6 mà không tự tạo state quét trong View.
+- **P1, công cụ dùng lịch sử cũ** — Cần `trashPlan`/executor/receipt theo lô cho Folder Drill, node_modules và Chẩn đoán (gồm trim), `FolderDrillModel.selectAll` và policy bulk-selectable cho NMModel; hiện UI chỉ chuẩn hóa hiển thị, giữ nguyên đường thao tác cũ theo phạm vi Giai đoạn B. Lịch sử cũ được tách riêng, không gán batch ID giả.
 
 - **P0, QA chuyển/hoàn tác** — Với `DISKWISE_HOME_SHIM`, `trashItem` vẫn chuyển fixture vào Thùng rác thật nhưng `trashRoots()` chỉ nhận Thùng rác của home giả, nên `undo` trả `.refused`; cần điểm tiêm executor/Trash root dành cho bản dev để kiểm thử end-to-end trong cây tạm mà không mở rộng gate ở View.
 - **P1, các trang File lớn/cũ/trùng/còn sót** — Cần trả `issues` thật từ bộ duyệt cho root thiếu quyền/lỗi; UI đã hiển thị C2/C5, hiện các model này vẫn trả mảng rỗng theo giới hạn contract.

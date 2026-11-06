@@ -40,7 +40,7 @@ struct DupView: View {
                                        progress: model.progress)
                     } else {
                         Text(LF("Found %1$@, about %2$@ recoverable",
-                                cnt(model.groups.count, "duplicate groups"), human(model.waste)))
+                                cnt(model.groups.count, "duplicate groups"), uiHuman(model.waste)))
                     }
                     ThemeBadge(text: LF("Scope: %@", model.scope.uiName),
                                tone: .neutral, symbol: "scope")
@@ -69,8 +69,8 @@ struct DupView: View {
                     .frame(maxHeight: .infinity)
             } else {
                 SummaryCards(metrics: [
-                    .init(title: L("Listed items"), value: String(model.groups.count), detail: human(model.waste), symbol: "square.on.square"),
-                    .init(title: L("Selected"), value: human(selectedBytes), detail: LF("%d items selected", model.selectedCount), symbol: "checkmark.circle")
+                    .init(title: L("Listed items"), value: String(model.groups.count), detail: uiHuman(model.waste), symbol: "square.on.square"),
+                    .init(title: L("Selected"), value: uiHuman(selectedBytes), detail: LF("%d items selected", model.selectedCount), symbol: "checkmark.circle")
                 ]).pagePadding().padding(.bottom, 12)
                 if let note = ledgerNote { ListNote(text: note) }
                 List(model.groups) { g in
@@ -81,7 +81,7 @@ struct DupView: View {
 
             Spacer(minLength: 0)
 
-            SelectionActionBar(count: model.selectedCount, bytes: human(selectedBytes),
+            SelectionActionBar(count: model.selectedCount, bytes: uiHuman(selectedBytes),
                                selection: model.selectAll, busy: model.scanning || store.isTrashing) {
                 let plan = model.trashPlan()
                 if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
@@ -121,8 +121,8 @@ struct DupView: View {
             name: LF("%1$@ — %2$@",
                      g.files.first?.lastPathComponent ?? L("Duplicate group"),
                      cnt(g.files.count, "shares")),
-            sub: LF("%@ each", human(g.size)),
-            sizeText: shown[g.id] ?? human(g.waste),
+            sub: LF("%@ each", uiHuman(g.size)),
+            sizeText: shown[g.id] ?? uiHuman(g.waste),
             fraction: Double(g.waste) / Double(maxWaste),
             badge: nil,
             lit: true,
@@ -234,7 +234,7 @@ private struct EnvCopiesSheet: View {
                     .font(theme.display(.title3))
                     .tracking(theme.titleTracking)
                     .foregroundStyle(theme.palette.ink)
-                Text(LF("%1$@ · %2$@ in total", cnt(groups.count, "groups"), human(bytes)))
+                Text(LF("%1$@ · %2$@ in total", cnt(groups.count, "groups"), uiHuman(bytes)))
                     .font(theme.bodyFont(.caption))
                     .foregroundStyle(theme.palette.inkTertiary)
                     .monospacedDigit()
@@ -251,8 +251,8 @@ private struct EnvCopiesSheet: View {
                         icon: .path(g.files.first ?? URL(fileURLWithPath: "/")),
                         name: rowName(g),
                         sub: LF("%1$@ each · lives in %2$@",
-                                human(g.size), cnt(g.envs.count, "environments")),
-                        sizeText: shown[g.id] ?? human(g.bytes),
+                                uiHuman(g.size), cnt(g.envs.count, "environments")),
+                        sizeText: shown[g.id] ?? uiHuman(g.bytes),
                         fraction: Double(g.bytes) / Double(maxBytes),
                         selectable: false,
                         lit: false,
@@ -310,7 +310,7 @@ struct OrphansView: View {
                         Text(LF("Checked %1$@, found %2$@, %3$@ in total",
                                 cnt(model.appCount, "apps"),
                                 cnt(model.items.count, "suspicious spots"),
-                                human(model.totalBytes)))
+                                uiHuman(model.totalBytes)))
                     }
                     ThemeBadge(text: L("Under-reports rather than over-deletes"), tone: .neutral)
                 } trailing: {
@@ -334,8 +334,8 @@ struct OrphansView: View {
                     .frame(maxHeight: .infinity)
             } else {
                 SummaryCards(metrics: [
-                    .init(title: L("Listed items"), value: String(model.items.count), detail: human(model.totalBytes), symbol: "app.badge"),
-                    .init(title: L("Selected"), value: human(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
+                    .init(title: L("Listed items"), value: String(model.items.count), detail: uiHuman(model.totalBytes), symbol: "app.badge"),
+                    .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
                 ]).pagePadding().padding(.bottom, 12)
                 if let note = ledgerNote { ListNote(text: note) }
                 List($model.items) { $it in
@@ -343,7 +343,7 @@ struct OrphansView: View {
                             icon: .path(it.path),
                             name: it.name,
                             sub: it.loc,
-                            sizeText: it.size == nil ? L("Unknown") : (shown[it.id] ?? human(it.size ?? 0)),
+                            sizeText: it.size == nil ? L("Unknown") : (shown[it.id] ?? uiHuman(it.size ?? 0)),
                             fraction: Double(it.size ?? 0) / Double(maxSize),
                             badge: verdictBadge(it.level == "warn" ? .risky : .safe),
                             lit: it.level != "warn",
@@ -364,7 +364,7 @@ struct OrphansView: View {
 
             Spacer(minLength: 0)
 
-            SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
+            SelectionActionBar(count: model.selected.count, bytes: uiHuman(model.selectedBytes),
                                selection: model.selectAll, busy: model.scanning || store.isTrashing) {
                 let plan = model.trashPlan()
                 if !plan.isEmpty { review = TrashReviewPlan(items: plan) }

@@ -11,7 +11,7 @@ struct BatchEntryView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(entry.item.name).fontWeight(.medium)
                 Spacer(minLength: 8)
-                Text(human(entry.item.bytes)).monospacedDigit()
+                Text(uiHuman(entry.item.bytes)).monospacedDigit()
             }
             Text(entry.item.path).textSelection(.enabled)
             Label(outcomeText, systemImage: outcomeSymbol)
