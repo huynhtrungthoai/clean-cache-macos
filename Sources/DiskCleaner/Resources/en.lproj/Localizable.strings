@@ -1278,3 +1278,11 @@
 /* UI workflow. */
 "%d items" = "%d items";
 "Selection changed. Review and confirm again." = "Selection changed. Review and confirm again.";
+
+/* UI workflow. */
+"Container runtimes on this Mac" = "Container runtimes on this Mac";
+"Read-only" = "Read-only";
+"Other moves this session" = "Other moves this session";
+
+/* UI workflow. */
+"Moved about %@ to the Trash" = "Moved about %@ to the Trash";

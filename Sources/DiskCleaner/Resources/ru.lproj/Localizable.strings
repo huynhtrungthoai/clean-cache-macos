@@ -1278,3 +1278,11 @@
 /* UI workflow. */
 "%d items" = "%d объектов";
 "Selection changed. Review and confirm again." = "Выбор изменился. Проверьте и подтвердите снова.";
+
+/* UI workflow. */
+"Container runtimes on this Mac" = "Среды контейнеров на этом Mac";
+"Read-only" = "Только чтение";
+"Other moves this session" = "Другие перемещения в этом сеансе";
+
+/* UI workflow. */
+"Moved about %@ to the Trash" = "Около %@ перемещено в Корзину";

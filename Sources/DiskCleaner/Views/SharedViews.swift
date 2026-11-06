@@ -387,7 +387,7 @@ struct ScanChecklist: View {
             // 没有字节数的格子（盘点已装 App、找孤儿那两段）量完也不印 0：报一个永远不动的 0
             // 是在演示一个不存在的能力，跟页头读数里「0 B 不印」是同一条规矩。
             if s.state == .done && s.bytes > 0 {
-                Text(human(s.bytes))
+                Text(uiHuman(s.bytes))
                     .font(theme.numeric(.caption2))
                     .monospacedDigit()
                     .foregroundStyle(theme.palette.inkSecondary)
@@ -728,8 +728,8 @@ struct PageLedger: View {
     private var drawn: [LedgerTier] { tiers.filter { $0.bytes > 0 } }
     private var total: Int64 { drawn.reduce(Int64(0)) { $0 + $1.bytes } }
     /// 各档那串字：统一到合计那个单位、按最大余数法补位，图例相加 = 合计。
-    private var shown: [String] { addableHumanColumn(drawn.map(\.bytes), total: total) }
-    private var totalShown: String { human(total) }
+    private var shown: [String] { uiAddableHumanColumn(drawn.map(\.bytes), total: total) }
+    private var totalShown: String { uiHuman(total) }
 
     /// 被顶上那颗合计衬着的那一格（右肩）。
     ///
@@ -875,7 +875,7 @@ func listedSplitOf<T>(_ rows: [T], bytes: (T) -> Int64,
 /// 用字典而不是下标：`List($rows)` 拿不到下标，而下标一错位整列就说谎。
 func sizeColumn<Key: Hashable>(_ rows: [(key: Key, bytes: Int64)]) -> [Key: String] {
     let bytes = rows.map(\.bytes)
-    let shown = addableHumanColumn(bytes, total: bytes.reduce(Int64(0), +))
+    let shown = uiAddableHumanColumn(bytes, total: bytes.reduce(Int64(0), +))
     var out: [Key: String] = [:]
     for (k, s) in zip(rows.map(\.key), shown) { out[k] = s }
     return out
@@ -1098,7 +1098,7 @@ struct CleanBar: View {
         }
     }
 
-    private var shownBytes: String { bytesText.isEmpty ? human(bytes) : bytesText }
+    private var shownBytes: String { bytesText.isEmpty ? uiHuman(bytes) : bytesText }
 
     /// 那颗按钮自己把「要带走多少」说出来：这一页底下那一串数字可以被划出视野，
     /// 而按下按钮的那一刻，眼睛只在按钮上。没勾任何东西时不拍数，拍一个 0 是假数。
@@ -1117,7 +1117,7 @@ extension View {
             Button(L("Cancel"), role: .cancel) {}
             Button(L("Move to Trash"), role: .destructive, action: action)
         } message: {
-            Text(text + L(" Deletion only moves items to the Trash, and you can undo any time. Space frees up when the Trash is emptied."))
+            Text(text + "\n\n" + L("Items move to the Trash. Free space may not increase until it is emptied."))
         }
     }
 }

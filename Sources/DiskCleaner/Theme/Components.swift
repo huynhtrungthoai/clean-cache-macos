@@ -991,7 +991,7 @@ struct VolumeChip: View {
                         .shadow(color: theme.palette.tint.opacity(0.6),
                                 radius: isDark ? 4.5 : 0)
                     if showsFree {
-                        Text(LF("%@ free", human(u.available)))
+                        Text(LF("%@ free", uiHuman(u.available)))
                             .font(theme.bodyFont(.caption2))
                             .monospacedDigit()
                             .foregroundStyle(theme.palette.inkSecondary)
@@ -1321,14 +1321,14 @@ struct GaugeSegment {
     /// 往上飘，实测飘出过「12.0 + 6.3 + 4.2 = 22.5」而圆心写 22.4。
     /// 空 = 没参与那次分配，退回按字节现算。
     var reclaimText: String = ""
-    var reclaimShown: String { reclaimText.isEmpty ? human(reclaim) : reclaimText }
+    var reclaimShown: String { reclaimText.isEmpty ? uiHuman(reclaim) : reclaimText }
     /// `value` 在屏幕上印成哪串字。跟 `reclaimText` 同一套办法，只是钉的是另一句对账：
     /// 带子右边明写着「各段之和 494.4 GB」，那么这一列各行相加就得正好是它。
     /// 各行独立四舍五入会飘出 494.5（2026-09-25 真机实拍到的就是这个），
     /// 所以这一列由总览页统一到总数的单位后再分配（Core 的 `addableHumanColumn`）。
     /// 空 = 没参与那次分配，退回按字节现算。
     var sizeText: String = ""
-    var sizeShown: String { sizeText.isEmpty ? human(value) : sizeText }
+    var sizeShown: String { sizeText.isEmpty ? uiHuman(value) : sizeText }
     /// 这条弧上点名要搬走的那几处。空 = 整段一起搬（`path` 那一坨）。
     /// 内侧那道暖沿铺多宽就按它的合计占弧的比例画：`~/Library` 23 GB 里能清 13 GB，
     /// 亮沿就该只咬住弧的一半多一点，铺满整条弧是在说「这 23 GB 全收得走」。
@@ -2669,7 +2669,7 @@ private struct LedgerSubLine: View {
     /// 只在这一行本来就有小字时接：`sub` 空着的那些行（排队中、正在量）此刻在扫描，
     /// 而扫描中这一屏不接预演；真接上，凭空多出一行会把整本账顶高，那正是上面那笔账。
     private var subLine: AttributedString {
-        var out = lampRun(seg.sub, seg.reclaim > 0 ? human(seg.reclaim) : "",
+        var out = lampRun(seg.sub, seg.reclaim > 0 ? uiHuman(seg.reclaim) : "",
                           SweepRing.lamp(theme.palette.tint),
                           base: theme.palette.inkTertiary)
         guard preview.on || all, seg.reclaim > 0, !RingLedgerRow.gainRunOffByEnv else { return out }
@@ -3108,7 +3108,7 @@ struct LoadingRow: View {
                                 // 报一个永远不动的 0 是在演示一个不存在的能力——跟「空的那一堆不写」同一条规矩。
                                 if r.bytes > 0 {
                                     Text("·")
-                                    Text(LF("Covered %@", human(r.bytes)))
+                                    Text(LF("Covered %@", uiHuman(r.bytes)))
                                 }
                                 Text("·")
                                 Text(LF("Elapsed %@", elapsed(r.elapsed)))

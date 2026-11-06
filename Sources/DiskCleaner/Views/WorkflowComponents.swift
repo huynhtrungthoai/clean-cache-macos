@@ -189,6 +189,7 @@ struct OperationResultView: View {
     var moved: [String]
     var skipped: [String]
     var failed: [String]
+    var reportsSkipped = true
     var undo: (() -> Void)? = nil
     var done: () -> Void
 
@@ -199,7 +200,7 @@ struct OperationResultView: View {
                        subtitle: L("Review moved, skipped and failed items"), variant: .display)
             SummaryCards(metrics: [
                 .init(title: L("Moved to Trash"), value: String(moved.count), detail: L("Items"), symbol: "checkmark.circle"),
-                .init(title: L("Skipped items"), value: String(skipped.count), detail: L("Items"), symbol: "minus.circle"),
+                .init(title: L("Skipped items"), value: reportsSkipped ? String(skipped.count) : L("Unknown"), detail: L("Items"), symbol: "minus.circle"),
                 .init(title: L("Failed items"), value: String(failed.count), detail: L("Items"), symbol: "exclamationmark.circle")
             ])
             ScrollView {
@@ -237,7 +238,7 @@ struct OperationResultView: View {
 
 extension TrashReviewItem {
     init(_ item: TrashPlanItem) {
-        self.init(name: item.name, path: item.path, size: human(item.bytes))
+        self.init(name: item.name, path: item.path, size: uiHuman(item.bytes))
     }
 }
 
@@ -259,7 +260,7 @@ struct ConfirmedTrashSheet: View {
 
     var body: some View {
         TrashReviewSheet(items: plan.map(TrashReviewItem.init),
-                         bytes: human(plan.reduce(0) { $0 + $1.bytes }),
+                         bytes: uiHuman(plan.reduce(0) { $0 + $1.bytes }),
                          busy: store.isTrashing, dismissOnConfirm: false) {
             guard plan == currentPlan() else { changed = true; return }
             Task { if let batch = await perform() { completed(batch) } }
@@ -297,5 +298,43 @@ extension View {
     func trashWorkflow(review: Binding<TrashReviewPlan?>, currentPlan: @escaping () -> [TrashPlanItem],
                        perform: @escaping () async -> TrashBatch?) -> some View {
         modifier(TrashWorkflowPresenter(review: review, currentPlan: currentPlan, perform: perform))
+    }
+}
+
+
+struct LegacyOperationResult: Identifiable {
+    let id = UUID()
+    var moved: [String]
+    var failed: [String]
+}
+
+struct LegacyOperationResultSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    var result: LegacyOperationResult
+    var body: some View {
+        OperationResultView(moved: result.moved, skipped: [], failed: result.failed,
+                            reportsSkipped: false, done: { dismiss() })
+            .frame(width: 680, height: 520)
+    }
+}
+
+struct ToolFooter<Actions: View>: View {
+    @Environment(\.theme) private var theme
+    var text: String
+    @ViewBuilder var actions: () -> Actions
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) { note; Spacer(minLength: 8); actions() }
+            VStack(alignment: .leading, spacing: 8) { note; HStack(spacing: 12) { actions() } }
+        }
+        .padding(.horizontal, 24).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.palette.surface)
+        .overlay(alignment: .top) { Divider() }
+        .buttonStyle(.borderless)
+    }
+    private var note: some View {
+        Text(text).font(theme.bodyFont(.caption)).foregroundStyle(theme.palette.inkSecondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

@@ -1278,3 +1278,11 @@
 /* UI workflow. */
 "%d items" = "%d 項目";
 "Selection changed. Review and confirm again." = "選択が変わりました。もう一度確認してください。";
+
+/* UI workflow. */
+"Container runtimes on this Mac" = "このMacのコンテナ環境";
+"Read-only" = "読み取り専用";
+"Other moves this session" = "このセッションのその他の移動";
+
+/* UI workflow. */
+"Moved about %@ to the Trash" = "約 %@ をゴミ箱に移動しました";

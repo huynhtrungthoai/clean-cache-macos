@@ -1278,3 +1278,11 @@
 /* UI workflow. */
 "%d items" = "%d개 항목";
 "Selection changed. Review and confirm again." = "선택이 변경되었습니다. 다시 검토하고 확인하세요.";
+
+/* UI workflow. */
+"Container runtimes on this Mac" = "이 Mac의 컨테이너 환경";
+"Read-only" = "읽기 전용";
+"Other moves this session" = "이 세션의 다른 이동";
+
+/* UI workflow. */
+"Moved about %@ to the Trash" = "약 %@ 휴지통으로 이동됨";
