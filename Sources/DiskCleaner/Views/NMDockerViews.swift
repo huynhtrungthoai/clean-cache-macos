@@ -25,6 +25,7 @@ struct NMView: View {
     @ObservedObject var model: NMModel
     @State private var confirm = false
     @State private var err: String? = nil
+    @State private var result: LegacyOperationResult?
     /// 删除飞行：起点（勾中的行）与落点（CleanBar 那颗按钮）都在这里面收着。
     @StateObject private var flight = TrashFlightController()
 
@@ -33,7 +34,7 @@ struct NMView: View {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: "shippingbox", title: L("node_modules"),
                            subtitle: L("Dependencies reinstall themselves — take the space back"),
-                           variant: .display)
+                           variant: .display, scope: L("Home folder only"))
                 ControlStrip {
                     if model.scanning {
                         if model.items.isEmpty {
@@ -41,7 +42,7 @@ struct NMView: View {
                         } else {
                             LoadingRow(text: LF("%1$@ measured, %2$@ so far — still looking…",
                                                 cnt(model.items.count, "projects"),
-                                                human(model.totalBytes)),
+                                                uiHuman(model.totalBytes)),
                                        progress: model.progress)
                         }
                     } else if model.stoppedEarly {
@@ -49,10 +50,10 @@ struct NMView: View {
                             Text(L("Stopped before any project finished measuring"))
                         } else {
                             Text(LF("Stopped before this pass finished: %1$@ measured, %2$@ so far",
-                                    cnt(model.items.count, "projects"), human(model.totalBytes)))
+                                    cnt(model.items.count, "projects"), uiHuman(model.totalBytes)))
                         }
                     } else {
-                        Text(LF("%1$@, %2$@ in total", cnt(model.items.count, "projects"), human(model.totalBytes)))
+                        Text(LF("%1$@, %2$@ in total", cnt(model.items.count, "projects"), uiHuman(model.totalBytes)))
                     }
                     // 这一页**不挂范围徽章**。别处那几枚（大文件/很久没动/重复）都是跟着用户
                     // 手上那个「整盘 ↔ 用户区」开关走的，徽章说的是**这一刻选了什么**；
@@ -76,17 +77,20 @@ struct NMView: View {
                 EmptyState(symbol: "shippingbox",
                            title: model.stoppedEarly ? L("This pass didn't finish") : L("No node_modules found"),
                            hint: model.stoppedEarly ? L("Stopped too early — rescan and let it finish")
-                                                    : L("This machine probably doesn't do frontend"))
+                                                    : L("No matching items in the scanned scope"))
                     .frame(maxHeight: .infinity)
             } else {
-                PageLedger(tiers: tiers, rows: model.items.count, note: ledgerNote)
+                SummaryCards(metrics: [
+                    .init(title: L("Listed items"), value: String(model.items.count), detail: uiHuman(model.totalBytes), symbol: "shippingbox"),
+                    .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
+                ]).pagePadding().padding(.bottom, 12)
                 List($model.items) { $it in
                     ItemRow(selected: $it.selected,
                             icon: .path(URL(fileURLWithPath: it.project)),
                             brand: it.manager ?? "nodedotjs",
                             name: URL(fileURLWithPath: it.project).lastPathComponent,
                             sub: nmSub(it),
-                            sizeText: shown[it.id] ?? human(it.size),
+                            sizeText: shown[it.id] ?? uiHuman(it.size),
                             fraction: Double(it.size) / Double(maxSize),
                             badge: it.partial ? ItemBadge(text: L("Partial"), tone: .warn) : nil,
                             showRule: model.items.first?.id != it.id) {
@@ -104,11 +108,10 @@ struct NMView: View {
 
             Spacer(minLength: 0)   // 清理条钉在窗口下沿，见 `CleanBar`
 
-            CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     bytesText: human(model.selectedBytes, inRulerOf: model.totalBytes),
-                     errorText: err, selection: model.selectAll, flightTarget: true,
-                     busyHint: model.scanning ? L("Still scanning — cleanup starts once it finishes or you stop")
-                                              : nil) { confirm = true }
+            if let err { ListNote(text: err) }
+            SelectionActionBar(count: model.selected.count, bytes: uiHuman(model.selectedBytes),
+                               selection: model.selectAll, busy: model.scanning || store.isTrashing) { confirm = true }
+
         }
         .frame(maxWidth: .infinity)
         .flightField(flights: $flight.flights, anchors: $flight.anchors)
@@ -120,9 +123,11 @@ struct NMView: View {
         .confirmTrash(isPresented: $confirm,
                       text: LF("Move the dependencies of %1$@ (%2$@) to the Trash.",
                                cnt(model.selected.count, "projects"),
-                               human(model.selectedBytes, inRulerOf: model.totalBytes))) {
+                               uiHuman(model.selectedBytes, inRulerOf: model.totalBytes))
+                          + "\n\n" + model.selected.map { $0.project + "/node_modules" }.joined(separator: "\n")) {
             doClean()
         }
+        .sheet(item: $result) { result in LegacyOperationResultSheet(result: result).themed(theme) }
     }
 
     private var maxSize: Int64 { max(1, model.items.map(\.size).max() ?? 1) }
@@ -138,7 +143,7 @@ struct NMView: View {
     }
 
     private var ledgerNote: String? {
-        LF(" The header's “%@ in total” is this very column — every row on this page is on screen.", human(model.totalBytes))
+        LF(" The header's “%@ in total” is this very column — every row on this page is on screen.", uiHuman(model.totalBytes))
     }
 
     /// 副标题只报**有信息量**的那几样。
@@ -170,6 +175,7 @@ struct NMView: View {
 
     private func doClean() {
         err = nil
+        let historyStart = store.trashHistory.count
         let targets = model.selected
         // 起点终点都在清选区**之前**取：行一不勾就不再报锚点，按钮一禁用落点也跟着变。
         flight.launch(rows: targets.map { (key: $0.project, bytes: $0.size) },
@@ -199,6 +205,7 @@ struct NMView: View {
         for i in model.items.indices { model.items[i].selected = false }
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "node_modules folders", failed: errs.count)
+        result = LegacyOperationResult(moved: store.trashHistory.dropFirst(historyStart).map { $0.displayName + " · " + $0.original.path }, failed: errs)
     }
 }
 
@@ -261,9 +268,9 @@ private func dockerSub(_ it: DockerItem) -> String {
         let name = runtimeName(it.runtime)
         if let share = it.reclaimableShare {
             s += LF(", and %1$@ can free %2$@ (%3$@)", name,
-                    human(can, inRulerOf: it.size), share)
+                    uiHuman(can, inRulerOf: it.size), share)
         } else {
-            s += LF(", and %1$@ can free %2$@", name, human(can, inRulerOf: it.size))
+            s += LF(", and %1$@ can free %2$@", name, uiHuman(can, inRulerOf: it.size))
         }
         return s
     case .image, .danglingImage:
@@ -316,6 +323,7 @@ private func dockerHowTo(_ it: DockerItem) -> String {
 }
 
 struct DockerView: View {
+    @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: DockerModel
 
@@ -324,12 +332,12 @@ struct DockerView: View {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: "cube", title: L("Docker Usage"),
                            subtitle: L("Read-only — each container runtime deletes differently; open the row for the route"),
-                           variant: .display)
+                           variant: .display, scope: L("Container runtimes on this Mac"))
                 ControlStrip {
                     if model.scanning {
                         LoadingRow(text: L("Counting what your containers take…"))
                     } else {
-                        Text(LF("%@ total", human(model.totalBytes)))
+                        Text(LF("%@ total", uiHuman(model.totalBytes)))
                     }
                     ThemeBadge(text: L("No delete button here"), tone: .neutral)
                 } trailing: {
@@ -348,16 +356,18 @@ struct DockerView: View {
                            hint: L("There's no data folder here for Docker Desktop, OrbStack, Podman or colima"))
                     .frame(maxHeight: .infinity)
             } else {
-                PageLedger(tiers: tiers,
-                           rows: model.items.filter(\.countsInTotal).count,
-                           note: ledgerNote)
+                SummaryCards(metrics: [
+                    .init(title: L("Docker Usage"), value: uiHuman(model.totalBytes), detail: L("Actually on disk"), symbol: "cube"),
+                    .init(title: L("Listed items"), value: String(model.items.count), detail: L("Read-only"), symbol: "list.bullet")
+                ]).pagePadding().padding(.bottom, 12)
+                if let note = ledgerNote { ListNote(text: note) }
                 List(model.items) { it in
                     ItemRow(selected: .constant(false),
                             icon: dockerIcon(it),
                             appID: it.runtime?.bundleID,
                             name: dockerHead(it),
                             sub: dockerSub(it),
-                            sizeText: shown[it.id] ?? human(it.size),
+                            sizeText: shown[it.id] ?? uiHuman(it.size),
                             fraction: Double(it.size) / Double(maxSize),
                             selectable: false,
                             showRule: model.items.first?.id != it.id) {
@@ -370,6 +380,9 @@ struct DockerView: View {
                     }
                 }
                 .ledgerCard()
+            }
+            ToolFooter(text: L("Read-only — each container runtime deletes differently; open the row for the route")) {
+                Button(L("Refresh")) { model.scan() }.disabled(model.scanning)
             }
         }
         .frame(maxWidth: .infinity)
@@ -384,12 +397,12 @@ struct DockerView: View {
     private var shown: [UUID: String] {
         var out: [UUID: String] = [:]
         let sections = model.items.filter(\.countsInTotal)
-        for (it, s) in zip(sections, addableHumanColumn(sections.map(\.size),
+        for (it, s) in zip(sections, uiAddableHumanColumn(sections.map(\.size),
                                                         total: model.totalBytes)) {
             out[it.id] = s
         }
         for it in model.items where !it.countsInTotal {
-            out[it.id] = human(it.size, inRulerOf: model.totalBytes)
+            out[it.id] = uiHuman(it.size, inRulerOf: model.totalBytes)
         }
         return out
     }

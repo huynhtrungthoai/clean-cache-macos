@@ -15,6 +15,7 @@ struct CrashDumpsView: View {
     @ObservedObject var hub: DiagnosticsHub
     @State private var confirm = false
     @State private var err: String? = nil
+    @State private var result: LegacyOperationResult?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +29,7 @@ struct CrashDumpsView: View {
                     } else if hub.baselinePending {
                         Text(L("Baseline saved; comparisons start on the next scan"))
                     } else {
-                        Text(LF("%1$@, %2$@ in total", cnt(hub.hits.count, "apps"), human(hub.totalBytes)))
+                        Text(LF("%1$@, %2$@ in total", cnt(hub.hits.count, "apps"), uiHuman(hub.totalBytes)))
                     }
                 } trailing: {
                     ScanControl(scanning: hub.scanning,
@@ -39,6 +40,12 @@ struct CrashDumpsView: View {
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
+
+            if !hub.scanning && hub.started {
+                SummaryCards(metrics: [
+                    .init(title: L("Listed items"), value: String(hub.hits.count), detail: uiHuman(hub.totalBytes), symbol: "ladybug")
+                ]).pagePadding().padding(.bottom, 12)
+            }
 
             if !hub.hits.isEmpty {
                 RetentionBanner()
@@ -62,7 +69,7 @@ struct CrashDumpsView: View {
                             icon: .path(URL(fileURLWithPath: hit.path)),
                             name: hit.host.map { "\($0) \(L("crash dumps"))" } ?? L("Crash dumps"),
                             sub: hitSub(hit),
-                            sizeText: shown[hit.id] ?? human(hit.bytes),
+                            sizeText: shown[hit.id] ?? uiHuman(hit.bytes),
                             fraction: Double(hit.bytes) / Double(maxBytes),
                             badge: velocityBadge(hit),
                             badge2: attributionBadge(hit)) {
@@ -79,14 +86,10 @@ struct CrashDumpsView: View {
 
             Spacer(minLength: 0)
 
-            CleanBar(count: hub.selectedHits.count,
-                     bytes: hub.selectedBytes,
-                     bytesText: human(hub.selectedBytes, inRulerOf: hub.totalBytes),
-                     errorText: err,
-                     selection: hub.hitSelectAll,
-                     busyHint: hub.scanning ? L("Still scanning — cleanup starts once it finishes or you stop") : nil) {
-                confirm = true
-            }
+            if let err { ListNote(text: err) }
+            SelectionActionBar(count: hub.selectedHits.count, bytes: uiHuman(hub.selectedBytes),
+                               selection: hub.hitSelectAll, busy: hub.scanning || store.isTrashing) { confirm = true }
+
         }
         .frame(maxWidth: .infinity)
         .onAppear { hub.discover() }
@@ -94,9 +97,10 @@ struct CrashDumpsView: View {
         .confirmTrash(isPresented: $confirm,
                       text: LF("Move %1$@ (%2$@) to the Trash.",
                                cnt(hub.selectedHits.count, "apps"),
-                               human(hub.selectedBytes, inRulerOf: hub.totalBytes))) {
+                               uiHuman(hub.selectedBytes, inRulerOf: hub.totalBytes))) {
             doClean()
         }
+        .sheet(item: $result) { result in LegacyOperationResultSheet(result: result).themed(theme) }
     }
 
     private var trimSheetOpen: Binding<Bool> {
@@ -189,6 +193,7 @@ struct CrashDumpsView: View {
     /// 四笔才落在预算内。撤销粒度随之是「一个子目录一次」，整批撤销进 PR-4 的修剪流。
     private func doClean() {
         err = nil
+        let historyStart = store.trashHistory.count
         let targets = hub.selectedHits
         let spec = CategoryRule.crashDumps.safeDeleteSpec
         Task { @MainActor in
@@ -218,6 +223,7 @@ struct CrashDumpsView: View {
             } else {
                 err = errList(errs)
             }
+            result = LegacyOperationResult(moved: store.trashHistory.dropFirst(historyStart).map { $0.displayName + " · " + $0.original.path }, failed: errs)
         }
     }
 }
@@ -230,6 +236,7 @@ struct DiagReportsView: View {
     @ObservedObject var hub: DiagnosticsHub
     @State private var confirm = false
     @State private var err: String? = nil
+    @State private var result: LegacyOperationResult?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -241,7 +248,7 @@ struct DiagReportsView: View {
                     if hub.scanning {
                         LoadingRow(text: L("Reading the diagnostics reports folder…"))
                     } else {
-                        Text(LF("%1$@, %2$@ in total", cnt(hub.reports.count, "files"), human(hub.reportBytes)))
+                        Text(LF("%1$@, %2$@ in total", cnt(hub.reports.count, "files"), uiHuman(hub.reportBytes)))
                     }
                 } trailing: {
                     ScanControl(scanning: hub.scanning,
@@ -252,6 +259,12 @@ struct DiagReportsView: View {
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
+
+            if !hub.scanning && hub.started {
+                SummaryCards(metrics: [
+                    .init(title: L("Listed items"), value: String(hub.reports.count), detail: uiHuman(hub.reportBytes), symbol: "stethoscope")
+                ]).pagePadding().padding(.bottom, 12)
+            }
 
             if hub.scanning && hub.reports.isEmpty {
                 EmptyState(symbol: "stethoscope",
@@ -269,7 +282,7 @@ struct DiagReportsView: View {
                             icon: .path(file.url),
                             name: file.process ?? file.url.lastPathComponent,
                             sub: fileSub(file),
-                            sizeText: shown[file.id] ?? human(file.size),
+                            sizeText: shown[file.id] ?? uiHuman(file.size),
                             fraction: Double(file.size) / Double(maxBytes)) {
                         ExplainLine(key: L("What it is"), value: L("Log files the system writes to troubleshoot"))
                         ExplainLine(key: L("What breaks"), value: L("The system is unaffected; you just lose the evidence for troubleshooting"))
@@ -281,23 +294,20 @@ struct DiagReportsView: View {
 
             Spacer(minLength: 0)
 
-            CleanBar(count: hub.selectedReports.count,
-                     bytes: hub.selectedReportBytes,
-                     bytesText: human(hub.selectedReportBytes, inRulerOf: hub.reportBytes),
-                     errorText: err,
-                     selection: hub.reportSelectAll,
-                     busyHint: hub.scanning ? L("Still scanning — cleanup starts once it finishes or you stop") : nil) {
-                confirm = true
-            }
+            if let err { ListNote(text: err) }
+            SelectionActionBar(count: hub.selectedReports.count, bytes: uiHuman(hub.selectedReportBytes),
+                               selection: hub.reportSelectAll, busy: hub.scanning || store.isTrashing) { confirm = true }
+
         }
         .frame(maxWidth: .infinity)
         .onAppear { hub.discover() }
         .confirmTrash(isPresented: $confirm,
                       text: LF("Move %1$@ (%2$@) to the Trash.",
                                cnt(hub.selectedReports.count, "files"),
-                               human(hub.selectedReportBytes, inRulerOf: hub.reportBytes))) {
+                               uiHuman(hub.selectedReportBytes, inRulerOf: hub.reportBytes))) {
             doClean()
         }
+        .sheet(item: $result) { result in LegacyOperationResultSheet(result: result).themed(theme) }
     }
 
     private var maxBytes: Int64 { max(1, hub.reports.map(\.size).max() ?? 1) }
@@ -320,6 +330,7 @@ struct DiagReportsView: View {
     /// 报告是散文件：逐个进废纸篓，量小（几十到几百份），每份一条可撤销记录。
     private func doClean() {
         err = nil
+        let historyStart = store.trashHistory.count
         let targets = hub.selectedReports
         var errs: [String] = []
         for file in targets {
@@ -337,6 +348,7 @@ struct DiagReportsView: View {
         } else {
             err = errList(errs)
         }
+        result = LegacyOperationResult(moved: store.trashHistory.dropFirst(historyStart).map { $0.displayName + " · " + $0.original.path }, failed: errs)
     }
 }
 
@@ -371,12 +383,17 @@ struct ObservationView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            if !hub.scanning && hub.started {
+                SummaryCards(metrics: [
+                    .init(title: L("Listed items"), value: String(hub.observation.count), detail: L("Read-only"), symbol: "eye")
+                ]).pagePadding().padding(.bottom, 12)
+            }
             List(hub.observation) { item in
                 ItemRow(selected: .constant(false),
                         icon: .path(URL(fileURLWithPath: item.path)),
                         name: name(of: item),
                         sub: sub(of: item),
-                        sizeText: item.bytes.map { human($0) } ?? "—",
+                        sizeText: item.bytes.map { uiHuman($0) } ?? "—",
                         fraction: 0,
                         badge: ItemBadge(text: reasonLabel(item.reason), tone: .neutral),
                         selectable: false,
@@ -394,7 +411,9 @@ struct ObservationView: View {
             }
             .ledgerCard()
 
-            Spacer(minLength: 0)
+            ToolFooter(text: L("Everything you can see but not delete lives here")) {
+                Button(L("Refresh")) { hub.discover(force: true) }.disabled(hub.scanning)
+            }
         }
         .frame(maxHeight: .infinity)
         .onAppear { hub.discover() }
@@ -485,7 +504,7 @@ private struct TrimSheet: View {
             case .preview(_, let plan):
                 Text(L("Trim by policy")).font(theme.display(.headline))
                 kvLine(L("Retention policy"), LF("Latest %@", cnt(plan.keep, "个")))
-                kvLine(L("Will trim"), LF("%1$@ · %2$@", cnt(plan.remove.count, "files"), human(plan.removeBytes)))
+                kvLine(L("Will trim"), LF("%1$@ · %2$@", cnt(plan.remove.count, "files"), uiHuman(plan.removeBytes)))
                 if let oldest = plan.oldestKeptMtime {
                     kvLine(L("Oldest kept"), oldest.formatted(date: .abbreviated, time: .shortened))
                 }
@@ -508,7 +527,7 @@ private struct TrimSheet: View {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(theme.palette.safeFG)
-                    Text(LF("Trimmed · about %@ freed", human(bytes))).font(theme.display(.headline))
+                    Text(LF("Moved about %@ to the Trash", uiHuman(bytes))).font(theme.display(.headline))
                 }
                 Text(L("settings.dat kept; the batch is in the trim ledger and can be undone as a whole."))
                     .font(theme.bodyFont(.caption))
