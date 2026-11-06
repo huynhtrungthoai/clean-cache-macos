@@ -494,6 +494,16 @@ Task { if let batch = await model.smartClean(plan, using: store) { /* BatchResul
 - Thực thi đúng `plan.items` đã hiện trong hộp xác nhận (preflight từng mục, `store.isTrashing`, source `"smart-clean"`); không đổi lựa chọn trên trang Cache.
 - **UI (đã nối, Claude làm theo yêu cầu chủ dự án 2026-11-06):** `SmartScanView.swift` — nút chính "Dọn dẹp %@" khi có kế hoạch, "Xem & chọn" thành link phụ; `SmartCleanConfirmSheet` tóm tắt (dung lượng, số mục, mục bị giữ lại, danh sách thu gọn), không phím Enter; kết quả qua `BatchResultSheet`. Dòng "Found %@…" dùng `plan.bytes`.
 
+### C9 — Cache từng app trong ~/Library/Caches + hỏi app đang chạy trước khi quét · F01 · Claude · `merged`
+
+Chủ dự án yêu cầu (2026-11-06): nhiều cache hơn, giống CleanMyMac; bấm Quét thì hỏi app đang chạy: đóng để dọn hoặc bỏ qua.
+
+- Core `discoverAppCaches` (`AppCacheDiscovery.swift`): mỗi thư mục con của `~/Library/Caches` đặt tên theo bundle ID, cộng bảng alias trình duyệt (`Google/Chrome`, `Firefox`, `Microsoft Edge`, `BraveSoftware/Brave-Browser`). **Không lấy:** `com.apple.*`, `appCacheDenylist` (Spotify: nhạc offline; chính CleanPilot), tên thường không rõ chủ, file, symlink, thư mục ẩn, và mọi thư mục trùng/chứa/nằm trong một đường dẫn của Safety DB (nên dev cache vẫn ở trang riêng). Dưới 1 MB không liệt kê.
+- Mỗi thư mục thành một mục `general`, mức "không ảnh hưởng", `app` = bundle ID, tag `discovered_app_cache`; tên = tên app trong Finder (hoặc bundle ID nếu app đã gỡ). Hiện ở trang Cache, Tổng quan và Dọn nhanh. Không nới `isDeletable`/`protectedPaths`/`isBulkSelectable`.
+- Chưa lấy cache trong `~/Library/Containers/*/Data/Library/Caches` (macOS chặn đọc nếu chưa cấp quyền).
+- `CachesModel.runningCacheOwners() -> [RunningCacheApp]` (nhanh, không đo) và `quitApps(_ ids:) async -> [String]` (gửi lệnh thoát bình thường, chờ tối đa 10 s, trả app còn chạy).
+- UI (`SmartScanView.swift`, Claude làm): Quét/Quét lại → nếu có app đang chạy sở hữu cache → `RunningAppsSheet`: mỗi app chọn "Đóng"/"Bỏ qua" (mặc định Đóng), nút "Bỏ qua tất cả và quét" / "Đóng và quét". App bỏ qua hoặc không chịu đóng vẫn được giữ lại bởi kiểm tra lúc lập kế hoạch dọn (C8 `heldBack`).
+
 ### Requests — yêu cầu từ UI
 
 - ✅ **Đã có (P0/F03, File trùng)** — `duplicateContentCheck(kept:extra:) -> ContentMatch` (.same/.different/.cancelled) so **toàn bộ nội dung từng byte** mọi kích thước (bỏ giới hạn 64 MiB); `preflight` dùng nó. Huỷ: `AppStore.cancelTrash()` dừng lô giữa các mục và giữa lúc so file lớn — mục đã chuyển giữ nguyên trong batch, phần còn lại là `.skipped(.cancelled)` (reasonKey "Stopped before it was moved", đã có ở 9 bảng). UI: nút "Dừng" khi `store.isTrashing`, gọi `store.cancelTrash()`.

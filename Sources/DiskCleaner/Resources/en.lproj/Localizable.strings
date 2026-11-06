@@ -1327,3 +1327,25 @@
 "Show items" = "Show items";
 
 "Clean" = "Clean";
+
+"Cache files this app keeps to load faster" = "Cache files this app keeps to load faster";
+
+"The app rebuilds them when needed; it may be a little slower the first time" = "The app rebuilds them when needed; it may be a little slower the first time";
+
+"No action needed; the app recreates them automatically" = "No action needed; the app recreates them automatically";
+
+"These apps are running" = "These apps are running";
+
+"Quit them so their caches can be cleaned, or skip them." = "Quit them so their caches can be cleaned, or skip them.";
+
+"Quit app" = "Quit app";
+
+"Skip app" = "Skip app";
+
+"Apps may ask you to save your work before they quit. Skipped apps keep their caches." = "Apps may ask you to save your work before they quit. Skipped apps keep their caches.";
+
+"Quitting apps…" = "Quitting apps…";
+
+"Skip all and scan" = "Skip all and scan";
+
+"Quit and scan" = "Quit and scan";

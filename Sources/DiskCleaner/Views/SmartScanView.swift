@@ -14,6 +14,8 @@ struct SmartScanView: View {
     @State private var confirming: SmartCleanPlan?
     @State private var pendingResult: TrashBatch?
     @State private var result: TrashBatch?
+    /// C9: running apps that own cleanable caches, asked about before a scan starts.
+    @State private var runningPrompt: RunningAppsPrompt?
 
     private var measured: Int { model.items.filter { $0.size != nil }.count }
     private var progress: Double {
@@ -132,6 +134,21 @@ struct SmartScanView: View {
             .themed(theme)
         }
         .sheet(item: $result) { batch in BatchResultSheet(batch: batch).themed(theme) }
+        .sheet(item: $runningPrompt) { prompt in
+            RunningAppsSheet(apps: prompt.apps,
+                             quit: { ids in await model.quitApps(ids) },
+                             proceed: {
+                                 runningPrompt = nil
+                                 model.load(force: true)
+                             })
+            .themed(theme)
+        }
+    }
+
+    /// Scan / Rescan: ask about running apps that own caches first (quit or skip), like CleanMyMac.
+    private func startScan() {
+        let apps = model.runningCacheOwners()
+        if apps.isEmpty { model.load(force: true) } else { runningPrompt = RunningAppsPrompt(apps: apps) }
     }
 
     private var scanEmblem: some View {
@@ -245,7 +262,7 @@ struct SmartScanView: View {
         return VStack(spacing: 10) {
             HStack(spacing: 18) {
                 if ready {
-                    Button(L("Rescan")) { model.load(force: true) }
+                    Button(L("Rescan")) { startScan() }
                         .buttonStyle(.plain).foregroundStyle(theme.palette.inkSecondary)
                         .disabled(store.isTrashing)
                 }
@@ -260,7 +277,7 @@ struct SmartScanView: View {
                         if let fresh = model.smartCleanPlan(), !fresh.isEmpty { confirming = fresh }
                         else { reviewing = true }
                     }
-                    else { model.load(force: true) }
+                    else { startScan() }
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: model.scanning ? "stop.fill"
@@ -365,6 +382,92 @@ private struct SmartCleanConfirmSheet: View {
         .padding(24)
         .frame(width: 560, height: showItems ? 560 : 360)
         .interactiveDismissDisabled(store.isTrashing)
+        .background(theme.palette.paper)
+        .foregroundStyle(theme.palette.ink)
+        .buttonStyle(.borderless)
+    }
+}
+
+struct RunningAppsPrompt: Identifiable {
+    let id = UUID()
+    let apps: [RunningCacheApp]
+}
+
+/// C9: before scanning, each running app that owns caches is either quit (its caches get cleaned)
+/// or skipped (its caches are left alone). Nothing is quit without this explicit choice.
+private struct RunningAppsSheet: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.dismiss) private var dismiss
+    let apps: [RunningCacheApp]
+    let quit: (Set<String>) async -> [String]
+    let proceed: () -> Void
+    @State private var toQuit: Set<String>
+    @State private var quitting = false
+
+    init(apps: [RunningCacheApp], quit: @escaping (Set<String>) async -> [String], proceed: @escaping () -> Void) {
+        self.apps = apps
+        self.quit = quit
+        self.proceed = proceed
+        _toQuit = State(initialValue: Set(apps.map(\.id)))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            PageHeader(symbol: "app.badge", title: L("These apps are running"),
+                       subtitle: L("Quit them so their caches can be cleaned, or skip them."))
+            List(apps) { app in
+                HStack(spacing: 10) {
+                    if let icon = app.icon {
+                        Image(nsImage: icon).resizable().frame(width: 24, height: 24).accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "app").frame(width: 24, height: 24).accessibilityHidden(true)
+                    }
+                    Text(app.name).fontWeight(.medium)
+                    Spacer()
+                    Picker(app.name, selection: Binding(
+                        get: { toQuit.contains(app.id) },
+                        set: { on in if on { toQuit.insert(app.id) } else { toQuit.remove(app.id) } })) {
+                        Text(L("Quit app")).tag(true)
+                        Text(L("Skip app")).tag(false)
+                    }
+                    .pickerStyle(.segmented).labelsHidden().fixedSize()
+                    .disabled(quitting)
+                }
+                .padding(.vertical, 2)
+            }
+            .listStyle(.plain).scrollContentBackground(.hidden)
+            Text(L("Apps may ask you to save your work before they quit. Skipped apps keep their caches."))
+                .font(theme.bodyFont(.callout))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if quitting {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(L("Quitting apps…")).font(theme.bodyFont(.callout))
+                }
+            }
+            HStack {
+                Button(L("Cancel")) { dismiss() }.keyboardShortcut(.cancelAction).disabled(quitting)
+                    .foregroundStyle(theme.palette.ink)
+                Spacer()
+                Button(L("Skip all and scan")) { proceed() }.disabled(quitting)
+                    .foregroundStyle(theme.palette.ink)
+                ThemeButton(kind: .primary, symbol: "magnifyingglass",
+                            title: toQuit.isEmpty ? L("Scan") : L("Quit and scan"),
+                            isDisabled: quitting) {
+                    guard !toQuit.isEmpty else { proceed(); return }
+                    quitting = true
+                    Task {
+                        _ = await quit(toQuit)   // apps still running are held back by the clean plan
+                        quitting = false
+                        proceed()
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 520, height: min(520, 260 + CGFloat(apps.count) * 40))
+        .interactiveDismissDisabled(quitting)
         .background(theme.palette.paper)
         .foregroundStyle(theme.palette.ink)
         .buttonStyle(.borderless)

@@ -1327,3 +1327,25 @@
 "Show items" = "項目を表示";
 
 "Clean" = "クリーンアップ";
+
+"Cache files this app keeps to load faster" = "アプリが高速に読み込むために保持するキャッシュファイル";
+
+"The app rebuilds them when needed; it may be a little slower the first time" = "必要に応じてアプリが再作成します。最初は少し遅くなることがあります";
+
+"No action needed; the app recreates them automatically" = "操作は不要です。アプリが自動的に再作成します";
+
+"These apps are running" = "これらのアプリが実行中です";
+
+"Quit them so their caches can be cleaned, or skip them." = "キャッシュをクリーンアップするには終了するか、スキップしてください。";
+
+"Quit app" = "終了";
+
+"Skip app" = "スキップ";
+
+"Apps may ask you to save your work before they quit. Skipped apps keep their caches." = "終了前に作業の保存を求めるアプリがあります。スキップしたアプリのキャッシュはそのまま残ります。";
+
+"Quitting apps…" = "アプリを終了しています…";
+
+"Skip all and scan" = "すべてスキップしてスキャン";
+
+"Quit and scan" = "終了してスキャン";

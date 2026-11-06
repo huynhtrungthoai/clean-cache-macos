@@ -1327,3 +1327,25 @@
 "Show items" = "항목 보기";
 
 "Clean" = "정리";
+
+"Cache files this app keeps to load faster" = "앱이 더 빨리 열리도록 보관하는 캐시 파일";
+
+"The app rebuilds them when needed; it may be a little slower the first time" = "필요할 때 앱이 다시 만듭니다. 처음에는 조금 느릴 수 있습니다";
+
+"No action needed; the app recreates them automatically" = "조치할 필요 없음. 앱이 자동으로 다시 만듭니다";
+
+"These apps are running" = "다음 앱이 실행 중입니다";
+
+"Quit them so their caches can be cleaned, or skip them." = "캐시를 정리하려면 종료하거나 건너뛰세요.";
+
+"Quit app" = "종료";
+
+"Skip app" = "건너뛰기";
+
+"Apps may ask you to save your work before they quit. Skipped apps keep their caches." = "앱이 종료 전에 작업 저장을 요청할 수 있습니다. 건너뛴 앱의 캐시는 그대로 유지됩니다.";
+
+"Quitting apps…" = "앱 종료 중…";
+
+"Skip all and scan" = "모두 건너뛰고 스캔";
+
+"Quit and scan" = "종료하고 스캔";

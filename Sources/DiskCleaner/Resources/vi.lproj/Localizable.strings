@@ -1327,3 +1327,25 @@
 "Show items" = "Xem các mục";
 
 "Clean" = "Dọn dẹp";
+
+"Cache files this app keeps to load faster" = "File cache ứng dụng giữ lại để mở nhanh hơn";
+
+"The app rebuilds them when needed; it may be a little slower the first time" = "Ứng dụng tự tạo lại khi cần; lần đầu có thể chậm hơn một chút";
+
+"No action needed; the app recreates them automatically" = "Không cần làm gì; ứng dụng tự tạo lại";
+
+"These apps are running" = "Các ứng dụng này đang chạy";
+
+"Quit them so their caches can be cleaned, or skip them." = "Đóng chúng để dọn được cache, hoặc bỏ qua.";
+
+"Quit app" = "Đóng";
+
+"Skip app" = "Bỏ qua";
+
+"Apps may ask you to save your work before they quit. Skipped apps keep their caches." = "Ứng dụng có thể hỏi lưu công việc trước khi đóng. Ứng dụng bị bỏ qua sẽ giữ nguyên cache.";
+
+"Quitting apps…" = "Đang đóng ứng dụng…";
+
+"Skip all and scan" = "Bỏ qua tất cả và quét";
+
+"Quit and scan" = "Đóng và quét";

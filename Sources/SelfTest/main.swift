@@ -91,6 +91,41 @@ do {
             .map(\.bytes) == [500], "C8: nested entries are moved and counted once")
 }
 
+// C9: per-app cache discovery in a temp Caches dir (no user data touched).
+do {
+    let fm = FileManager.default
+    let base = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("c9-\(UUID().uuidString)")
+    func dir(_ rel: String) { try? fm.createDirectory(at: base.appendingPathComponent(rel), withIntermediateDirectories: true) }
+    for d in ["com.vendor.App", "com.apple.Safari", "com.spotify.client", "org.swift.swiftpm", "Google/Chrome/Default",
+              "Firefox", "Homebrew", "io.sentry", ".hidden.thing", "com.vendor.Real"] { dir(d) }
+    fm.createFile(atPath: base.appendingPathComponent("com.apple.nsservicescache.plist").path, contents: Data())
+    fm.createFile(atPath: base.appendingPathComponent("com.vendor.File").path, contents: Data())
+    try? fm.createSymbolicLink(at: base.appendingPathComponent("com.vendor.Link"),
+                               withDestinationURL: base.appendingPathComponent("com.vendor.Real"))
+    let found = discoverAppCaches(cachesDir: base, knownPaths: [base.appendingPathComponent("org.swift.swiftpm").path])
+    let rel = found.map { String($0.url.path.dropFirst(base.path.count + 1)) }
+    check(rel == ["Firefox", "Google/Chrome", "com.vendor.App", "com.vendor.Real", "io.sentry"],
+          "C9: bundle-ID folders + browser aliases; no Apple, denylisted, known, plain-named, hidden, file or symlink (\(rel))")
+    check(found.first { $0.url.lastPathComponent == "Chrome" }?.bundleID == "com.google.Chrome",
+          "C9: Google/Chrome is owned by com.google.Chrome")
+    let inside = discoverAppCaches(cachesDir: base, knownPaths: [base.appendingPathComponent("com.vendor.App/sub").path])
+    check(!inside.contains { $0.url.lastPathComponent == "com.vendor.App" },
+          "C9: a folder containing a knowledge-base path is left to that entry")
+    check(isBundleIDShaped("com.foo.Bar") && isBundleIDShaped("io.sentry") && !isBundleIDShaped("Homebrew")
+            && !isBundleIDShaped("com.apple.x.plist") && !isBundleIDShaped("Parallels Software"),
+          "C9: bundle-ID shape test")
+    var item = CacheItem(entry: discoveredCacheEntry(found[2], name: "App"), resolvedPaths: [found[2].url])
+    item.pathSizes = [found[2].url.path: 5_000_000]; item.size = 5_000_000
+    check(cacheOwnerBundleIDs(item).contains("com.vendor.app") && item.entry.tier == .safe && item.groupKey == "general",
+          "C9: a discovered entry is general, no-impact, owned by its bundle ID")
+    let s = smartCleanSelection([item], runningBundleIDs: ["com.vendor.App"], bulkSelectable: { _ in true })
+    check(s.picked.isEmpty && s.heldBack.map(\.bundleID) == ["com.vendor.app"],
+          "C9: a discovered cache of a running app is held back")
+    check(isBulkSelectable(URL(fileURLWithPath: homePath() + "/Library/Caches/com.vendor.App")),
+          "C9: ~/Library/Caches/<bundle id> passes the unchanged bulk-select rule")
+    try? fm.removeItem(at: base)   // test fixture only
+}
+
 func check(_ cond: Bool, _ msg: String) {
     if cond {
         print("PASS  \(msg)")

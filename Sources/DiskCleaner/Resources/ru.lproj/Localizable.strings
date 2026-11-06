@@ -1327,3 +1327,25 @@
 "Show items" = "Показать объекты";
 
 "Clean" = "Очистить";
+
+"Cache files this app keeps to load faster" = "Файлы кэша, которые приложение хранит для быстрой загрузки";
+
+"The app rebuilds them when needed; it may be a little slower the first time" = "Приложение создаст их заново при необходимости; в первый раз оно может работать чуть медленнее";
+
+"No action needed; the app recreates them automatically" = "Ничего делать не нужно; приложение создаст их заново автоматически";
+
+"These apps are running" = "Эти приложения запущены";
+
+"Quit them so their caches can be cleaned, or skip them." = "Закройте их, чтобы очистить их кэш, или пропустите.";
+
+"Quit app" = "Закрыть";
+
+"Skip app" = "Пропустить";
+
+"Apps may ask you to save your work before they quit. Skipped apps keep their caches." = "Перед закрытием приложения могут попросить сохранить работу. Кэш пропущенных приложений останется.";
+
+"Quitting apps…" = "Закрытие приложений…";
+
+"Skip all and scan" = "Пропустить все и сканировать";
+
+"Quit and scan" = "Закрыть и сканировать";

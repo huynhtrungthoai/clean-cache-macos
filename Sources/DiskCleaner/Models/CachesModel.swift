@@ -65,14 +65,21 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
         issues = []
         progress = ScanProgress()
         task = Task {
-            let entries = loadSafetyEntries(from: safetyDBFileURL())
-                .filter { groupKeys.contains($0.grp ?? "general") }
+            let all = loadSafetyEntries(from: safetyDBFileURL())
+            let entries = all.filter { groupKeys.contains($0.grp ?? "general") }
             var list: [CacheItem] = []
             for e in entries {
                 if Task.isCancelled { break }
                 let paths = globExpand(e.path.isEmpty ? "~/.nonexistent-\(UUID().uuidString)" : e.path)
                 if paths.isEmpty { continue }   // 没装的 App 不显示
                 list.append(CacheItem(entry: e, resolvedPaths: paths))
+            }
+            // C9: every app's own folder in ~/Library/Caches (owner known), like CleanMyMac.
+            if groupKeys.contains("general") {
+                for d in discoverAppCaches(knownPaths: knownCachePaths(all)) {
+                    list.append(CacheItem(entry: discoveredCacheEntry(d, name: appDisplayName(d.bundleID)),
+                                          resolvedPaths: [d.url]))
+                }
             }
             // 常规缓存排前面
             list.sort { ($0.groupKey != "general" ? 1 : 0, $0.entry.name) < ($1.groupKey != "general" ? 1 : 0, $1.entry.name) }
@@ -112,6 +119,12 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
             // 备份目录和空的 AVD 目录）。size 为 nil = 还没量完，不删。
             // Rows that could not be read stay (C3: "could not measure" is not "empty").
             if !Task.isCancelled { self.items.removeAll { $0.size == 0 && $0.unreadablePaths.isEmpty } }
+            // C9: tiny discovered folders are noise, not findings.
+            if !Task.isCancelled {
+                self.items.removeAll {
+                    ($0.entry.tags ?? []).contains(discoveredCacheTag) && ($0.size ?? 0) < discoveredCacheFloor
+                }
+            }
             if !Task.isCancelled {
                 self.completed = true
                 self.scanning = false
@@ -187,6 +200,41 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
         return batch
     }
 
+    // MARK: - C9 running apps before a Smart Scan (docs/enhance-feat.md §11)
+
+    /// Running apps that own caches the one-click clean would take. Cheap (no measuring):
+    /// call it when Scan is pressed, before `load(force:)`.
+    func runningCacheOwners() -> [RunningCacheApp] {
+        let all = loadSafetyEntries(from: safetyDBFileURL())
+        var owners = Set<String>()
+        for e in all where smartCleanGroups.contains(e.grp ?? "general") && e.tier == .safe && !e.path.isEmpty {
+            owners.formUnion(cacheOwnerBundleIDs(CacheItem(entry: e, resolvedPaths: globExpand(e.path))))
+        }
+        for d in discoverAppCaches(knownPaths: knownCachePaths(all)) { owners.insert(d.bundleID.lowercased()) }
+        let me = Bundle.main.bundleIdentifier?.lowercased()
+        var seen = Set<String>()
+        return NSWorkspace.shared.runningApplications.compactMap { r in
+            guard r.activationPolicy == .regular, let id = r.bundleIdentifier?.lowercased(),
+                  id != me, owners.contains(id), seen.insert(id).inserted else { return nil }
+            return RunningCacheApp(id: id, name: r.localizedName ?? id, icon: r.icon)
+        }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Asks these apps to quit (they may ask the user to save) and waits up to `timeout`.
+    /// Returns the names of apps still running; their caches are held back by the plan.
+    func quitApps(_ ids: Set<String>, timeout: TimeInterval = 10) async -> [String] {
+        func running() -> [NSRunningApplication] {
+            NSWorkspace.shared.runningApplications.filter { ids.contains($0.bundleIdentifier?.lowercased() ?? "") }
+        }
+        for r in running() { r.terminate() }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, !running().isEmpty {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+        return running().map { $0.localizedName ?? $0.bundleIdentifier ?? "" }
+    }
+
     /// Clears the selection and re-measures every row touched by the batch.
     func apply(_ batch: TrashBatch) {
         for i in items.indices { items[i].selected = false }
@@ -227,6 +275,25 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
             }
         }
     }
+}
+
+/// A running app that owns caches the one-click clean would take (C9).
+struct RunningCacheApp: Identifiable {
+    let id: String          // lowercased bundle ID
+    let name: String
+    let icon: NSImage?
+}
+
+/// Knowledge-base paths under ~/Library/Caches, resolved: discovery leaves these to their entries.
+func knownCachePaths(_ entries: [SafetyEntry]) -> [String] {
+    entries.filter { $0.path.hasPrefix("~/Library/Caches") }.flatMap { globExpand($0.path).map(\.path) }
+}
+
+/// The app's name as Finder shows it; the bundle ID when the app is no longer installed.
+func appDisplayName(_ bundleID: String) -> String {
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return bundleID }
+    let n = FileManager.default.displayName(atPath: url.path)
+    return n.hasSuffix(".app") ? String(n.dropLast(4)) : n
 }
 
 /// What the Smart Scan "Clean" confirmation shows and executes (C8).

@@ -1327,3 +1327,25 @@
 "Show items" = "Mostrar itens";
 
 "Clean" = "Limpar";
+
+"Cache files this app keeps to load faster" = "Arquivos de cache que este app guarda para carregar mais rápido";
+
+"The app rebuilds them when needed; it may be a little slower the first time" = "O app os recria quando precisa; da primeira vez pode ficar um pouco mais lento";
+
+"No action needed; the app recreates them automatically" = "Nada a fazer; o app os recria automaticamente";
+
+"These apps are running" = "Estes apps estão abertos";
+
+"Quit them so their caches can be cleaned, or skip them." = "Encerre-os para limpar os caches deles ou ignore-os.";
+
+"Quit app" = "Encerrar";
+
+"Skip app" = "Ignorar";
+
+"Apps may ask you to save your work before they quit. Skipped apps keep their caches." = "Os apps podem pedir para salvar seu trabalho antes de encerrar. Apps ignorados mantêm os caches.";
+
+"Quitting apps…" = "Encerrando apps…";
+
+"Skip all and scan" = "Ignorar todos e analisar";
+
+"Quit and scan" = "Encerrar e analisar";
