@@ -869,7 +869,15 @@ Task.detached {
     chmod(locked.path, 0)
     let ghost = dbase.appendingPathComponent("no-such-root")
     let withIssues = await walkFiles(dirs: [dbase, ghost])
+    let lockedLevel = await dirLevel(locked)
+    let parentLevel = await dirLevel(dbase)
     chmod(locked.path, 0o700)
+    let ghostLevel = await dirLevel(ghost)
+    check(lockedLevel.rootErrno == EACCES && lockedLevel.entries.isEmpty,
+          "drill issues: unreadable level reports EACCES, not an empty folder")
+    check(ghostLevel.rootErrno == ENOENT, "drill issues: missing level reports ENOENT")
+    check(parentLevel.rootErrno == 0 && parentLevel.unreadableChildren == [locked.path],
+          "drill issues: readable level lists its partly measured subfolder (\(parentLevel.unreadableChildren))")
     check(withIssues.needAdmin == [locked.path], "walk issues: chmod 000 folder → needAdmin (\(withIssues.needAdmin))")
     check(withIssues.missingRoots == [ghost.path], "walk issues: missing root → missingRoots")
     check(!withIssues.rows.contains { $0.url.lastPathComponent == "hidden.bin" },

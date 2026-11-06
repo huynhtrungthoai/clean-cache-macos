@@ -165,7 +165,10 @@ public func pathStat(_ url: URL, progress: ScanProgress? = nil) async -> DirScan
 public func dirLevel(_ url: URL, includeFiles: Bool = true, fileLimit: Int = 200,
                      progress: ScanProgress? = nil) async -> DirLevel {
     let fm = FileManager.default
-    guard let names = try? fm.contentsOfDirectory(atPath: url.path) else { return DirLevel() }
+    guard let names = try? fm.contentsOfDirectory(atPath: url.path) else {
+        let e = probeErrno(url.path)
+        return DirLevel(rootErrno: e == 0 ? EIO : e)
+    }
     let rootDev = deviceOf(url)
     var dirs: [(name: String, path: String)] = []
     var files: [(name: String, path: String, size: Int64, newest: Date?)] = []

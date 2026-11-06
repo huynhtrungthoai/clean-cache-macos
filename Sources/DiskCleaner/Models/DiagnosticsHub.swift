@@ -5,12 +5,16 @@ import SwiftUI
 /// 扫描结果必须是 App 级状态：侧栏切分支、页面视图随导航销毁，模型跟着视图走就会
 /// 每切一次重跑一遍定向遍历（`DiskCleanerApp` 对全部八页的同一条教训）。
 @MainActor
-final class DiagnosticsHub: ObservableObject {
+final class DiagnosticsHub: ObservableObject, ScanStatusReporting {
     @Published private(set) var hits: [CategoryHit] = []
     @Published private(set) var reports: [ReportFile] = []
     @Published private(set) var observation: [ObservationItem] = []
     @Published private(set) var scanning = false
     @Published private(set) var started = false
+    /// C2/C5. `issues` stays empty: category discovery skips what it cannot read.
+    @Published private(set) var scanState: ScanState = .idle
+    @Published private(set) var scannedAt: Date? = nil
+    @Published private(set) var issues: [ScanIssue] = []
     /// 流速徽标按 entryKey 挂在行上；异常粘滞到增长回落（评审 §2.1c）。
     @Published private(set) var velocity: [String: VelocityReport] = [:]
     /// 内容归属按 entryKey 挂在行上；探针关闭时恒为空（不装结论）。
@@ -56,6 +60,7 @@ final class DiagnosticsHub: ObservableObject {
         guard force || !started else { return }
         task?.cancel()
         scanning = true
+        scanState = .scanning
         started = true
         let home = homeDir()
         task = Task {
@@ -69,6 +74,8 @@ final class DiagnosticsHub: ObservableObject {
             self.applyVelocity(for: report.hits)
             self.applyAttribution(for: report.hits)
             scanning = false
+            scanState = .completed
+            scannedAt = Date()
         }
     }
 
@@ -76,6 +83,8 @@ final class DiagnosticsHub: ObservableObject {
         task?.cancel()
         guard scanning else { return }
         scanning = false
+        scanState = .stopped
+        scannedAt = Date()
     }
 
     /// 本轮扫描的流速结算：算两档徽标、写快照。

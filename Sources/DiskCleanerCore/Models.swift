@@ -787,9 +787,18 @@ public struct DirLevel {
     public var unlistedBytes: Int64
     public var dirCount: Int
     public var fileCount: Int
+    /// errno when the level's own folder could not be listed (EPERM = Full Disk Access,
+    /// EACCES = admin only, ENOENT = gone); 0 when it was listed. A non-zero level has no
+    /// entries and must not be shown as "empty".
+    public var rootErrno: Int32 = 0
+
+    /// Subfolders that could only be partly measured (their size is a lower bound).
+    public var unreadableChildren: [String] { entries.filter(\.unreadable).map(\.path) }
 
     public init(entries: [ChildEntry] = [], total: Int64 = 0, unlistedCount: Int = 0,
-                unlistedBytes: Int64 = 0, dirCount: Int = 0, fileCount: Int = 0) {
+                unlistedBytes: Int64 = 0, dirCount: Int = 0, fileCount: Int = 0,
+                rootErrno: Int32 = 0) {
+        self.rootErrno = rootErrno
         self.entries = entries
         self.total = total
         self.unlistedCount = unlistedCount

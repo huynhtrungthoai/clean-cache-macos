@@ -3,12 +3,16 @@ import DiskCleanerCore
 
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
-final class NMModel: ObservableObject {
+final class NMModel: ObservableObject, ScanStatusReporting {
     @Published var items: [NMProject] = []
     @Published var scanning = false
     /// 上一轮是被**按停**的：列里只有量完的那几行，页头要说清这不是全貌。
     @Published var stoppedEarly = false
     @Published private(set) var started = false
+    /// C2/C5. `issues` stays empty: the node_modules search does not report unreadable folders.
+    @Published private(set) var scanState: ScanState = .idle
+    @Published private(set) var scannedAt: Date? = nil
+    @Published private(set) var issues: [ScanIssue] = []
     /// 现场读数。这一趟数的是**目录项**不是文件：整棵家目录翻下来一个 node_modules
     /// 都可能没撞上，但「正在看 ~/Projects/foo/src」那句是真的在往前走的证据。
     private(set) var progress = ScanProgress(counted: .entries)
@@ -34,6 +38,7 @@ final class NMModel: ObservableObject {
         scanning = true
         started = true
         stoppedEarly = false
+        scanState = .scanning
         items = []
         progress = ScanProgress(counted: .entries)
         let mine = gen
@@ -44,6 +49,8 @@ final class NMModel: ObservableObject {
             if !Task.isCancelled {
                 if self.gen == mine { self.merge(list) }
                 self.scanning = false
+                self.scanState = .completed
+                self.scannedAt = Date()
             }
         }
     }
@@ -53,6 +60,8 @@ final class NMModel: ObservableObject {
         guard scanning else { return }
         scanning = false
         stoppedEarly = true
+        scanState = .stopped
+        scannedAt = Date()
     }
 
     /// 只合进**没见过的路径**，且按容量降序插位：行是同一批对象（`id` 不变，勾选不掉），

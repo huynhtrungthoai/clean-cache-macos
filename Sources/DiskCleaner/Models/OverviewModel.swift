@@ -5,7 +5,7 @@ import AppKit
 
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
-final class OverviewModel: ObservableObject {
+final class OverviewModel: ObservableObject, ScanStatusReporting {
     @Published var usage: VolumeUsage? = nil
     @Published var hotspots: [(name: String, path: String, size: Int64)] = []
     /// 排在列表封顶之后、但确实量到了的目录。列表不画满一屏，点开设的那行全在里面。
@@ -14,6 +14,9 @@ final class OverviewModel: ObservableObject {
     /// 「其他已统计」那块弧就有一截是账外之地——环形加起来等于盘，列表却对不上。
     @Published private(set) var unlistedCount = 0
     @Published private(set) var unlistedBytes: Int64 = 0
+    @Published private(set) var scanState: ScanState = .idle
+    @Published private(set) var scannedAt: Date? = nil
+    @Published private(set) var issues: [ScanIssue] = []
     @Published var scanning = false
     /// 已经量完的目录数。环形要等全部量完才谈得上「未扫描」，所以这个数得露出来。
     @Published private(set) var done = 0
@@ -756,6 +759,8 @@ final class OverviewModel: ObservableObject {
         disarm()
         readVolume()
         scanning = true
+        scanState = .scanning
+        issues = []
         Prefs.shared.setGaugeRunning(true)
         started = true
         hasFDA = fullDiskAccessGranted()
@@ -832,6 +837,9 @@ final class OverviewModel: ObservableObject {
             backfill = nil
             scanning = false
             measuring = []
+            scanState = .completed
+            scannedAt = Date()
+            issues = permissionIssues(needFDA + needAdmin)
             // 走到这一行的唯一路径是上面那道 `!Task.isCancelled` 的守卫：这一轮是走完的，
             // 不是按停的。顶栏那句「量完 · …」只在这种时刻盖戳（见 `Prefs.noteGaugeFinished`）。
             Prefs.shared.noteGaugeFinished()
@@ -849,6 +857,11 @@ final class OverviewModel: ObservableObject {
 
     func stop() {
         task?.cancel()
+        if scanning {
+            scanState = .stopped
+            scannedAt = Date()
+            issues = permissionIssues(needFDA + needAdmin)
+        }
         // 停在窗口里的那几处不补发：账本来就不完整，留下最后一拍的数就够了。
         backfillJob?.cancel()
         backfillJob = nil

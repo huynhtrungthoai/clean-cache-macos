@@ -54,6 +54,15 @@ func permissionIssues(_ paths: [String]) -> [ScanIssue] {
     Array(Set(paths)).sorted().map { ScanIssue(root: $0, kind: .noPermission) }
 }
 
+/// One issue from an errno of a folder that could not be listed.
+func errnoIssue(_ path: String, _ e: Int32) -> ScanIssue {
+    switch e {
+    case EPERM, EACCES: return ScanIssue(root: path, kind: .noPermission)
+    case ENOENT: return ScanIssue(root: path, kind: .notFound)
+    default: return ScanIssue(root: path, kind: .error(String(cString: strerror(e))))
+    }
+}
+
 /// Issues of a `walkFiles` pass: unreadable folders (sorted) then missing roots.
 func walkIssues(_ r: WalkResult) -> [ScanIssue] {
     permissionIssues(r.needFullDiskAccess + r.needAdmin)

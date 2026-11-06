@@ -3,10 +3,14 @@ import DiskCleanerCore
 
 /// 由 ScanStore 持有：视图随导航销毁，模型不能跟着一起销毁
 @MainActor
-final class DockerModel: ObservableObject {
+final class DockerModel: ObservableObject, ScanStatusReporting {
     @Published var items: [DockerItem] = []
     @Published var scanning = false
     @Published private(set) var started = false
+    /// C2/C5. `issues` stays empty: no engine / no runtime is a normal empty result.
+    @Published private(set) var scanState: ScanState = .idle
+    @Published private(set) var scannedAt: Date? = nil
+    @Published private(set) var issues: [ScanIssue] = []
     /// 现场读数：这一趟要问引擎一把，再逐家量虚拟机磁盘的实占，几秒钟里得说清走到哪儿了。
     private(set) var progress = ScanProgress(counted: .entries)
     private var task: Task<Void, Never>? = nil
@@ -24,6 +28,7 @@ final class DockerModel: ObservableObject {
         task?.cancel()
         scanning = true
         started = true
+        scanState = .scanning
         items = []
         progress = ScanProgress(counted: .entries)
         let prog = progress
@@ -38,9 +43,15 @@ final class DockerModel: ObservableObject {
             if !Task.isCancelled {
                 self.items = list
                 self.scanning = false
+                self.scanState = .completed
+                self.scannedAt = Date()
             }
         }
     }
 
-    func stop() { task?.cancel(); scanning = false }
+    func stop() {
+        task?.cancel()
+        if scanning { scanState = .stopped; scannedAt = Date() }
+        scanning = false
+    }
 }

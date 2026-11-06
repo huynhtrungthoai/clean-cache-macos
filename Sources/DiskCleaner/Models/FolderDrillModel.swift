@@ -3,7 +3,7 @@ import AppKit
 import DiskCleanerCore
 
 @MainActor
-final class FolderDrillModel: ObservableObject {
+final class FolderDrillModel: ObservableObject, ScanStatusReporting {
     /// Path of the current level.
     @Published private(set) var path: String = ""
     /// Breadcrumb cells for this path, all clickable. The last one is `path`.
@@ -15,6 +15,12 @@ final class FolderDrillModel: ObservableObject {
     /// What this pass is measuring. During the "measuring" seconds, not saying where reads like "it broke".
     @Published private(set) var pendingPath: String = ""
     @Published var selected: Set<String> = []
+    /// C2/C5 for the level on screen: scanning while measuring, completed with the time this
+    /// level was measured (cached levels keep their original time, so they can go stale).
+    /// Issues: the level itself unreadable, then subfolders only partly measured.
+    @Published private(set) var scanState: ScanState = .idle
+    @Published private(set) var scannedAt: Date? = nil
+    @Published private(set) var issues: [ScanIssue] = []
 
     /// Live readout. This level is slow because it **measures each subfolder** (dozens per level, each a subtree),
     /// so it must say not just "measuring ~/Library" but also "which of those 40+ dirs we're on".
@@ -26,6 +32,14 @@ final class FolderDrillModel: ObservableObject {
     static let fileCap = 200
 
     private var cache: [String: DirLevel] = [:]
+    private var measuredAt: [String: Date] = [:]
+
+    private func showStatus(of lv: DirLevel, at target: String) {
+        scanState = .completed
+        scannedAt = measuredAt[target]
+        issues = (lv.rootErrno != 0 ? [errnoIssue(target, lv.rootErrno)] : [])
+            + permissionIssues(lv.unreadableChildren)
+    }
     private var task: Task<Void, Never>? = nil
     /// Screenshot pipeline only (`DISKWISE_DRILL_INTO=1`): after the first level is measured, auto-drill once
     /// to capture the "breadcrumb + one level deeper" screen.
@@ -61,7 +75,10 @@ final class FolderDrillModel: ObservableObject {
     func invalidate() {
         task?.cancel()
         cache = [:]
+        measuredAt = [:]
         level = nil
+        scanState = .idle
+        issues = []
         if !path.isEmpty { load(path) }
     }
 
@@ -76,12 +93,15 @@ final class FolderDrillModel: ObservableObject {
         if let hit = cache[target] {
             level = hit
             busy = false
+            showStatus(of: hit, at: target)
             return
         }
         level = nil
         // One level per pass, readout and list reset too: the previous level's ledger on this level is a different ledger.
         progress = ScanProgress()
         busy = true
+        scanState = .scanning
+        issues = []
         pendingPath = target
         let limit = Self.fileCap
         let prog = progress
@@ -90,8 +110,10 @@ final class FolderDrillModel: ObservableObject {
                                     fileLimit: limit, progress: prog)
             guard !Task.isCancelled, let self, self.path == target else { return }
             self.cache[target] = lv
+            self.measuredAt[target] = Date()
             self.level = lv
             self.busy = false
+            self.showStatus(of: lv, at: target)
             if SnapshotMode.drillAutoDescend, !self.autoDescended,
                let first = lv.entries.first(where: { $0.isDir }) {
                 self.autoDescended = true
