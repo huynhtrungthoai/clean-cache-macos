@@ -24,6 +24,7 @@ struct FolderDrillView: View {
     @ObservedObject var model: FolderDrillModel
     @State private var confirm = false
     @State private var err: String? = nil
+    @State private var result: LegacyOperationResult?
 
     /// Deletion flight: both origin (checked rows) and destination (the CleanBar button) are collected here.
     @StateObject private var flight = TrashFlightController()
@@ -33,7 +34,7 @@ struct FolderDrillView: View {
             VStack(alignment: .leading, spacing: 14) {
                 PageHeader(symbol: "folder", title: L("Folder details"),
                            subtitle: L("Go deeper level by level and see how much each folder and file takes up"),
-                           variant: .display) {
+                           variant: .display, wrapsControls: true, scope: model.path.isEmpty ? L("No folder selected yet") : displayPath(URL(fileURLWithPath: model.path))) {
                     // "Find large files in this tree" goes from here: Overview no longer shows two side-by-side "go down"
                     // buttons (click name to enter this level + dig into Large files); one step only: enter to see this level first,
                     // then press this to find large files. Two actions on two levels, each with a clear place.
@@ -62,7 +63,7 @@ struct FolderDrillView: View {
                         LoadingRow(text: LF("Measuring “%@”", shortLabel(model.pendingPath)),
                                    progress: model.progress)
                     } else if let lv = model.level {
-                        Text(LF("This level: %@", human(lv.total)))
+                        Text(LF("This level: %@", uiHuman(lv.total)))
                         ThemeBadge(text: LF("%1$@ · %2$@",
                                             cnt(lv.dirCount, "folders"),
                                             cnt(lv.fileCount, "files")),
@@ -80,10 +81,10 @@ struct FolderDrillView: View {
 
             Spacer(minLength: 0)   // clean bar pinned to the window bottom, see `CleanBar`
 
-            CleanBar(count: model.selected.count, bytes: model.selectedBytes,
-                     bytesText: human(model.selectedBytes, inRulerOf: model.level?.total ?? 0),
-                     errorText: err, selection: selectAll,
-                     flightTarget: true) { confirm = true }
+            if let err { ListNote(text: err) }
+            SelectionActionBar(count: model.selected.count, bytes: uiHuman(model.selectedBytes),
+                               selection: selectAll, busy: model.busy || store.isTrashing) { confirm = true }
+
         }
         .frame(maxWidth: .infinity)
         .flightField(flights: $flight.flights, anchors: $flight.anchors)
@@ -107,10 +108,11 @@ struct FolderDrillView: View {
         .confirmTrash(isPresented: $confirm,
                       text: LF("Move %1$@ (%2$@) to the Trash.",
                                cnt(model.selectedEntries.count, "items"),
-                               human(model.selectedBytes, inRulerOf: model.level?.total ?? 0))
+                               uiHuman(model.selectedBytes, inRulerOf: model.level?.total ?? 0))
                           + confirmNames(model.selectedEntries)) {
             doClean()
         }
+        .sheet(item: $result) { result in LegacyOperationResultSheet(result: result).themed(theme) }
     }
 
     // MARK: Body
@@ -136,7 +138,10 @@ struct FolderDrillView: View {
                        hint: L("It may be empty, or it may need Full Disk Access to read."))
                 .frame(maxHeight: .infinity)
         } else {
-            PageLedger(tiers: tiers, rows: model.rows.count, note: nil)
+            SummaryCards(metrics: [
+                .init(title: L("Listed items"), value: String(model.rows.count), detail: uiHuman(model.level?.total ?? 0), symbol: "folder"),
+                .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
+            ]).pagePadding().padding(.bottom, 12)
             List(model.rows) { r in
                 ItemRow(selected: selection(r),
                         icon: .path(r.url),
@@ -206,7 +211,7 @@ struct FolderDrillView: View {
         var parts: [String] = []
         if safe > 0 {
             parts.append(LF("%1$@ with no impact, %2$@ in total",
-                            cnt(safe, "items"), human(safeBytes, inRulerOf: model.level?.total ?? 0)))
+                            cnt(safe, "items"), uiHuman(safeBytes, inRulerOf: model.level?.total ?? 0)))
         }
         if redo > 0 {
             parts.append(LF("%1$@ need re-downloading", cnt(redo, "items")))
@@ -218,7 +223,7 @@ struct FolderDrillView: View {
             parts.append(LF("Another %1$@ aren't in the knowledge base: not listed doesn't mean safe to delete, so check the path before ticking it",
                             cnt(unknown, "items")))
         }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ") + "。"
+        return parts.isEmpty ? nil : parts.joined(separator: " · ") + "."
     }
 
     private var crumbsBar: some View {
@@ -270,7 +275,7 @@ struct FolderDrillView: View {
     private var shown: [String: String] {
         guard let lv = model.level else { return [:] }
         let rest = lv.unlistedBytes
-        let texts = addableHumanColumn(model.rows.map(\.size) + [rest], total: lv.total)
+        let texts = uiAddableHumanColumn(model.rows.map(\.size) + [rest], total: lv.total)
         var out: [String: String] = [:]
         for (r, s) in zip(model.rows, texts) { out[r.id] = s }
         return out
@@ -283,17 +288,17 @@ struct FolderDrillView: View {
     /// for another.
     private func sizeCell(_ r: ChildEntry) -> String {
         if r.unreadable && r.size == 0 { return "—" }
-        return shown[r.id] ?? human(r.size)
+        return shown[r.id] ?? uiHuman(r.size)
     }
 
     /// Tail line: entries not listed row by row. **Can't be omitted**: otherwise users add up the column against the header,
     /// fail to match, and conclude the numbers are made up.
     private var tailNote: String {
         guard let lv = model.level else { return "" }
-        var parts = [LF("This level: %@", human(lv.total))]
+        var parts = [LF("This level: %@", uiHuman(lv.total))]
         if lv.unlistedCount > 0 {
             parts.append(LF("%1$@ more (%2$@) not listed one by one",
-                            cnt(lv.unlistedCount, "items"), human(lv.unlistedBytes)))
+                            cnt(lv.unlistedCount, "items"), uiHuman(lv.unlistedBytes)))
         }
         // Unreadable chunks never entered total; without a note here the header number is an undercount,
         // and in this app undercounting is more dangerous than overcounting: it says "nothing to see here".
@@ -306,7 +311,7 @@ struct FolderDrillView: View {
         if partial > 0 {
             parts.append(LF("%1$@ measured only in part", cnt(partial, "folders")))
         }
-        return parts.joined(separator: " · ") + "。"
+        return parts.joined(separator: " · ") + "."
     }
 
     /// Row subtitle: folders show "N files + last modified", files show "last modified".
@@ -353,9 +358,7 @@ struct FolderDrillView: View {
     /// generic "N items" never hides `.ssh` or `Application Support` among them.
     private func confirmNames(_ entries: [ChildEntry]) -> String {
         guard !entries.isEmpty else { return "" }
-        let shown = entries.prefix(10).map { $0.name }
-        let more = entries.count > shown.count ? "\n…(+\(entries.count - shown.count))" : ""
-        return "\n\n" + shown.joined(separator: "\n") + more + "\n\n"
+        return "\n\n" + entries.map(\.path).joined(separator: "\n") + "\n\n"
     }
 
     // MARK: Actions
@@ -374,6 +377,7 @@ struct FolderDrillView: View {
 
     private func doClean() {
         err = nil
+        let historyStart = store.trashHistory.count
         let targets = model.selectedEntries
         let rows = targets.map { (key: $0.path, bytes: $0.size) }
         // Grab origin and destination **before** clearing the selection: unchecked rows stop reporting anchors, and a disabled button moves the target.
@@ -396,6 +400,7 @@ struct FolderDrillView: View {
 
         if !errs.isEmpty { err = errList(errs) }
         store.notice = trashedNotice(ok, "items", failed: errs.count)
+        result = LegacyOperationResult(moved: store.trashHistory.dropFirst(historyStart).map { $0.displayName + " · " + $0.original.path }, failed: errs)
 
         // Fade rows, then reload after chips finish flying; otherwise chips are mid-air while rows are gone, wasting the trip.
         let gone = Set(targets.map(\.path))
