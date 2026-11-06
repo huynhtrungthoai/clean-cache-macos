@@ -403,7 +403,7 @@ model.isPartial      // stopped, hoặc completed nhưng có issues
 model.isStale(lastTrashAt: store.lastTrashAt)   // có chuyển/khôi phục sau lần quét, hoặc quá 10 phút → hiện "Quét lại", không tự quét
 ```
 
-- `issues` hiện có dữ liệu thật ở trang Cache; trang file lớn/cũ/trùng/còn sót trả `[]` cho tới khi bộ duyệt file báo được thư mục bị từ chối (việc tiếp theo của Claude).
+- `issues` có dữ liệu thật ở Cache, File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót (xem Requests).
 
 **Chính sách chọn:** hàng chọn được khi `isReclaimableWhole(url)`; `selectAll` của mọi model chỉ lấy `isBulkSelectable(url)`; `trashPlan()` tự lọc lại.
 
@@ -488,7 +488,7 @@ public let treemapUnlistedID: String   // ô "file đã đo nhưng không liệt
   - node_modules: `selectAll` giờ theo `isBulkSelectable` của thư mục node_modules, `trashPlan()`, `trash(using:)`, `apply(_:)`; `NMModel.nodeModulesURL(_:)`.
   - Chẩn đoán: `hitsTrashPlan() async` (đo từng thư mục nên async — dựng một lần cho sheet rồi đưa **đúng mảng đó** vào `trashHits(_:using:)`), `reportsTrashPlan()` + `trashReports(using:)`.
   - Trim: `trimTrashPlan()` (mỗi file kèm `expectedIdentity` dev/inode — bị thay file cùng tên thì `.changedSinceScan`), `runTrim(using:) async` chạy ngoài main thread, huỷ được, `.done(batchID:)` là UUID của batch → hoàn tác bằng `store.undo(batchID:)`, không còn qua `undoTrim`.
-  - API cũ (`runTrim()`, `undoTrim(batchID:)`, gọi `trashItem` trong View) vẫn còn để app build được; Codex chuyển xong thì báo để Claude xoá.
+  - API cũ `runTrim()`, `undoTrim(batchID:)` và sổ trim riêng trong SQLite đã xoá (06/11/2026) sau khi UI chuyển hết sang luồng batch.
 
 - ✅ **Đã có (P0, QA chuyển/hoàn tác)** — Bản dev (`swift run`/`DEV_HOOKS=1`) có `DISKWISE_HOME_SHIM`: `trashItem` thật chuyển vào `<home giả>/.Trash` (tên không ghi đè), khớp `trashRoots()`, nên luồng chuyển → `store.undo` chạy trọn trong cây tạm; Thùng rác thật không bị đụng. `devShimTrashDir()` cho biết đường dẫn (nil ở bản release). SelfTest "QA:" chạy trọn vòng không tiêm executor.
 - ✅ **Đã có (P1, issues thật cho File lớn/cũ/trùng/còn sót)** — `walkFiles` trả `needFullDiskAccess` (EPERM), `needAdmin` (EACCES), `missingRoots`; `scanOrphansReport` trả `OrphanScan` có hai danh sách quyền (vị trí Library không đọc được + thư mục con của một mục còn sót; mục đó vẫn được liệt kê, dung lượng là cận dưới). Bốn model điền `issues` khi quét xong (`.noPermission` rồi `.notFound`). Phạm vi toàn ổ có thể ra nhiều dòng: UI nên hiện vài dòng đầu + tổng số.

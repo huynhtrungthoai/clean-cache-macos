@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 // MARK: - Retention policy & pruning (PR-4)
 //
@@ -107,69 +106,4 @@ public func setCrashRetention(_ r: Retention?) {
     }
     d.set(true, forKey: "retention.crash-dumps.enabled")
     d.set(n, forKey: "retention.crash-dumps.count")
-}
-
-// MARK: - Prune ledger (for whole-batch undo; stored in the snapshot DB)
-
-extension SnapshotStore {
-    /// Record a prune batch. original/trash recorded in pairs; undo moves each pair back.
-    public func recordTrim(batchID: String, at: Date, entryKey: String,
-                    items: [(original: URL, trash: URL, bytes: Int64)]) {
-        guard db != nil else { return }
-        exec("BEGIN")
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "INSERT OR REPLACE INTO trim_batches VALUES(?,?,?,?,?)",
-                                 -1, &stmt, nil) == SQLITE_OK else { exec("ROLLBACK"); return }
-        sqlite3_bind_text(stmt, 1, batchID, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_double(stmt, 2, at.timeIntervalSince1970)
-        sqlite3_bind_text(stmt, 3, entryKey, -1, SQLITE_TRANSIENT)
-        sqlite3_bind_int64(stmt, 4, Int64(items.count))
-        sqlite3_bind_int64(stmt, 5, items.reduce(0) { $0 + $1.bytes })
-        sqlite3_step(stmt)
-        sqlite3_finalize(stmt)
-        guard sqlite3_prepare_v2(db, "INSERT INTO trim_items VALUES(?,?,?)",
-                                 -1, &stmt, nil) == SQLITE_OK else { exec("ROLLBACK"); return }
-        for it in items {
-            sqlite3_reset(stmt)
-            sqlite3_bind_text(stmt, 1, batchID, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 2, it.original.path, -1, SQLITE_TRANSIENT)
-            sqlite3_bind_text(stmt, 3, it.trash.path, -1, SQLITE_TRANSIENT)
-            sqlite3_step(stmt)
-        }
-        sqlite3_finalize(stmt)
-        exec("COMMIT")
-    }
-
-    /// Undo a whole batch: move items from the Trash back to their original paths. Those that can't be (user emptied Trash) are skipped and counted.
-    /// Returns (restored, missing).
-    public func undoTrim(batchID: String) -> (restored: Int, missing: Int) {
-        guard db != nil else { return (0, 0) }
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "SELECT original, trash FROM trim_items WHERE batchID = ?",
-                                 -1, &stmt, nil) == SQLITE_OK else { return (0, 0) }
-        sqlite3_bind_text(stmt, 1, batchID, -1, SQLITE_TRANSIENT)
-        var pairs: [(URL, URL)] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            pairs.append((URL(fileURLWithPath: String(cString: sqlite3_column_text(stmt, 0))),
-                          URL(fileURLWithPath: String(cString: sqlite3_column_text(stmt, 1)))))
-        }
-        sqlite3_finalize(stmt)
-        let fm = FileManager.default
-        var restored = 0
-        var missing = 0
-        for (original, trash) in pairs {
-            guard fm.fileExists(atPath: trash.path) else { missing += 1; continue }
-            try? fm.createDirectory(at: original.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if (try? fm.moveItem(at: trash, to: original)) != nil {
-                restored += 1
-            } else {
-                missing += 1
-            }
-        }
-        if restored > 0 || missing >= pairs.count {
-            exec("DELETE FROM trim_items WHERE batchID = '\(batchID)'")
-            exec("DELETE FROM trim_batches WHERE batchID = '\(batchID)'")
-        }
-        return (restored, missing)
-    }
 }

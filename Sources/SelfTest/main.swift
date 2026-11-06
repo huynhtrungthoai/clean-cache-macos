@@ -2431,17 +2431,7 @@ do {
     check(trimPlan(under: [completed], retention: Retention(kind: .count(100))).remove.isEmpty,
           "修剪：配额超过实有时一个都不动")
 
-    // 修剪账本：入账 → 整批撤销 → 原路放回
-    let dbPath = URL(fileURLWithPath: "/tmp/dwtest-trimdb-\(UUID().uuidString).sqlite")
-    let store = SnapshotStore(path: dbPath, keepScans: 30)
-    let batch = UUID().uuidString
-    let items = byCount.remove.map { (original: $0.url, trash: $0.url.appendingPathExtension("trash-gone"), bytes: $0.size) }
-    store.recordTrim(batchID: batch, at: Date(), entryKey: root.path, items: items)
-    let back = store.undoTrim(batchID: batch)
-    check(back.restored == 0 && back.missing == 7,
-          "修剪：废纸篓路径不存在时按缺失计，不谎报放回")
     try? fm.removeItem(at: root)
-    try? fm.removeItem(at: dbPath)
 }
 
 

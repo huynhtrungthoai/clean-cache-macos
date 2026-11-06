@@ -206,34 +206,6 @@ final class DiagnosticsHub: ObservableObject, ScanStatusReporting {
         trim = .preview(hitPath: hit.path, plan: trimPlan(under: dirs, retention: retention))
     }
 
-    /// 第二步：执行。逐项复核 dev/ino，与预览不一致的跳过（防偷换）；
-    /// 全部走 trashItem 唯一删除路径，整批入账可撤销。
-    func runTrim() {
-        guard case .preview(let hitPath, let plan) = trim else { return }
-        trim = .running(done: 0, total: plan.remove.count)
-        let store = snapshots
-        Task { @MainActor in
-            let fm = FileManager.default
-            var moved: [(original: URL, trash: URL, bytes: Int64)] = []
-            var skipped = 0
-            for (i, f) in plan.remove.enumerated() {
-                var st = stat()
-                if lstat(f.url.path, &st) != 0 || Int(st.st_dev) != f.dev || Int(st.st_ino) != f.ino {
-                    skipped += 1
-                } else if let dst = try? trashItem(f.url) {
-                    moved.append((f.url, dst, f.size))
-                } else {
-                    skipped += 1
-                }
-                if i % 200 == 0 { self.trim = .running(done: i + 1, total: plan.remove.count) }
-            }
-            let batchID = UUID().uuidString
-            store.recordTrim(batchID: batchID, at: Date(), entryKey: hitPath, items: moved)
-            self.trim = .done(bytes: moved.reduce(0) { $0 + $1.bytes }, skipped: skipped, batchID: batchID)
-            self.discover(force: true)
-        }
-    }
-
     /// The trim preview as a confirmed plan: every file must still be the same inode it was
     /// at preview time. Empty unless `trim` is `.preview`.
     func trimTrashPlan() -> [TrashPlanItem] {
@@ -258,13 +230,5 @@ final class DiagnosticsHub: ObservableObject, ScanStatusReporting {
                      batchID: batch.id.uuidString)
         discover(force: true)
         return batch
-    }
-
-    /// 第三步的「撤销整批」：废纸篓里的原路搬回。反馈就是行回来了——
-    /// discover(force:) 重算后列表自己会说话。
-    func undoTrim(batchID: String) {
-        _ = snapshots.undoTrim(batchID: batchID)
-        trim = nil
-        discover(force: true)
     }
 }
