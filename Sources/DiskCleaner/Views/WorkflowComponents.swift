@@ -178,6 +178,7 @@ struct TrashReviewSheet: View {
         .interactiveDismissDisabled(busy)
         .background(theme.palette.paper)
         .foregroundStyle(theme.palette.ink)
+        .buttonStyle(.borderless)
     }
 }
 
@@ -220,6 +221,7 @@ struct OperationResultView: View {
         .padding(24)
         .foregroundStyle(theme.palette.ink)
         .background(theme.palette.paper)
+        .buttonStyle(.borderless)
     }
 
     @ViewBuilder private func resultSection(_ title: String, _ rows: [String], _ symbol: String) -> some View {
@@ -233,162 +235,6 @@ struct OperationResultView: View {
 }
 
 
-/// Shared presentation of the lifecycle reported by the scanning model.
-struct ScanStatusView: View {
-    @Environment(\.theme) private var theme
-    var model: any ScanStatusReporting
-    var lastTrashAt: Date?
-    var rescan: () -> Void
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 30)) { _ in
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Label(stateText, systemImage: model.isPartial ? "exclamationmark.triangle" : "info.circle")
-                    if let date = model.scannedAt {
-                        Text(date, format: .dateTime.day().month().hour().minute())
-                            .monospacedDigit()
-                    }
-                    Spacer(minLength: 0)
-                    if model.scanState != .scanning && model.isStale(lastTrashAt: lastTrashAt) {
-                        Text(L("Results may be out of date"))
-                        Button(L("Scan again"), action: rescan)
-                    } else if model.scanState == .idle || model.scanState == .stopped {
-                        Button(L("Scan now"), action: rescan)
-                    }
-                }
-                if !model.issues.isEmpty {
-                    DisclosureGroup(LF("%d locations were not fully scanned", model.issues.count)) {
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(model.issues) { issue in
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(issue.root).textSelection(.enabled)
-                                        Text(issueReason(issue)).foregroundStyle(theme.palette.inkSecondary)
-                                    }
-                                    .accessibilityElement(children: .combine)
-                                }
-                            }.frame(maxWidth: .infinity, alignment: .leading)
-                        }.frame(maxHeight: 100)
-                    }
-                }
-            }
-            .font(theme.bodyFont(.caption))
-            .foregroundStyle(theme.palette.inkSecondary)
-            .padding(.horizontal, 24).padding(.bottom, 8)
-        }
-    }
-
-    private var stateText: String {
-        switch model.scanState {
-        case .idle: return L("Not scanned yet")
-        case .scanning: return L("Scanning…")
-        case .stopped: return L("Scan stopped. Results are incomplete.")
-        case .completed: return model.isPartial ? L("Partial scan results") : L("Scan completed")
-        }
-    }
-
-    private func issueReason(_ issue: ScanIssue) -> String {
-        switch issue.kind {
-        case .noPermission: return L("Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again.")
-        case .notFound: return L("Location not found")
-        case .error(let detail): return LF("Scan failed: %@", detail)
-        }
-    }
-}
-
-/// Batch entries retain the original outcome even after a restore.
-struct BatchEntryView: View {
-    @Environment(\.theme) private var theme
-    var entry: TrashBatchEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(entry.item.name).fontWeight(.medium)
-                Spacer(minLength: 8)
-                Text(human(entry.item.bytes)).monospacedDigit()
-            }
-            Text(entry.item.path).textSelection(.enabled)
-            Label(outcomeText, systemImage: outcomeSymbol)
-            if let restore = entry.restore {
-                Label(restoreText(restore), systemImage: "arrow.uturn.backward")
-                    .textSelection(.enabled)
-            }
-        }
-        .font(theme.bodyFont(.caption))
-        .foregroundStyle(theme.palette.ink)
-        .fixedSize(horizontal: false, vertical: true)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var outcomeText: String {
-        switch entry.outcome {
-        case .moved: return L("Moved to Trash")
-        case .skipped(let reason): return LF("Skipped: %@", L(reason.reasonKey))
-        case .failed(let key, let detail): return detail.isEmpty ? L(key) : LF("%@: %@", L(key), detail)
-        }
-    }
-
-    private var outcomeSymbol: String {
-        switch entry.outcome {
-        case .moved: return "trash"
-        case .skipped: return "minus.circle"
-        case .failed: return "exclamationmark.circle"
-        }
-    }
-
-    private func restoreText(_ restore: RestoreOutcome) -> String {
-        switch restore {
-        case .restored(let path) where path != entry.item.path:
-            return LF("Restored with a new name: %@", path)
-        case .failed(let detail):
-            return detail.isEmpty ? L(restore.reasonKey) : LF("%@: %@", L(restore.reasonKey), detail)
-        default: return L(restore.reasonKey)
-        }
-    }
-}
-
-struct BatchResultSheet: View {
-    @EnvironmentObject private var store: AppStore
-    @Environment(\.theme) private var theme
-    @Environment(\.dismiss) private var dismiss
-    var batch: TrashBatch
-
-    private var current: TrashBatch { store.batches.first { $0.id == batch.id } ?? batch }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            OperationResultView(
-                moved: current.moved.map { $0.item.name + " · " + $0.item.path },
-                skipped: current.skipped.map { entry in
-                    if case .skipped(let reason) = entry.outcome {
-                        return LF("%@: %@", entry.item.name, L(reason.reasonKey))
-                    }
-                    return entry.item.name
-                },
-                failed: current.failed.map { entry in
-                    if case .failed(let key, let detail) = entry.outcome {
-                        return LF("%@: %@", entry.item.name, detail.isEmpty ? L(key) : LF("%@: %@", L(key), detail))
-                    }
-                    return entry.item.name
-                },
-                undo: store.canUndo(batchID: batch.id) ? { Task { _ = await store.undo(batchID: batch.id) } } : nil,
-                done: { dismiss() })
-            if current.entries.contains(where: { $0.restore != nil }) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(L("Restore results")).fontWeight(.semibold).accessibilityAddTraits(.isHeader)
-                        ForEach(current.entries.filter { $0.restore != nil }) { BatchEntryView(entry: $0) }
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }.frame(maxHeight: 160).padding(.horizontal, 24).padding(.bottom, 16)
-            }
-        }
-        .frame(width: 680, height: 520)
-        .background(theme.palette.paper)
-    }
-}
-
 extension TrashReviewItem {
     init(_ item: TrashPlanItem) {
         self.init(name: item.name, path: item.path, size: human(item.bytes))
@@ -401,32 +247,55 @@ struct TrashReviewPlan: Identifiable {
     let items: [TrashPlanItem]
 }
 
-/// Sheet-owned state prevents an initial presentation from capturing an empty selection.
+/// Confirmation and results use separate sheet lifetimes on macOS. Replacing a
+/// List sheet with a differently sized result tree can cause an AppKit layout cycle.
 struct ConfirmedTrashSheet: View {
     @EnvironmentObject private var store: AppStore
     var plan: [TrashPlanItem]
     var currentPlan: () -> [TrashPlanItem]
     var perform: () async -> TrashBatch?
-    @State private var result: TrashBatch?
+    var completed: (TrashBatch) -> Void
     @State private var changed = false
 
     var body: some View {
-        Group {
-            if let result {
-                BatchResultSheet(batch: result)
-            } else {
-                TrashReviewSheet(items: plan.map(TrashReviewItem.init),
-                                 bytes: human(plan.reduce(0) { $0 + $1.bytes }),
-                                 busy: store.isTrashing, dismissOnConfirm: false) {
-                    guard plan == currentPlan() else { changed = true; return }
-                    Task { result = await perform() }
-                }
-            }
+        TrashReviewSheet(items: plan.map(TrashReviewItem.init),
+                         bytes: human(plan.reduce(0) { $0 + $1.bytes }),
+                         busy: store.isTrashing, dismissOnConfirm: false) {
+            guard plan == currentPlan() else { changed = true; return }
+            Task { if let batch = await perform() { completed(batch) } }
         }
-        .frame(width: 680, height: 520)
-        .transaction { $0.animation = nil }
         .alert(L("Selection changed. Review and confirm again."), isPresented: $changed) {
             Button(L("Close"), role: .cancel) { }
         }
+    }
+}
+
+private struct TrashWorkflowPresenter: ViewModifier {
+    @Environment(\.theme) private var theme
+    @Binding var review: TrashReviewPlan?
+    var currentPlan: () -> [TrashPlanItem]
+    var perform: () async -> TrashBatch?
+    @State private var pendingResult: TrashBatch?
+    @State private var result: TrashBatch?
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(item: $review, onDismiss: {
+                result = pendingResult
+                pendingResult = nil
+            }) { review in
+                ConfirmedTrashSheet(plan: review.items, currentPlan: currentPlan, perform: perform) { batch in
+                    pendingResult = batch
+                    self.review = nil
+                }.themed(theme)
+            }
+            .sheet(item: $result) { batch in BatchResultSheet(batch: batch).themed(theme) }
+    }
+}
+
+extension View {
+    func trashWorkflow(review: Binding<TrashReviewPlan?>, currentPlan: @escaping () -> [TrashPlanItem],
+                       perform: @escaping () async -> TrashBatch?) -> some View {
+        modifier(TrashWorkflowPresenter(review: review, currentPlan: currentPlan, perform: perform))
     }
 }
