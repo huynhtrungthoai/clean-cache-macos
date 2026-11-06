@@ -745,7 +745,7 @@
 "Expand" = "展開";
 "Expanded" = "展開中";
 "Undone" = "取り消しました";
-"Restored" = "元に戻しました";
+"Restored" = "復元済み";
 "How to connect" = "接続方法";
 "30 spots in total · the agent can act on 23 of them, about 57.7 GB" = "合計 30 か所 · agent が動かせるのは 23 か所、約 57.7 GB";
 "Open Trash" = "ゴミ箱を開く";
@@ -1124,7 +1124,7 @@
 "Skipped %d (changed since preview — no silent swaps)" = "%d 件をスキップ（プレビュー後に変化——すり替え防止）";
 "Space is freed only after the Trash is emptied." = "容量はゴミ箱を空にしてから解放されます。";
 "Open Trash in Finder" = "Finder でゴミ箱を開く";
-"Undo batch" = "一括で元に戻す";
+"Undo batch" = "操作を取り消す";
 "Will trim" = "間引く対象";
 "Oldest kept" = "最も古い保持分";
 "Retention: crash dumps" = "保持ルール：クラッシュダンプ";
@@ -1218,14 +1218,63 @@
 "Items" = "項目";
 "History" = "履歴";
 "Could not save the history: %@" = "履歴を保存できませんでした: %@";
-"No longer exists" = "もう存在しません";
-"Changed since the scan; scan again" = "スキャン後に変更されました。再スキャンしてください";
-"The kept copy is missing or changed; scan again" = "残すコピーが見つからないか変更されています。再スキャンしてください";
+"No longer exists" = "存在しません";
+"Changed since the scan; scan again" = "スキャン後に変更されています。再スキャンしてください";
+"The kept copy is missing or changed; scan again" = "保持するコピーがないか変更されています。再スキャンしてください";
 "Protected location" = "保護された場所";
-"Outside the locations this app may clean" = "このアプリが整理できる場所の外です";
+"Outside the locations this app may clean" = "このアプリのクリーンアップ範囲外";
 "Already moved with its parent folder" = "親フォルダと一緒に移動済み";
-"Not moved because the app itself was not moved" = "アプリ本体を移動できなかったため移動していません";
-"No longer in the Trash" = "もうゴミ箱にありません";
-"The item in the Trash has changed" = "ゴミ箱内の項目が変わっています";
+"Not moved because the app itself was not moved" = "アプリ本体が移動されていないため未移動";
+"No longer in the Trash" = "ゴミ箱にありません";
+"The item in the Trash has changed" = "ゴミ箱内の項目が変更されています";
 "This history entry can't be restored" = "この履歴項目は復元できません";
-"Restore failed" = "復元に失敗しました";
+"Restore failed" = "復元失敗";
+/* UI workflow. */
+"Results may be out of date" = "結果が古い可能性があります";
+"Scan again" = "再スキャン";
+"Scan now" = "今すぐスキャン";
+"Not scanned yet" = "未スキャン";
+"Scanning…" = "スキャン中…";
+"Scan stopped. Results are incomplete." = "スキャンを停止しました。結果は不完全です。";
+"Partial scan results" = "一部のスキャン結果";
+"Scan completed" = "スキャン完了";
+"%d locations were not fully scanned" = "%d か所を完全にスキャンできませんでした";
+"Location not found" = "場所が見つかりません";
+"Scan failed: %@" = "スキャン失敗: %@";
+"Skipped: %@" = "スキップ: %@";
+
+/* UI workflow. */
+"Restored with a new name: %@" = "新しい名前で復元: %@";
+"Restore results" = "復元結果";
+"Cannot measure (access required)" = "計測できません (アクセス許可が必要)";
+"Modified: %@" = "変更日: %@";
+"Review leftover app data" = "アプリの残存データを確認";
+"Review installed apps" = "インストール済みアプリを確認";
+"%@ is running. Quit it and uninstall?" = "%@ は実行中です。終了して削除しますか？";
+"Quit and uninstall" = "終了して削除";
+"Cannot uninstall" = "削除できません";
+"Running" = "実行中";
+"View details" = "詳細を表示";
+
+/* UI workflow. */
+"Trash and activity" = "ゴミ箱とアクティビティ";
+"Review the Trash and restore recorded batches when possible" = "ゴミ箱を確認し、可能な場合は記録済みの操作を復元します";
+"Trash contents and saved activity" = "ゴミ箱の内容と保存済みアクティビティ";
+"Cannot measure" = "計測できません";
+"Recorded batches; includes items later restored" = "記録済みの操作 (復元済みの項目を含む)";
+"Recorded restore results" = "記録済みの復元結果";
+"No recorded batches" = "記録された操作はありません";
+"Saved activity" = "保存済みアクティビティ";
+"Empty the entire Trash?" = "ゴミ箱を空にしますか？";
+"All items in the Trash will be permanently deleted. This cannot be undone." = "ゴミ箱内のすべての項目を完全に削除します。この操作は取り消せません。";
+"Moved %d items; %d items not processed" = "%d 項目を移動しました。%d 項目は未処理です";
+"No items remain available to restore in this batch." = "この操作で復元可能な項目はありません。";
+
+/* UI workflow. */
+"Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again." = "アクセスできません。システム設定 > プライバシーとセキュリティ > フルディスクアクセスで許可して再スキャンしてください。";
+"The app refused to quit. Nothing was uninstalled." = "アプリが終了を拒否しました。削除は行われていません。";
+"The app has not quit. It may be asking to save a document. Nothing was uninstalled." = "アプリが終了していません。書類の保存を求めている可能性があります。削除は行われていません。";
+
+/* UI workflow. */
+"%d items" = "%d 項目";
+"Selection changed. Review and confirm again." = "選択が変わりました。もう一度確認してください。";

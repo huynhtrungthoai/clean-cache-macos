@@ -2797,8 +2797,6 @@ struct PageHeader<Trailing: View>: View {
             Label {
                 Text(scannedAt, style: .date) + Text(" · ") + Text(scannedAt, style: .time)
             } icon: { Image(systemName: "clock") }
-        } else {
-            Label(L("Scan time not recorded"), systemImage: "clock")
         }
     }
 

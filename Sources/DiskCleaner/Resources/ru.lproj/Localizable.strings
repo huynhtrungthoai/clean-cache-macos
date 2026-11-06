@@ -745,7 +745,7 @@
 "Expand" = "Развернуть";
 "Expanded" = "Развернуто";
 "Undone" = "Отменено";
-"Restored" = "Возвращено";
+"Restored" = "Восстановлено";
 "How to connect" = "Как подключить";
 "30 spots in total · the agent can act on 23 of them, about 57.7 GB" = "Всего 30 мест · агент может тронуть 23 из них, это примерно 57.7 GB";
 "Open Trash" = "Открыть Корзину";
@@ -1124,7 +1124,7 @@
 "Skipped %d (changed since preview — no silent swaps)" = "Пропущено %d (изменились после предпросмотра — без тихих подмен)";
 "Space is freed only after the Trash is emptied." = "Место освободится только после очистки Корзины.";
 "Open Trash in Finder" = "Открыть Корзину в Finder";
-"Undo batch" = "Откатить пачку";
+"Undo batch" = "Отменить операцию";
 "Will trim" = "Будут удалены";
 "Oldest kept" = "Самый старый из оставленных";
 "Retention: crash dumps" = "Хранение: дампы сбоев";
@@ -1219,13 +1219,62 @@
 "History" = "История";
 "Could not save the history: %@" = "Не удалось сохранить историю: %@";
 "No longer exists" = "Больше не существует";
-"Changed since the scan; scan again" = "Изменено после сканирования; просканируйте снова";
-"The kept copy is missing or changed; scan again" = "Сохраняемая копия пропала или изменилась; просканируйте снова";
+"Changed since the scan; scan again" = "Изменено после сканирования; повторите его";
+"The kept copy is missing or changed; scan again" = "Сохранённая копия исчезла или изменилась; повторите сканирование";
 "Protected location" = "Защищённое расположение";
-"Outside the locations this app may clean" = "Вне мест, которые может очищать приложение";
+"Outside the locations this app may clean" = "Вне расположений, доступных для очистки";
 "Already moved with its parent folder" = "Уже перемещено вместе с родительской папкой";
-"Not moved because the app itself was not moved" = "Не перемещено, так как само приложение не перемещено";
-"No longer in the Trash" = "Больше нет в Корзине";
-"The item in the Trash has changed" = "Объект в Корзине изменился";
+"Not moved because the app itself was not moved" = "Не перемещено, так как само приложение не было перемещено";
+"No longer in the Trash" = "Больше не в Корзине";
+"The item in the Trash has changed" = "Объект в Корзине изменён";
 "This history entry can't be restored" = "Эту запись истории нельзя восстановить";
-"Restore failed" = "Не удалось восстановить";
+"Restore failed" = "Восстановление не удалось";
+/* UI workflow. */
+"Results may be out of date" = "Результаты могли устареть";
+"Scan again" = "Сканировать снова";
+"Scan now" = "Сканировать сейчас";
+"Not scanned yet" = "Ещё не проверено";
+"Scanning…" = "Сканирование…";
+"Scan stopped. Results are incomplete." = "Сканирование остановлено. Результаты неполные.";
+"Partial scan results" = "Частичные результаты";
+"Scan completed" = "Сканирование завершено";
+"%d locations were not fully scanned" = "Не полностью проверено расположений: %d";
+"Location not found" = "Расположение не найдено";
+"Scan failed: %@" = "Ошибка сканирования: %@";
+"Skipped: %@" = "Пропущено: %@";
+
+/* UI workflow. */
+"Restored with a new name: %@" = "Восстановлено с новым именем: %@";
+"Restore results" = "Результаты восстановления";
+"Cannot measure (access required)" = "Не удалось измерить (нужен доступ)";
+"Modified: %@" = "Изменено: %@";
+"Review leftover app data" = "Проверить остаточные данные";
+"Review installed apps" = "Просмотреть установленные приложения";
+"%@ is running. Quit it and uninstall?" = "%@ работает. Выйти и удалить?";
+"Quit and uninstall" = "Выйти и удалить";
+"Cannot uninstall" = "Не удалось удалить приложение";
+"Running" = "Работает";
+"View details" = "Подробнее";
+
+/* UI workflow. */
+"Trash and activity" = "Корзина и действия";
+"Review the Trash and restore recorded batches when possible" = "Просмотр Корзины и восстановление записанных операций, когда это возможно";
+"Trash contents and saved activity" = "Содержимое Корзины и сохранённые действия";
+"Cannot measure" = "Не удалось измерить";
+"Recorded batches; includes items later restored" = "Записанные операции, включая восстановленные позже объекты";
+"Recorded restore results" = "Записанные результаты восстановления";
+"No recorded batches" = "Нет записанных операций";
+"Saved activity" = "Сохранённые действия";
+"Empty the entire Trash?" = "Очистить всю Корзину?";
+"All items in the Trash will be permanently deleted. This cannot be undone." = "Все объекты в Корзине будут удалены навсегда. Это действие нельзя отменить.";
+"Moved %d items; %d items not processed" = "Перемещено: %d; не обработано: %d";
+"No items remain available to restore in this batch." = "В этой операции нет доступных для восстановления объектов.";
+
+/* UI workflow. */
+"Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again." = "Нет доступа. Разрешите полный доступ к диску в Системных настройках > Конфиденциальность и безопасность и повторите сканирование.";
+"The app refused to quit. Nothing was uninstalled." = "Приложение отказалось завершиться. Ничего не удалено.";
+"The app has not quit. It may be asking to save a document. Nothing was uninstalled." = "Приложение ещё работает. Возможно, оно ожидает сохранения документа. Ничего не удалено.";
+
+/* UI workflow. */
+"%d items" = "%d объектов";
+"Selection changed. Review and confirm again." = "Выбор изменился. Проверьте и подтвердите снова.";

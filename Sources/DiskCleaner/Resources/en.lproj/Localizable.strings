@@ -1229,3 +1229,52 @@
 "The item in the Trash has changed" = "The item in the Trash has changed";
 "This history entry can't be restored" = "This history entry can't be restored";
 "Restore failed" = "Restore failed";
+/* UI workflow. */
+"Results may be out of date" = "Results may be out of date";
+"Scan again" = "Scan again";
+"Scan now" = "Scan now";
+"Not scanned yet" = "Not scanned yet";
+"Scanning…" = "Scanning…";
+"Scan stopped. Results are incomplete." = "Scan stopped. Results are incomplete.";
+"Partial scan results" = "Partial scan results";
+"Scan completed" = "Scan completed";
+"%d locations were not fully scanned" = "%d locations were not fully scanned";
+"Location not found" = "Location not found";
+"Scan failed: %@" = "Scan failed: %@";
+"Skipped: %@" = "Skipped: %@";
+
+/* UI workflow. */
+"Restored with a new name: %@" = "Restored with a new name: %@";
+"Restore results" = "Restore results";
+"Cannot measure (access required)" = "Cannot measure (access required)";
+"Modified: %@" = "Modified: %@";
+"Review leftover app data" = "Review leftover app data";
+"Review installed apps" = "Review installed apps";
+"%@ is running. Quit it and uninstall?" = "%@ is running. Quit it and uninstall?";
+"Quit and uninstall" = "Quit and uninstall";
+"Cannot uninstall" = "Cannot uninstall";
+"Running" = "Running";
+"View details" = "View details";
+
+/* UI workflow. */
+"Trash and activity" = "Trash and activity";
+"Review the Trash and restore recorded batches when possible" = "Review the Trash and restore recorded batches when possible";
+"Trash contents and saved activity" = "Trash contents and saved activity";
+"Cannot measure" = "Cannot measure";
+"Recorded batches; includes items later restored" = "Recorded batches; includes items later restored";
+"Recorded restore results" = "Recorded restore results";
+"No recorded batches" = "No recorded batches";
+"Saved activity" = "Saved activity";
+"Empty the entire Trash?" = "Empty the entire Trash?";
+"All items in the Trash will be permanently deleted. This cannot be undone." = "All items in the Trash will be permanently deleted. This cannot be undone.";
+"Moved %d items; %d items not processed" = "Moved %d items; %d items not processed";
+"No items remain available to restore in this batch." = "No items remain available to restore in this batch.";
+
+/* UI workflow. */
+"Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again." = "Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again.";
+"The app refused to quit. Nothing was uninstalled." = "The app refused to quit. Nothing was uninstalled.";
+"The app has not quit. It may be asking to save a document. Nothing was uninstalled." = "The app has not quit. It may be asking to save a document. Nothing was uninstalled.";
+
+/* UI workflow. */
+"%d items" = "%d items";
+"Selection changed. Review and confirm again." = "Selection changed. Review and confirm again.";

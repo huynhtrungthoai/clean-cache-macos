@@ -1124,7 +1124,7 @@
 "Skipped %d (changed since preview — no silent swaps)" = "%d ignorados (mudaram após a prévia — nada de troca silenciosa)";
 "Space is freed only after the Trash is emptied." = "O espaço só é liberado quando o Lixo for esvaziado.";
 "Open Trash in Finder" = "Abrir o Lixo no Finder";
-"Undo batch" = "Desfazer o lote";
+"Undo batch" = "Desfazer lote";
 "Will trim" = "Serão cortados";
 "Oldest kept" = "Mais antigo mantido";
 "Retention: crash dumps" = "Retenção: despejos de falha";
@@ -1220,12 +1220,61 @@
 "Could not save the history: %@" = "Não foi possível salvar o histórico: %@";
 "No longer exists" = "Não existe mais";
 "Changed since the scan; scan again" = "Alterado desde a verificação; verifique novamente";
-"The kept copy is missing or changed; scan again" = "A cópia mantida sumiu ou mudou; verifique novamente";
+"The kept copy is missing or changed; scan again" = "A cópia mantida não existe ou mudou; verifique novamente";
 "Protected location" = "Local protegido";
-"Outside the locations this app may clean" = "Fora dos locais que o app pode limpar";
-"Already moved with its parent folder" = "Já movido com a pasta pai";
-"Not moved because the app itself was not moved" = "Não movido porque o próprio app não foi movido";
+"Outside the locations this app may clean" = "Fora dos locais que este app pode limpar";
+"Already moved with its parent folder" = "Já movido com a pasta superior";
+"Not moved because the app itself was not moved" = "Não movido porque o app não foi movido";
 "No longer in the Trash" = "Não está mais no Lixo";
-"The item in the Trash has changed" = "O item no Lixo mudou";
+"The item in the Trash has changed" = "O item no Lixo foi alterado";
 "This history entry can't be restored" = "Esta entrada do histórico não pode ser restaurada";
-"Restore failed" = "Falha ao restaurar";
+"Restore failed" = "Falha na restauração";
+/* UI workflow. */
+"Results may be out of date" = "Os resultados podem estar desatualizados";
+"Scan again" = "Verificar novamente";
+"Scan now" = "Verificar agora";
+"Not scanned yet" = "Ainda não verificado";
+"Scanning…" = "Verificando…";
+"Scan stopped. Results are incomplete." = "Verificação interrompida. Resultados incompletos.";
+"Partial scan results" = "Resultados parciais";
+"Scan completed" = "Verificação concluída";
+"%d locations were not fully scanned" = "%d locais não foram totalmente verificados";
+"Location not found" = "Local não encontrado";
+"Scan failed: %@" = "Falha na verificação: %@";
+"Skipped: %@" = "Ignorado: %@";
+
+/* UI workflow. */
+"Restored with a new name: %@" = "Restaurado com novo nome: %@";
+"Restore results" = "Resultados da restauração";
+"Cannot measure (access required)" = "Não é possível medir (requer acesso)";
+"Modified: %@" = "Modificado: %@";
+"Review leftover app data" = "Revisar dados residuais de apps";
+"Review installed apps" = "Revisar apps instalados";
+"%@ is running. Quit it and uninstall?" = "%@ está em execução. Encerrar e desinstalar?";
+"Quit and uninstall" = "Encerrar e desinstalar";
+"Cannot uninstall" = "Não foi possível desinstalar";
+"Running" = "Em execução";
+"View details" = "Ver detalhes";
+
+/* UI workflow. */
+"Trash and activity" = "Lixo e atividade";
+"Review the Trash and restore recorded batches when possible" = "Revise o Lixo e restaure lotes registrados quando possível";
+"Trash contents and saved activity" = "Conteúdo do Lixo e atividade salva";
+"Cannot measure" = "Não é possível medir";
+"Recorded batches; includes items later restored" = "Lotes registrados; inclui itens restaurados depois";
+"Recorded restore results" = "Resultados de restauração registrados";
+"No recorded batches" = "Nenhum lote registrado";
+"Saved activity" = "Atividade salva";
+"Empty the entire Trash?" = "Esvaziar todo o Lixo?";
+"All items in the Trash will be permanently deleted. This cannot be undone." = "Todos os itens do Lixo serão excluídos permanentemente. Esta ação não pode ser desfeita.";
+"Moved %d items; %d items not processed" = "%d itens movidos; %d não processados";
+"No items remain available to restore in this batch." = "Não há mais itens disponíveis para restaurar neste lote.";
+
+/* UI workflow. */
+"Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again." = "Acesso negado. Permita em Ajustes do Sistema > Privacidade e Segurança > Acesso Total ao Disco e verifique novamente.";
+"The app refused to quit. Nothing was uninstalled." = "O app recusou o encerramento. Nada foi desinstalado.";
+"The app has not quit. It may be asking to save a document. Nothing was uninstalled." = "O app ainda está aberto. Pode estar pedindo para salvar um documento. Nada foi desinstalado.";
+
+/* UI workflow. */
+"%d items" = "%d itens";
+"Selection changed. Review and confirm again." = "A seleção mudou. Revise e confirme novamente.";

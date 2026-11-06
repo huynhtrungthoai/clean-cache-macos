@@ -745,7 +745,7 @@
 "Expand" = "Ausklappen";
 "Expanded" = "Ausgeklappt";
 "Undone" = "Rückgängig";
-"Restored" = "Zurückgeholt";
+"Restored" = "Wiederhergestellt";
 "How to connect" = "So bindest du es an";
 "30 spots in total · the agent can act on 23 of them, about 57.7 GB" = "Insgesamt 30 Stellen · das Agent kann 23 davon anfassen, zusammen etwa 57.7 GB";
 "Open Trash" = "Papierkorb öffnen";
@@ -1124,7 +1124,7 @@
 "Skipped %d (changed since preview — no silent swaps)" = "%d übersprungen (nach der Vorschau verändert — kein stilles Austauschen)";
 "Space is freed only after the Trash is emptied." = "Platz wird erst nach dem Leeren des Papierkorbs frei.";
 "Open Trash in Finder" = "Papierkorb im Finder öffnen";
-"Undo batch" = "Ganze Charge zurücknehmen";
+"Undo batch" = "Vorgang rückgängig machen";
 "Will trim" = "Es werden entfernt";
 "Oldest kept" = "Älteste behalten bis";
 "Retention: crash dumps" = "Behalte-Regel: Absturzberichte";
@@ -1218,14 +1218,63 @@
 "Items" = "Objekte";
 "History" = "Verlauf";
 "Could not save the history: %@" = "Verlauf konnte nicht gespeichert werden: %@";
-"No longer exists" = "Existiert nicht mehr";
-"Changed since the scan; scan again" = "Seit dem Scan geändert; bitte erneut scannen";
-"The kept copy is missing or changed; scan again" = "Die behaltene Kopie fehlt oder wurde geändert; bitte erneut scannen";
+"No longer exists" = "Nicht mehr vorhanden";
+"Changed since the scan; scan again" = "Seit dem Scan geändert; erneut scannen";
+"The kept copy is missing or changed; scan again" = "Behaltene Kopie fehlt oder wurde geändert; erneut scannen";
 "Protected location" = "Geschützter Ort";
-"Outside the locations this app may clean" = "Außerhalb der Orte, die diese App bereinigen darf";
+"Outside the locations this app may clean" = "Außerhalb des erlaubten Bereinigungsbereichs";
 "Already moved with its parent folder" = "Bereits mit dem übergeordneten Ordner verschoben";
-"Not moved because the app itself was not moved" = "Nicht verschoben, weil die App selbst nicht verschoben wurde";
+"Not moved because the app itself was not moved" = "Nicht verschoben, da die App selbst nicht verschoben wurde";
 "No longer in the Trash" = "Nicht mehr im Papierkorb";
-"The item in the Trash has changed" = "Das Objekt im Papierkorb hat sich geändert";
+"The item in the Trash has changed" = "Das Objekt im Papierkorb wurde geändert";
 "This history entry can't be restored" = "Dieser Verlaufseintrag kann nicht wiederhergestellt werden";
 "Restore failed" = "Wiederherstellung fehlgeschlagen";
+/* UI workflow. */
+"Results may be out of date" = "Ergebnisse sind möglicherweise veraltet";
+"Scan again" = "Erneut scannen";
+"Scan now" = "Jetzt scannen";
+"Not scanned yet" = "Noch nicht gescannt";
+"Scanning…" = "Scan läuft…";
+"Scan stopped. Results are incomplete." = "Scan angehalten. Ergebnisse sind unvollständig.";
+"Partial scan results" = "Unvollständige Scanergebnisse";
+"Scan completed" = "Scan abgeschlossen";
+"%d locations were not fully scanned" = "%d Orte wurden nicht vollständig gescannt";
+"Location not found" = "Ort nicht gefunden";
+"Scan failed: %@" = "Scan fehlgeschlagen: %@";
+"Skipped: %@" = "Übersprungen: %@";
+
+/* UI workflow. */
+"Restored with a new name: %@" = "Mit neuem Namen wiederhergestellt: %@";
+"Restore results" = "Wiederherstellungsergebnisse";
+"Cannot measure (access required)" = "Nicht messbar (Zugriff erforderlich)";
+"Modified: %@" = "Geändert: %@";
+"Review leftover app data" = "Verbliebene App-Daten prüfen";
+"Review installed apps" = "Installierte Apps prüfen";
+"%@ is running. Quit it and uninstall?" = "%@ läuft. Beenden und deinstallieren?";
+"Quit and uninstall" = "Beenden und deinstallieren";
+"Cannot uninstall" = "Deinstallation nicht möglich";
+"Running" = "Läuft";
+"View details" = "Details anzeigen";
+
+/* UI workflow. */
+"Trash and activity" = "Papierkorb und Aktivitäten";
+"Review the Trash and restore recorded batches when possible" = "Papierkorb prüfen und gespeicherte Vorgänge nach Möglichkeit wiederherstellen";
+"Trash contents and saved activity" = "Papierkorbinhalt und gespeicherte Aktivitäten";
+"Cannot measure" = "Nicht messbar";
+"Recorded batches; includes items later restored" = "Gespeicherte Vorgänge, einschließlich später wiederhergestellter Objekte";
+"Recorded restore results" = "Gespeicherte Wiederherstellungsergebnisse";
+"No recorded batches" = "Keine gespeicherten Vorgänge";
+"Saved activity" = "Gespeicherte Aktivitäten";
+"Empty the entire Trash?" = "Gesamten Papierkorb leeren?";
+"All items in the Trash will be permanently deleted. This cannot be undone." = "Alle Objekte im Papierkorb werden endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.";
+"Moved %d items; %d items not processed" = "%d Objekte verschoben; %d nicht verarbeitet";
+"No items remain available to restore in this batch." = "In diesem Vorgang sind keine Objekte mehr zum Wiederherstellen verfügbar.";
+
+/* UI workflow. */
+"Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again." = "Zugriff verweigert. Unter Systemeinstellungen > Datenschutz & Sicherheit > Festplattenvollzugriff erlauben und erneut scannen.";
+"The app refused to quit. Nothing was uninstalled." = "Die App hat das Beenden abgelehnt. Nichts wurde deinstalliert.";
+"The app has not quit. It may be asking to save a document. Nothing was uninstalled." = "Die App läuft noch und wartet möglicherweise auf das Speichern eines Dokuments. Nichts wurde deinstalliert.";
+
+/* UI workflow. */
+"%d items" = "%d Objekte";
+"Selection changed. Review and confirm again." = "Auswahl geändert. Erneut prüfen und bestätigen.";

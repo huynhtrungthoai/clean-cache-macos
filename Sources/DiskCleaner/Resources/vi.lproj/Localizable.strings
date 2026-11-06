@@ -739,13 +739,13 @@
 "Nothing came back" = "Nothing came back";
 "%@ moved to the Trash in total" = "%@ moved to the Trash in total";
 "%@ of it restored" = "%@ of it restored";
-"Refresh" = "Refresh";
+"Refresh" = "Làm mới";
 "Go ahead" = "Go ahead";
 "Copy" = "Copy";
 "Expand" = "Xem chi tiết";
 "Expanded" = "Expanded";
 "Undone" = "Undone";
-"Restored" = "Restored";
+"Restored" = "Đã khôi phục";
 "How to connect" = "How to connect";
 "30 spots in total · the agent can act on 23 of them, about 57.7 GB" = "30 spots in total · the agent can act on 23 of them, about 57.7 GB";
 "Open Trash" = "Open Trash";
@@ -1124,7 +1124,7 @@
 "Skipped %d (changed since preview — no silent swaps)" = "Skipped %d (changed since preview — no silent swaps)";
 "Space is freed only after the Trash is emptied." = "Space is freed only after the Trash is emptied.";
 "Open Trash in Finder" = "Open Trash in Finder";
-"Undo batch" = "Undo batch";
+"Undo batch" = "Hoàn tác lô";
 "Will trim" = "Will trim";
 "Oldest kept" = "Oldest kept";
 "Retention: crash dumps" = "Retention: crash dumps";
@@ -1220,12 +1220,61 @@
 "Could not save the history: %@" = "Không lưu được lịch sử: %@";
 "No longer exists" = "Không còn tồn tại";
 "Changed since the scan; scan again" = "Đã thay đổi sau khi quét; hãy quét lại";
-"The kept copy is missing or changed; scan again" = "Bản được giữ lại đã mất hoặc thay đổi; hãy quét lại";
+"The kept copy is missing or changed; scan again" = "Bản giữ lại đã mất hoặc thay đổi; hãy quét lại";
 "Protected location" = "Vị trí được bảo vệ";
-"Outside the locations this app may clean" = "Nằm ngoài các vị trí ứng dụng được phép dọn";
-"Already moved with its parent folder" = "Đã được chuyển cùng thư mục cha";
+"Outside the locations this app may clean" = "Ngoài phạm vi ứng dụng được phép dọn";
+"Already moved with its parent folder" = "Đã chuyển cùng thư mục cha";
 "Not moved because the app itself was not moved" = "Không chuyển vì bản thân ứng dụng chưa được chuyển";
 "No longer in the Trash" = "Không còn trong Thùng rác";
 "The item in the Trash has changed" = "Mục trong Thùng rác đã thay đổi";
-"This history entry can't be restored" = "Không thể khôi phục mục lịch sử này";
+"This history entry can't be restored" = "Không thể khôi phục từ bản ghi này";
 "Restore failed" = "Khôi phục thất bại";
+/* UI workflow. */
+"Results may be out of date" = "Kết quả có thể đã cũ";
+"Scan again" = "Quét lại";
+"Scan now" = "Quét ngay";
+"Not scanned yet" = "Chưa quét";
+"Scanning…" = "Đang quét…";
+"Scan stopped. Results are incomplete." = "Đã dừng quét. Kết quả chưa đầy đủ.";
+"Partial scan results" = "Kết quả quét một phần";
+"Scan completed" = "Đã quét xong";
+"%d locations were not fully scanned" = "%d vị trí chưa được quét đầy đủ";
+"Location not found" = "Không tìm thấy vị trí";
+"Scan failed: %@" = "Quét lỗi: %@";
+"Skipped: %@" = "Bỏ qua: %@";
+
+/* UI workflow. */
+"Restored with a new name: %@" = "Đã khôi phục với tên mới: %@";
+"Restore results" = "Kết quả khôi phục";
+"Cannot measure (access required)" = "Không đo được (cần quyền truy cập)";
+"Modified: %@" = "Ngày sửa: %@";
+"Review leftover app data" = "Xem dữ liệu ứng dụng còn sót";
+"Review installed apps" = "Xem ứng dụng đã cài";
+"%@ is running. Quit it and uninstall?" = "%@ đang chạy. Thoát app rồi gỡ?";
+"Quit and uninstall" = "Thoát và gỡ";
+"Cannot uninstall" = "Không thể gỡ ứng dụng";
+"Running" = "Đang chạy";
+"View details" = "Xem chi tiết";
+
+/* UI workflow. */
+"Trash and activity" = "Thùng rác và hoạt động";
+"Review the Trash and restore recorded batches when possible" = "Xem Thùng rác và khôi phục các lô đã ghi khi còn khả dụng";
+"Trash contents and saved activity" = "Nội dung Thùng rác và hoạt động đã lưu";
+"Cannot measure" = "Không đo được";
+"Recorded batches; includes items later restored" = "Các lô đã ghi, gồm cả mục đã khôi phục sau đó";
+"Recorded restore results" = "Kết quả khôi phục đã ghi";
+"No recorded batches" = "Chưa có lô thao tác nào được ghi";
+"Saved activity" = "Hoạt động đã lưu";
+"Empty the entire Trash?" = "Dọn sạch toàn bộ Thùng rác?";
+"All items in the Trash will be permanently deleted. This cannot be undone." = "Mọi mục trong Thùng rác sẽ bị xoá vĩnh viễn. Thao tác này không thể hoàn tác.";
+"Moved %d items; %d items not processed" = "Đã chuyển %d mục; %d mục chưa xử lý";
+"No items remain available to restore in this batch." = "Lô này không còn mục nào để khôi phục.";
+
+/* UI workflow. */
+"Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again." = "Thiếu quyền truy cập. Vào Cài đặt hệ thống > Quyền riêng tư & Bảo mật > Truy cập toàn bộ ổ đĩa để cấp quyền, rồi quét lại.";
+"The app refused to quit. Nothing was uninstalled." = "Ứng dụng từ chối thoát. Chưa gỡ mục nào.";
+"The app has not quit. It may be asking to save a document. Nothing was uninstalled." = "Ứng dụng chưa thoát (có thể đang hỏi lưu tài liệu). Chưa gỡ mục nào.";
+
+/* UI workflow. */
+"%d items" = "%d mục";
+"Selection changed. Review and confirm again." = "Lựa chọn đã thay đổi. Hãy xem và xác nhận lại.";

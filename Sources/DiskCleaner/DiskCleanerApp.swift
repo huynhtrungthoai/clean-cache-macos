@@ -751,7 +751,7 @@ struct ContentView: View {
         case .caches: CachesView(model: scans.caches)
         case .orphans: OrphansView(model: scans.orphans)
         case .uninstall: UninstallView(model: scans.uninstall)
-        case .trash: TrashView()
+        case .trash: TrashView(model: scans.trash)
         case .crashDumps: CrashDumpsView(hub: scans.diagnostics)
         case .diagReports: DiagReportsView(hub: scans.diagnostics)
         case .observation: ObservationView(hub: scans.diagnostics)

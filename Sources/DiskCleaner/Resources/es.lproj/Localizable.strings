@@ -745,7 +745,7 @@
 "Expand" = "Desplegar";
 "Expanded" = "Desplegado";
 "Undone" = "Deshecho";
-"Restored" = "Devuelto";
+"Restored" = "Restaurado";
 "How to connect" = "Cómo se conecta";
 "30 spots in total · the agent can act on 23 of them, about 57.7 GB" = "30 sitios en total · el agente puede mover 23, unos 57.7 GB";
 "Open Trash" = "Abrir la Papelera";
@@ -1124,7 +1124,7 @@
 "Skipped %d (changed since preview — no silent swaps)" = "Se omitieron %d (cambiaron tras la vista previa; nada de sustituciones silenciosas)";
 "Space is freed only after the Trash is emptied." = "El espacio se libera al vaciar la Papelera.";
 "Open Trash in Finder" = "Abrir la Papelera en el Finder";
-"Undo batch" = "Deshacer el lote";
+"Undo batch" = "Deshacer lote";
 "Will trim" = "Se recortarán";
 "Oldest kept" = "El más antiguo conservado";
 "Retention: crash dumps" = "Retención: volcados de fallos";
@@ -1224,8 +1224,57 @@
 "Protected location" = "Ubicación protegida";
 "Outside the locations this app may clean" = "Fuera de las ubicaciones que esta app puede limpiar";
 "Already moved with its parent folder" = "Ya se movió con su carpeta superior";
-"Not moved because the app itself was not moved" = "No se movió porque la app en sí no se movió";
+"Not moved because the app itself was not moved" = "No se movió porque la app no se movió";
 "No longer in the Trash" = "Ya no está en la Papelera";
 "The item in the Trash has changed" = "El elemento de la Papelera cambió";
 "This history entry can't be restored" = "Esta entrada del historial no se puede restaurar";
-"Restore failed" = "Error al restaurar";
+"Restore failed" = "Error de restauración";
+/* UI workflow. */
+"Results may be out of date" = "Los resultados pueden estar desactualizados";
+"Scan again" = "Volver a analizar";
+"Scan now" = "Analizar ahora";
+"Not scanned yet" = "Sin analizar";
+"Scanning…" = "Analizando…";
+"Scan stopped. Results are incomplete." = "Análisis detenido. Resultados incompletos.";
+"Partial scan results" = "Resultados parciales";
+"Scan completed" = "Análisis completado";
+"%d locations were not fully scanned" = "%d ubicaciones no se analizaron por completo";
+"Location not found" = "Ubicación no encontrada";
+"Scan failed: %@" = "Error de análisis: %@";
+"Skipped: %@" = "Omitido: %@";
+
+/* UI workflow. */
+"Restored with a new name: %@" = "Restaurado con otro nombre: %@";
+"Restore results" = "Resultados de restauración";
+"Cannot measure (access required)" = "No se puede medir (requiere acceso)";
+"Modified: %@" = "Modificado: %@";
+"Review leftover app data" = "Revisar datos residuales";
+"Review installed apps" = "Revisar apps instaladas";
+"%@ is running. Quit it and uninstall?" = "%@ está en ejecución. ¿Salir y desinstalar?";
+"Quit and uninstall" = "Salir y desinstalar";
+"Cannot uninstall" = "No se puede desinstalar";
+"Running" = "En ejecución";
+"View details" = "Ver detalles";
+
+/* UI workflow. */
+"Trash and activity" = "Papelera y actividad";
+"Review the Trash and restore recorded batches when possible" = "Revisa la Papelera y restaura los lotes registrados cuando sea posible";
+"Trash contents and saved activity" = "Contenido de la Papelera y actividad guardada";
+"Cannot measure" = "No se puede medir";
+"Recorded batches; includes items later restored" = "Lotes registrados; incluye elementos restaurados después";
+"Recorded restore results" = "Resultados de restauración registrados";
+"No recorded batches" = "No hay lotes registrados";
+"Saved activity" = "Actividad guardada";
+"Empty the entire Trash?" = "¿Vaciar toda la Papelera?";
+"All items in the Trash will be permanently deleted. This cannot be undone." = "Todos los elementos de la Papelera se eliminarán permanentemente. No se puede deshacer.";
+"Moved %d items; %d items not processed" = "%d elementos movidos; %d sin procesar";
+"No items remain available to restore in this batch." = "No quedan elementos restaurables en este lote.";
+
+/* UI workflow. */
+"Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again." = "Acceso denegado. Concede acceso en Ajustes del Sistema > Privacidad y seguridad > Acceso total al disco y vuelve a analizar.";
+"The app refused to quit. Nothing was uninstalled." = "La app no se cerró. No se desinstaló nada.";
+"The app has not quit. It may be asking to save a document. Nothing was uninstalled." = "La app sigue abierta. Puede estar pidiendo guardar un documento. No se desinstaló nada.";
+
+/* UI workflow. */
+"%d items" = "%d elementos";
+"Selection changed. Review and confirm again." = "La selección cambió. Revisa y confirma de nuevo.";

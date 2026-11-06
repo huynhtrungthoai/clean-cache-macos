@@ -745,7 +745,7 @@
 "Expand" = "Développer";
 "Expanded" = "Déplié";
 "Undone" = "Annulé";
-"Restored" = "Remis en place";
+"Restored" = "Restauré";
 "How to connect" = "Comment le brancher";
 "30 spots in total · the agent can act on 23 of them, about 57.7 GB" = "30 emplacements au total · l'agent peut en traiter 23, soit environ 57.7 GB";
 "Open Trash" = "Ouvrir la Corbeille";
@@ -1218,14 +1218,63 @@
 "Items" = "Éléments";
 "History" = "Historique";
 "Could not save the history: %@" = "Impossible d'enregistrer l'historique : %@";
-"No longer exists" = "N'existe plus";
-"Changed since the scan; scan again" = "Modifié depuis l'analyse ; relancez l'analyse";
-"The kept copy is missing or changed; scan again" = "La copie conservée a disparu ou a changé ; relancez l'analyse";
+"No longer exists" = "N’existe plus";
+"Changed since the scan; scan again" = "Modifié depuis l’analyse ; analysez à nouveau";
+"The kept copy is missing or changed; scan again" = "La copie conservée a disparu ou changé ; analysez à nouveau";
 "Protected location" = "Emplacement protégé";
-"Outside the locations this app may clean" = "En dehors des emplacements que l'app peut nettoyer";
+"Outside the locations this app may clean" = "Hors des emplacements que cette app peut nettoyer";
 "Already moved with its parent folder" = "Déjà déplacé avec son dossier parent";
-"Not moved because the app itself was not moved" = "Non déplacé car l'app elle-même n'a pas été déplacée";
-"No longer in the Trash" = "N'est plus dans la Corbeille";
-"The item in the Trash has changed" = "L'élément dans la Corbeille a changé";
-"This history entry can't be restored" = "Cette entrée de l'historique ne peut pas être restaurée";
+"Not moved because the app itself was not moved" = "Non déplacé car l’app elle-même n’a pas été déplacée";
+"No longer in the Trash" = "N’est plus dans la Corbeille";
+"The item in the Trash has changed" = "L’élément dans la Corbeille a changé";
+"This history entry can't be restored" = "Cette entrée d’historique ne peut pas être restaurée";
 "Restore failed" = "Échec de la restauration";
+/* UI workflow. */
+"Results may be out of date" = "Les résultats peuvent être obsolètes";
+"Scan again" = "Analyser à nouveau";
+"Scan now" = "Analyser maintenant";
+"Not scanned yet" = "Pas encore analysé";
+"Scanning…" = "Analyse en cours…";
+"Scan stopped. Results are incomplete." = "Analyse arrêtée. Résultats incomplets.";
+"Partial scan results" = "Résultats partiels";
+"Scan completed" = "Analyse terminée";
+"%d locations were not fully scanned" = "%d emplacements partiellement analysés";
+"Location not found" = "Emplacement introuvable";
+"Scan failed: %@" = "Échec de l’analyse : %@";
+"Skipped: %@" = "Ignoré : %@";
+
+/* UI workflow. */
+"Restored with a new name: %@" = "Restauré sous un nouveau nom : %@";
+"Restore results" = "Résultats de restauration";
+"Cannot measure (access required)" = "Mesure impossible (accès requis)";
+"Modified: %@" = "Modification : %@";
+"Review leftover app data" = "Examiner les données résiduelles";
+"Review installed apps" = "Examiner les apps installées";
+"%@ is running. Quit it and uninstall?" = "%@ est en cours d’exécution. Quitter et désinstaller ?";
+"Quit and uninstall" = "Quitter et désinstaller";
+"Cannot uninstall" = "Désinstallation impossible";
+"Running" = "En cours d’exécution";
+"View details" = "Voir les détails";
+
+/* UI workflow. */
+"Trash and activity" = "Corbeille et activité";
+"Review the Trash and restore recorded batches when possible" = "Examinez la Corbeille et restaurez les lots enregistrés si possible";
+"Trash contents and saved activity" = "Contenu de la Corbeille et activité enregistrée";
+"Cannot measure" = "Mesure impossible";
+"Recorded batches; includes items later restored" = "Lots enregistrés, y compris les éléments restaurés ensuite";
+"Recorded restore results" = "Résultats de restauration enregistrés";
+"No recorded batches" = "Aucun lot enregistré";
+"Saved activity" = "Activité enregistrée";
+"Empty the entire Trash?" = "Vider toute la Corbeille ?";
+"All items in the Trash will be permanently deleted. This cannot be undone." = "Tous les éléments de la Corbeille seront supprimés définitivement. Cette action est irréversible.";
+"Moved %d items; %d items not processed" = "%d éléments déplacés ; %d non traités";
+"No items remain available to restore in this batch." = "Ce lot ne contient plus d’éléments à restaurer.";
+
+/* UI workflow. */
+"Access denied. Grant access in System Settings > Privacy & Security > Full Disk Access, then scan again." = "Accès refusé. Autorisez l’accès dans Réglages Système > Confidentialité et sécurité > Accès complet au disque, puis relancez l’analyse.";
+"The app refused to quit. Nothing was uninstalled." = "L’app a refusé de quitter. Rien n’a été désinstallé.";
+"The app has not quit. It may be asking to save a document. Nothing was uninstalled." = "L’app est encore ouverte. Elle attend peut-être l’enregistrement d’un document. Rien n’a été désinstallé.";
+
+/* UI workflow. */
+"%d items" = "%d éléments";
+"Selection changed. Review and confirm again." = "La sélection a changé. Vérifiez et confirmez à nouveau.";

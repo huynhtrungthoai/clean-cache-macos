@@ -35,7 +35,7 @@ struct BigFilesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: BigFilesModel
-    @State private var confirm = false
+    @State private var review: TrashReviewPlan?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -75,6 +75,8 @@ struct BigFilesView: View {
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
+
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.rescan(scope: store.scope) })
 
             if model.scanning && model.rows.isEmpty {
                 ScanChecklist(progress: model.progress, scope: model.scope.uiName)
@@ -122,7 +124,10 @@ struct BigFilesView: View {
             Spacer(minLength: 0)
 
             SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
-                               selection: model.selectAll, busy: model.scanning) { confirm = true }
+                               selection: model.selectAll, busy: model.scanning || store.isTrashing) {
+                let plan = model.trashPlan()
+                if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
+            }
         }
         .frame(maxWidth: .infinity)
 
@@ -135,8 +140,9 @@ struct BigFilesView: View {
                 model.scan(scope: store.scope)
             }
         }
-        .sheet(isPresented: $confirm) {
-            TrashReviewSheet(items: model.selected.map { TrashReviewItem(name: $0.name, path: $0.url.path, size: human($0.size)) }, bytes: human(model.selectedBytes))
+        .sheet(item: $review) { review in
+            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
+                                perform: { await model.trash(using: store) })
                 .themed(theme)
         }
     }
@@ -170,7 +176,7 @@ struct OldFilesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: OldFilesModel
-    @State private var confirm = false
+    @State private var review: TrashReviewPlan?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -210,6 +216,8 @@ struct OldFilesView: View {
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
+
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan(scope: store.scope) })
 
             if model.scanning && model.rows.isEmpty {
                 ScanChecklist(progress: model.progress, scope: model.scope.uiName)
@@ -257,13 +265,17 @@ struct OldFilesView: View {
             Spacer(minLength: 0)
 
             SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
-                               selection: model.selectAll, busy: model.scanning) { confirm = true }
+                               selection: model.selectAll, busy: model.scanning || store.isTrashing) {
+                let plan = model.trashPlan()
+                if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
+            }
         }
         .frame(maxWidth: .infinity)
 
         .onAppear { if !model.started { model.scan(scope: store.scope) } }
-        .sheet(isPresented: $confirm) {
-            TrashReviewSheet(items: model.selected.map { TrashReviewItem(name: $0.name, path: $0.url.path, size: human($0.size)) }, bytes: human(model.selectedBytes))
+        .sheet(item: $review) { review in
+            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
+                                perform: { await model.trash(using: store) })
                 .themed(theme)
         }
     }

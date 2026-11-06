@@ -5,7 +5,7 @@ struct DupView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: DupModel
-    @State private var confirm = false
+    @State private var review: TrashReviewPlan?
     @State private var envList = false
 
     var selectedBytes: Int64 {
@@ -58,6 +58,8 @@ struct DupView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan(scope: store.scope) })
+
             if model.scanning && model.groups.isEmpty {
                 ScanChecklist(progress: model.progress, scope: model.scope.uiName)
             } else if !model.scanning && model.groups.isEmpty {
@@ -80,7 +82,10 @@ struct DupView: View {
             Spacer(minLength: 0)
 
             SelectionActionBar(count: model.selectedCount, bytes: human(selectedBytes),
-                               selection: model.selectAll, busy: model.scanning) { confirm = true }
+                               selection: model.selectAll, busy: model.scanning || store.isTrashing) {
+                let plan = model.trashPlan()
+                if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
+            }
         }
         .frame(maxWidth: .infinity)
 
@@ -91,8 +96,9 @@ struct DupView: View {
             EnvCopiesSheet(groups: model.envGroups, bytes: model.envBytes)
                 .themed(theme)
         }
-        .sheet(isPresented: $confirm) {
-            TrashReviewSheet(items: model.groups.flatMap { group in group.files.dropFirst().filter { model.selection.contains($0.path) }.map { TrashReviewItem(name: $0.lastPathComponent, path: $0.path, size: human(group.size)) } }, bytes: human(selectedBytes))
+        .sheet(item: $review) { review in
+            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
+                                perform: { await model.trash(using: store) })
                 .themed(theme)
         }
     }
@@ -126,7 +132,7 @@ struct DupView: View {
             showRule: model.groups.first?.id != g.id,
             preopen: SnapshotMode.expandFirstRow && model.groups.first?.id == g.id) {
             ForEach(Array(g.files.enumerated()), id: \.element.path) { idx, url in
-                DupFileRow(url: url, isKept: idx == 0, selection: $model.selection)
+                DupFileRow(url: url, isKept: idx == 0, date: model.dates[url.path], selection: $model.selection)
             }
         }
     }
@@ -139,6 +145,7 @@ private struct DupFileRow: View {
     @Environment(\.theme) private var theme
     var url: URL
     var isKept: Bool
+    var date: Date?
     @Binding var selection: Set<String>
 
     var body: some View {
@@ -158,6 +165,11 @@ private struct DupFileRow: View {
                 .labelsHidden()
                 .accessibilityLabel(LF("Select %@", url.lastPathComponent))
                 .frame(minWidth: 62, alignment: .leading)
+            }
+            if let date {
+                Text(date, format: .dateTime.day().month().year().hour().minute())
+                    .font(theme.bodyFont(.caption2)).monospacedDigit()
+                    .accessibilityLabel(LF("Modified: %@", date.formatted()))
             }
             Text(displayPath(url))
                 .font(theme.bodyFont(.caption2))
@@ -236,6 +248,7 @@ private struct EnvCopiesSheet: View {
             .padding(.top, 18)
             .padding(.bottom, 12)
 
+
             List(groups) { g in
                 ItemRow(selected: .constant(false),
                         icon: .path(g.files.first ?? URL(fileURLWithPath: "/")),
@@ -284,7 +297,7 @@ struct OrphansView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: OrphansModel
-    @State private var confirm = false
+    @State private var review: TrashReviewPlan?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -311,6 +324,10 @@ struct OrphansView: View {
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
+
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan() })
+            Button(L("Review installed apps")) { store.arrive(NavStop(panel: .uninstall)) }
+                .buttonStyle(.link).padding(.bottom, 8)
 
             if model.scanning && model.items.isEmpty {
                 ScanChecklist(progress: model.progress)
@@ -351,13 +368,17 @@ struct OrphansView: View {
             Spacer(minLength: 0)
 
             SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
-                               selection: model.selectAll, busy: model.scanning) { confirm = true }
+                               selection: model.selectAll, busy: model.scanning || store.isTrashing) {
+                let plan = model.trashPlan()
+                if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
+            }
         }
         .frame(maxWidth: .infinity)
 
         .onAppear { if !model.started { model.scan() } }
-        .sheet(isPresented: $confirm) {
-            TrashReviewSheet(items: model.selected.map { TrashReviewItem(name: $0.name, path: $0.path.path, size: $0.size.map { human($0) } ?? L("Unknown")) }, bytes: human(model.selectedBytes))
+        .sheet(item: $review) { review in
+            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
+                                perform: { await model.trash(using: store) })
                 .themed(theme)
         }
     }

@@ -113,7 +113,7 @@ struct CachesView: View {
     @Environment(\.theme) private var theme
     @ObservedObject var model: CachesModel
     var page: CachesPage = .app
-    @State private var confirmClean = false
+    @State private var review: TrashReviewPlan?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -143,6 +143,8 @@ struct CachesView: View {
             .padding(.top, 14)
             .padding(.bottom, 12)
 
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.load(force: true) })
+
             if !model.scanning && !model.items.isEmpty {
                 SummaryCards(metrics: [
                     .init(title: L("Listed items"), value: String(model.items.count), detail: L("Known cache locations in the home folder"), symbol: "list.bullet"),
@@ -166,7 +168,7 @@ struct CachesView: View {
                             brand: item.entry.icon,
                             name: L(item.entry.name),
                             sub: cacheRowSub(item, showsGroup: page.showsGroupLabel),
-                            sizeText: item.size == nil ? (model.scanning ? L("Counting…") : L("Unknown")) : (shown[item.id] ?? human(item.size ?? 0)),
+                            sizeText: cacheSize(item),
                             fraction: Double(item.size ?? 0) / Double(maxSize),
                             badge: verdictBadge(item.entry.tier),
                             selectable: (item.size ?? 0) > 0,
@@ -195,14 +197,26 @@ struct CachesView: View {
             Spacer(minLength: 0)
 
             SelectionActionBar(count: model.selected.count, bytes: human(model.selectedBytes),
-                               selection: model.selectAll, busy: model.scanning) { confirmClean = true }
+                               selection: model.selectAll, busy: model.scanning || store.isTrashing) {
+                let plan = model.trashPlan()
+                if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
+            }
         }
         .frame(maxWidth: .infinity)
 
         .onAppear { model.load() }
-        .sheet(isPresented: $confirmClean) {
-            TrashReviewSheet(items: model.selected.flatMap { item in item.resolvedPaths.map { path in TrashReviewItem(name: L(item.entry.name), path: path.path, size: item.pathSizes[path.path].map { human($0) } ?? L("Unknown")) } }, bytes: human(model.selectedBytes))
+        .sheet(item: $review) { review in
+            ConfirmedTrashSheet(plan: review.items, currentPlan: { model.trashPlan() },
+                                perform: { await model.trash(using: store) })
                 .themed(theme)
+        }
+    }
+
+    private func cacheSize(_ item: CacheItem) -> String {
+        switch model.rowState(item.id) {
+        case .measuring: return L("Counting…")
+        case .measured(let bytes): return shown[item.id] ?? human(bytes)
+        case .unmeasurable: return L("Cannot measure (access required)")
         }
     }
 

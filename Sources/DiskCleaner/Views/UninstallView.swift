@@ -9,7 +9,7 @@ struct UninstallView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: UninstallModel
-    @State private var confirm = false
+    @State private var review: TrashReviewPlan?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +34,10 @@ struct UninstallView: View {
             .pagePadding()
             .padding(.top, 14)
             .padding(.bottom, 12)
+
+            ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan() })
+            Button(L("Review leftover app data")) { store.arrive(NavStop(panel: .orphans)) }
+                .buttonStyle(.link).padding(.bottom, 8)
 
             if model.scanning && model.apps.isEmpty {
                 ScanChecklist(progress: model.progress)
@@ -67,10 +71,8 @@ struct UninstallView: View {
         }
 
         .onChange(of: model.apps.count) { _ in pickSnapshotAppIfAsked() }
-        .sheet(isPresented: $confirm) {
-            TrashReviewSheet(items: reviewItems, bytes: planSizeText,
-                             consequence: L("The app and selected private data will move to the Trash. Shared data is excluded."))
-                .themed(theme)
+        .sheet(item: $review) { review in
+            UninstallConfirmationSheet(model: model, plan: review.items).themed(theme)
         }
     }
 
@@ -155,6 +157,9 @@ struct UninstallView: View {
                         .truncationMode(.middle)
                 }
                 Spacer(minLength: 4)
+                if case .running = model.runState(of: app) {
+                    Text(L("Running")).font(theme.bodyFont(.caption2))
+                }
                 if app.isAppStore && !selfRow {
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 10))
@@ -211,6 +216,9 @@ struct UninstallView: View {
                         .font(theme.bodyFont(.caption))
                         .foregroundStyle(theme.palette.inkSecondary)
                         .lineLimit(1)
+                    if case .running = model.runState(of: app) {
+                        ThemeBadge(text: L("Running"), tone: .warn, symbol: "circle.fill")
+                    }
                     if app.isAppStore {
                         ThemeBadge(text: L("App Store"), tone: .tint, symbol: "arrow.down.circle")
                     }
@@ -291,9 +299,10 @@ struct UninstallView: View {
     private var footer: some View {
         SelectionActionBar(count: model.current == nil ? 0 : model.moveCount,
                            bytes: planSizeText,
-                           busy: model.scanning || model.planning,
+                           busy: model.scanning || model.planning || store.isTrashing,
                            consequence: L("The app and selected private data will move to the Trash. Shared data is excluded.")) {
-            confirm = true
+            let plan = model.trashPlan()
+            if !plan.isEmpty { review = TrashReviewPlan(items: plan) }
         }
     }
 
@@ -301,16 +310,6 @@ struct UninstallView: View {
         if model.planning { return L("Counting…") }
         if model.current != nil && model.bundleBytes == nil { return L("Unknown") }
         return human(model.totalBytes)
-    }
-
-    private var reviewItems: [TrashReviewItem] {
-        guard let app = model.current else { return [] }
-        return [TrashReviewItem(name: app.name, path: app.path.path,
-                                size: model.bundleBytes.map { human($0) } ?? L("Unknown"))]
-            + model.items.filter(\.selected).map {
-                TrashReviewItem(name: $0.name, path: $0.path.path,
-                                size: $0.size.map { human($0) } ?? L("Unknown"))
-            }
     }
 
     private func fraction(_ bytes: Int64) -> Double {
@@ -343,4 +342,64 @@ private struct PanelCard: ViewModifier {
 
 private extension View {
     func panelCard() -> some View { modifier(PanelCard()) }
+}
+
+
+private struct UninstallConfirmationSheet: View {
+    @EnvironmentObject private var store: AppStore
+    @ObservedObject var model: UninstallModel
+    let plan: [TrashPlanItem]
+    @State private var result: TrashBatch?
+    @State private var quitPrompt = false
+    @State private var quitting = false
+    @State private var quitError: String?
+
+    var body: some View {
+            Group {
+                if let result {
+                    BatchResultSheet(batch: result)
+                } else {
+                    TrashReviewSheet(items: plan.map(TrashReviewItem.init),
+                                     bytes: human(plan.reduce(0) { $0 + $1.bytes }),
+                                     consequence: L("The app and selected private data will move to the Trash. Shared data is excluded."),
+                                     busy: store.isTrashing || quitting, dismissOnConfirm: false) {
+                        Task { await performUninstall() }
+                    }
+                }
+            }
+        .frame(width: 680, height: 520)
+        .transaction { $0.animation = nil }
+        .alert(LF("%@ is running. Quit it and uninstall?", model.current?.name ?? ""), isPresented: $quitPrompt) {
+            Button(L("Cancel"), role: .cancel) { }
+            Button(L("Quit and uninstall"), role: .destructive) {
+                guard let app = model.current else { return }
+                quitting = true
+                Task {
+                    defer { quitting = false }
+                    switch await model.requestQuit(app) {
+                    case .quit: await performUninstall()
+                    case .refused: quitError = L("The app refused to quit. Nothing was uninstalled.")
+                    case .timedOut: quitError = L("The app has not quit. It may be asking to save a document. Nothing was uninstalled.")
+                    }
+                }
+            }
+        }
+        .alert(L("Cannot uninstall"), isPresented: Binding(get: { quitError != nil }, set: { if !$0 { quitError = nil } })) {
+            Button(L("Close"), role: .cancel) { quitError = nil }
+        } message: { Text(quitError ?? "") }
+    }
+
+    private func performUninstall() async {
+        guard plan == model.trashPlan(), !store.isTrashing else {
+            quitError = L("Selection changed. Review and confirm again.")
+            return
+        }
+        switch await model.uninstall(using: store) {
+        case .done(let batch): result = batch
+        case .appRunning: quitPrompt = true
+        case .busy, .nothingToDo: break
+        }
+    }
+
+
 }
