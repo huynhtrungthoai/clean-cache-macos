@@ -61,6 +61,7 @@ struct TrashView: View {
             footer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .foregroundStyle(theme.palette.ink)
         .buttonStyle(.borderless)
         .onAppear { model.refresh() }
         .onChange(of: store.lastTrashAt) { _ in model.refresh() }
@@ -152,6 +153,12 @@ struct TrashView: View {
         case "duplicates": return L("Duplicates")
         case "leftovers": return L("Leftovers")
         case "uninstall": return L("Uninstall Apps")
+        case "node-modules": return L("node_modules")
+        case "folder-drill": return L("Folder details")
+        case "crash-dumps": return L("Crash dumps")
+        case "diagnostic-reports": return L("System diagnostics reports")
+        case "crash-dump-trim": return L("Trim by policy")
+        case "overview": return L("Overview")
         default: return source
         }
     }

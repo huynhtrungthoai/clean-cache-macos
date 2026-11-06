@@ -89,6 +89,7 @@ struct BatchResultSheet: View {
             }
         }
         .frame(width: 680, height: 520)
+        .foregroundStyle(theme.palette.ink)
         .background(theme.palette.paper)
     }
 }
