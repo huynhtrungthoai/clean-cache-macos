@@ -1,5 +1,6 @@
 import DiskCleanerCore
 import Foundation
+import CoreGraphics
 
 // 自检：知识库 / 路径展开 / 通配 / 移废纸篓+撤销 / 保护规则 / 占盘统计。
 // 全部在 /tmp 里做，不碰用户数据。任一失败打印 FAIL 并以非零退出。
@@ -2564,6 +2565,40 @@ do {
     unsetenv("DISKWISE_HOME_SHIM")
     check(devShimTrashDir() == nil, "QA: no fake home → real Trash (no shim Trash)")
     try? fm.removeItem(at: root)
+}
+
+// C7: squarified treemap layout.
+do {
+    let box = CGRect(x: 10, y: 20, width: 600, height: 400)
+    let nodes: [(id: String, bytes: Int64)] = [("a", 600), ("b", 600), ("c", 400), ("d", 300), ("e", 200),
+                                                ("f", 200), ("g", 100), ("zero", 0), ("neg", -5), ("a", 999)]
+    let tiles = squarifiedLayout(nodes, in: box)
+    check(tiles.map(\.id) == ["a", "b", "c", "d", "e", "f", "g"],
+          "C7: zero/negative/duplicate ids dropped, largest first (\(tiles.map(\.id)))")
+    let total = 2400.0, boxArea = Double(box.width * box.height)
+    check(tiles.allSatisfy { abs(Double($0.rect.width * $0.rect.height) - Double($0.bytes) / total * boxArea) < 0.5 },
+          "C7: each tile's area is proportional to its bytes")
+    check(abs(tiles.reduce(0.0) { $0 + Double($1.rect.width * $1.rect.height) } - boxArea) < 0.5,
+          "C7: tiles fill the rect exactly")
+    let eps: CGFloat = 0.001
+    check(tiles.allSatisfy { box.insetBy(dx: -eps, dy: -eps).contains($0.rect) }, "C7: every tile stays inside the rect")
+    var overlap = false
+    for i in tiles.indices { for j in tiles.indices where j > i {
+        let x = tiles[i].rect.intersection(tiles[j].rect)
+        if !x.isNull && x.width > eps && x.height > eps { overlap = true }
+    } }
+    check(!overlap, "C7: tiles never overlap")
+    let sq = squarifiedLayout((0..<6).map { (id: "s\($0)", bytes: Int64(10)) }, in: CGRect(x: 0, y: 0, width: 300, height: 200))
+    check(sq.allSatisfy { max($0.rect.width / $0.rect.height, $0.rect.height / $0.rect.width) < 1.6 },
+          "C7: six equal tiles in 3:2 come out near square")
+    check(squarifiedLayout([], in: box).isEmpty && squarifiedLayout([("a", 1)], in: .zero).isEmpty,
+          "C7: empty input or empty rect → no tiles")
+    check(squarifiedLayout(nodes, in: box) == tiles, "C7: same input, same layout")
+    let lv = DirLevel(entries: [ChildEntry(path: "/x/a", name: "a", size: 50, isDir: true, files: 3, newest: nil)],
+                      total: 80, unlistedCount: 4, unlistedBytes: 30)
+    let tn = treemapNodes(for: lv)
+    check(tn.count == 2 && tn[0].id == "/x/a" && tn[1].id == treemapUnlistedID && tn[1].bytes == 30,
+          "C7: drill level → entries by path + one unlisted tile")
 }
 
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")

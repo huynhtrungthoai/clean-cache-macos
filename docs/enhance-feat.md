@@ -461,15 +461,26 @@ uninstall.trashPlan()         // cho sheet xác nhận: bundle (critical) + dữ
 
 Phác thảo: `ScanSession` trong `ScanStore`, `modules: [ModuleState]` (waiting/scanning/done/cancelled/noPermission/partial/failed), `found/suggested/selected` bytes đã loại trùng. Chốt sau khi trả lời §9 câu 1.
 
-### C7 — Dữ liệu treemap · F04 · Claude · `later`
+### C7 — Dữ liệu treemap · F04 · Claude · `merged`
 
-Phác thảo: hàm thuần trong Core `squarifiedLayout(nodes: [(id, bytes)], in: CGRect) -> [(id, CGRect)]` có SelfTest; dữ liệu lấy từ `FolderDrillModel`. Codex vẽ bằng Canvas.
+`Sources/DiskCleanerCore/Treemap.swift`, hàm thuần, có SelfTest "C7:":
+
+```swift
+public struct TreemapTile: Equatable, Sendable { id: String; bytes: Int64; rect: CGRect }
+public func squarifiedLayout(_ nodes: [(id: String, bytes: Int64)], in rect: CGRect) -> [TreemapTile]
+public func treemapNodes(for level: DirLevel) -> [(id: String, bytes: Int64)]
+public let treemapUnlistedID: String   // ô "file đã đo nhưng không liệt kê"
+```
+
+- Ô lấp đầy đúng `rect`, diện tích tỷ lệ với bytes, giữ nguyên `id`; bỏ bytes ≤ 0 và id trùng; thứ tự lớn → nhỏ, hoà thì theo id (cùng input → cùng hình).
+- Dùng: `squarifiedLayout(treemapNodes(for: model.level!), in: canvasRect)`. Ô `treemapUnlistedID` là dung lượng thật nhưng không phải một dòng chọn được: vẽ khác màu, không cho chọn/xoá.
+- Thư mục `unreadable == true` chỉ có phần đo được (cận dưới): đánh dấu, không phóng to. Khi `level.rootErrno != 0` thì không vẽ treemap, hiện issue.
 
 ### Requests — yêu cầu từ UI
 
 - ✅ **Đã có (P0/F03, File trùng)** — `duplicateContentCheck(kept:extra:) -> ContentMatch` (.same/.different/.cancelled) so **toàn bộ nội dung từng byte** mọi kích thước (bỏ giới hạn 64 MiB); `preflight` dùng nó. Huỷ: `AppStore.cancelTrash()` dừng lô giữa các mục và giữa lúc so file lớn — mục đã chuyển giữ nguyên trong batch, phần còn lại là `.skipped(.cancelled)` (reasonKey "Stopped before it was moved", đã có ở 9 bảng). UI: nút "Dừng" khi `store.isTrashing`, gọi `store.cancelTrash()`.
 
-- **P2/F04, Folder Drill** — Đã dựng Canvas với hàng đã đo, dùng cùng selection/breadcrumb/danh sách; chờ C7 `merged` để thay bố cục chia ô tỷ lệ tạm bằng `squarifiedLayout`, giữ ID và số byte từ model. Cần metadata phần chưa liệt kê/không đọc được nếu muốn biểu diễn thành nhóm riêng, không tự cộng phần chưa đo vào diện tích có thể dọn.
+- ✅ **Đã có (P2/F04, Folder Drill)** — C7 `merged` (xem trên): `squarifiedLayout` + `treemapNodes(for:)`; metadata: `DirLevel.unlistedBytes/unlistedCount` (ô riêng `treemapUnlistedID`), `ChildEntry.unreadable` + `DirLevel.unreadableChildren` (đo được một phần), `DirLevel.rootErrno` (cấp không đọc được).
 
 - ✅ **Đã có (P1, ScanStatusReporting cho Tổng quan/Folder Drill/node_modules/Docker/Chẩn đoán)** — Cả 5 model có `scanState`/`scannedAt`/`issues` (+ `isPartial`, `isStale(lastTrashAt:)`). Tổng quan: issues từ `needFDA`/`needAdmin`, cả khi dừng. Folder Drill: trạng thái của **cấp đang xem** (cấp lấy từ cache giữ thời điểm đo cũ nên có thể stale); `DirLevel.rootErrno` ≠ 0 nghĩa là chính thư mục không đọc được (issue `.noPermission`/`.notFound`, không hiển thị là "trống"), `DirLevel.unreadableChildren` = thư mục con chỉ đo được một phần. node_modules/Docker/Chẩn đoán: `issues` luôn rỗng (Core không báo phần không đọc được), chỉ có vòng đời + thời điểm.
 - ✅ **Đã có (P1, công cụ dùng lịch sử cũ)** — Cùng luồng chuẩn C1/C2 (sheet từ plan → `trash`/`run…` → `BatchResultSheet`, undo qua `store.undo`):
