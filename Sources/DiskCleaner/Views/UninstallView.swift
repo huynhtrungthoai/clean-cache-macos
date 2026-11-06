@@ -10,6 +10,8 @@ struct UninstallView: View {
     @Environment(\.theme) private var theme
     @ObservedObject var model: UninstallModel
     @State private var review: TrashReviewPlan?
+    @State private var pendingResult: TrashBatch?
+    @State private var result: TrashBatch?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -71,9 +73,16 @@ struct UninstallView: View {
         }
 
         .onChange(of: model.apps.count) { _ in pickSnapshotAppIfAsked() }
-        .sheet(item: $review) { review in
-            UninstallConfirmationSheet(model: model, plan: review.items).themed(theme)
+        .sheet(item: $review, onDismiss: {
+            result = pendingResult
+            pendingResult = nil
+        }) { review in
+            UninstallConfirmationSheet(model: model, plan: review.items) { batch in
+                pendingResult = batch
+                self.review = nil
+            }.themed(theme)
         }
+        .sheet(item: $result) { batch in BatchResultSheet(batch: batch).themed(theme) }
     }
 
     private func pickSnapshotAppIfAsked() {
@@ -349,26 +358,18 @@ private struct UninstallConfirmationSheet: View {
     @EnvironmentObject private var store: AppStore
     @ObservedObject var model: UninstallModel
     let plan: [TrashPlanItem]
-    @State private var result: TrashBatch?
+    var completed: (TrashBatch) -> Void
     @State private var quitPrompt = false
     @State private var quitting = false
     @State private var quitError: String?
 
     var body: some View {
-            Group {
-                if let result {
-                    BatchResultSheet(batch: result)
-                } else {
-                    TrashReviewSheet(items: plan.map(TrashReviewItem.init),
-                                     bytes: human(plan.reduce(0) { $0 + $1.bytes }),
-                                     consequence: L("The app and selected private data will move to the Trash. Shared data is excluded."),
-                                     busy: store.isTrashing || quitting, dismissOnConfirm: false) {
-                        Task { await performUninstall() }
-                    }
-                }
-            }
-        .frame(width: 680, height: 520)
-        .transaction { $0.animation = nil }
+        TrashReviewSheet(items: plan.map(TrashReviewItem.init),
+                         bytes: human(plan.reduce(0) { $0 + $1.bytes }),
+                         consequence: L("The app and selected private data will move to the Trash. Shared data is excluded."),
+                         busy: store.isTrashing || quitting, dismissOnConfirm: false) {
+            Task { await performUninstall() }
+        }
         .alert(LF("%@ is running. Quit it and uninstall?", model.current?.name ?? ""), isPresented: $quitPrompt) {
             Button(L("Cancel"), role: .cancel) { }
             Button(L("Quit and uninstall"), role: .destructive) {
@@ -395,7 +396,7 @@ private struct UninstallConfirmationSheet: View {
             return
         }
         switch await model.uninstall(using: store) {
-        case .done(let batch): result = batch
+        case .done(let batch): completed(batch)
         case .appRunning: quitPrompt = true
         case .busy, .nothingToDo: break
         }
