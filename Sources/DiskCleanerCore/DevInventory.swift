@@ -57,6 +57,8 @@ public enum DevEvidence: Equatable, Sendable {
     /// A `node_modules` folder under a project; `manager` from its internal marker or lockfile
     /// (nil = could not tell).
     case nodeModules(manager: String?)
+    /// A build artifact / environment proven by these files (relative to the project root).
+    case projectFiles(type: DevArtifactType, files: [String])
 }
 
 public struct DevInventoryItem: Identifiable, Equatable, Sendable {
@@ -142,7 +144,7 @@ private func std(_ p: String) -> String { URL(fileURLWithPath: p).standardizedFi
 /// Builds the unified inventory. `nodeModulesURL` maps a project to the folder a plan moves.
 /// Rows whose paths all lie inside another row's path are flagged `nestedInOtherRow` and
 /// excluded from `devInventoryTotals`.
-public func devInventory(caches: [CacheItem], projects: [NMProject],
+public func devInventory(caches: [CacheItem], projects: [NMProject], artifacts: [DevArtifact] = [],
                          bulkSelectable: (URL) -> Bool = isBulkSelectable) -> [DevInventoryItem] {
     struct Raw { var item: DevInventoryItem; var paths: [String] }
     var raws: [Raw] = []
@@ -170,6 +172,17 @@ public func devInventory(caches: [CacheItem], projects: [NMProject],
             eligibility: elig, selected: p.selected, nestedInOtherRow: false, inUse: nil,
             reinstallHint: nodeReinstallHint(manager: p.manager))
         raws.append(Raw(item: item, paths: [nm.standardizedFileURL.path]))
+    }
+    for a in artifacts {
+        // Owner decision 07/11/2026: listed, ticked by hand. Never part of a group/bulk selection.
+        let item = DevInventoryItem(
+            id: "ba:" + std(a.path), name: URL(fileURLWithPath: a.projectRoot).lastPathComponent, nameIsKey: false,
+            kind: a.type.kind, ecosystem: a.type.ecosystem, projectRoot: std(a.projectRoot), tool: nil,
+            paths: [std(a.path)], bytes: a.bytes, unmeasurable: false, tier: .redo,
+            evidence: .projectFiles(type: a.type, files: a.evidence),
+            eligibility: a.bytes == nil ? .measuring : .needsReview(.redo),
+            selected: a.selected, nestedInOtherRow: false, inUse: nil, reinstallHint: a.reinstallHint)
+        raws.append(Raw(item: item, paths: [std(a.path)]))
     }
     // A row is nested when every one of its paths is strictly inside some other row's path.
     let allPaths = raws.enumerated().flatMap { (i, r) in r.paths.map { (i, $0) } }

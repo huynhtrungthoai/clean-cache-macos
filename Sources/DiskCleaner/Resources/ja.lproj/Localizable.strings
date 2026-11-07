@@ -1417,3 +1417,17 @@
 "Code & data" = "コードとデータ";
 "Apps & installers" = "アプリとインストーラ";
 "Other files" = "その他のファイル";
+"Next.js build output" = "Next.js のビルド出力";
+"Nuxt build output" = "Nuxt のビルド出力";
+"Turborepo cache" = "Turborepo キャッシュ";
+"SvelteKit build output" = "SvelteKit のビルド出力";
+"Parcel cache" = "Parcel キャッシュ";
+"Angular cache" = "Angular キャッシュ";
+"Build output (ignored by Git)" = "ビルド出力（Git で無視）";
+"Rust build output" = "Rust のビルド出力";
+"Maven build output" = "Maven のビルド出力";
+"Gradle build output" = "Gradle のビルド出力";
+"Swift package build output" = "Swift パッケージのビルド出力";
+"CocoaPods dependencies" = "CocoaPods の依存関係";
+"Tagged cache folder" = "タグ付きキャッシュフォルダ";
+"Python virtual environment" = "Python 仮想環境";

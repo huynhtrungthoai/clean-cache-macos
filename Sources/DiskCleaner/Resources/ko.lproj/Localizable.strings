@@ -1417,3 +1417,17 @@
 "Code & data" = "코드 및 데이터";
 "Apps & installers" = "앱 및 설치 프로그램";
 "Other files" = "기타 파일";
+"Next.js build output" = "Next.js 빌드 결과물";
+"Nuxt build output" = "Nuxt 빌드 결과물";
+"Turborepo cache" = "Turborepo 캐시";
+"SvelteKit build output" = "SvelteKit 빌드 결과물";
+"Parcel cache" = "Parcel 캐시";
+"Angular cache" = "Angular 캐시";
+"Build output (ignored by Git)" = "빌드 결과물(Git에서 무시됨)";
+"Rust build output" = "Rust 빌드 결과물";
+"Maven build output" = "Maven 빌드 결과물";
+"Gradle build output" = "Gradle 빌드 결과물";
+"Swift package build output" = "Swift 패키지 빌드 결과물";
+"CocoaPods dependencies" = "CocoaPods 의존성";
+"Tagged cache folder" = "태그된 캐시 폴더";
+"Python virtual environment" = "Python 가상 환경";

@@ -2892,5 +2892,50 @@ do {
     try? fm.removeItem(atPath: dir)
 }
 
+// V2-DEV layer 2: build output / venv detectors need evidence; artifacts are manual-tick only.
+do {
+    check(gitignoreIgnores("# x\n/dist\n", name: "dist") && gitignoreIgnores("build/\n", name: "build")
+          && !gitignoreIgnores("dist\n!dist\n", name: "dist") && !gitignoreIgnores("src/dist\n", name: "dist")
+          && !gitignoreIgnores("", name: "out"),
+          "V2-DEV: .gitignore rule matching (plain rules, negation wins)")
+    let fm = FileManager.default
+    let r = "/private/tmp/v2art-\(UUID().uuidString)"
+    func mk(_ rel: String) { try? fm.createDirectory(atPath: r + "/" + rel, withIntermediateDirectories: true) }
+    func put(_ rel: String, _ text: String = "x", size: Int = 0) {
+        fm.createFile(atPath: r + "/" + rel, contents: size > 0 ? Data(count: size) : Data(text.utf8))
+    }
+    mk("web/.next/cache"); put("web/package.json"); put("web/.next/cache/a", size: 4096)
+    mk("web/dist"); put("web/.gitignore", "node_modules\n/dist\n"); put("web/dist/app.js", size: 4096)
+    mk("lib/dist"); put("lib/package.json"); put("lib/dist/keep.js", size: 4096)          // not ignored → kept
+    mk("crate/target/debug"); put("crate/Cargo.toml"); put("crate/target/debug/x", size: 4096)
+    mk("crate/target/debug/.next"); put("crate/target/debug/package.json")              // inside an artifact: not walked
+    mk("py/.venv/lib"); put("py/.venv/pyvenv.cfg"); put("py/uv.lock")
+    mk("plain/build"); put("plain/build/out.o", size: 4096)                              // no evidence
+    mk("tagged/cache"); put("tagged/cache/CACHEDIR.TAG", "Signature: 8a477f597d28d172789f06886806bc55\n")
+    mk("repo/.git/build"); put("repo/build.gradle")                                      // .git never walked
+    try? fm.createSymbolicLink(atPath: r + "/link", withDestinationPath: r + "/web")      // symlink not followed
+    let sem = DispatchSemaphore(value: 0)
+    var scan: DevArtifactScan? = nil
+    Task.detached { scan = await findDevArtifacts(roots: [r], minBytes: 0); sem.signal() }
+    sem.wait()
+    let got = Dictionary(uniqueKeysWithValues: (scan?.artifacts ?? []).map {
+        (String($0.path.dropFirst(r.count + 1)), $0) })
+    check(Set(got.keys) == ["web/.next", "web/dist", "crate/target", "py/.venv", "tagged/cache"],
+          "V2-DEV: detected only with evidence; no symlink, .git or nested walk (\(got.keys.sorted()))")
+    check(got["web/.next"]?.type == .nextBuild && got["web/dist"]?.type == .jsOutput
+          && got["crate/target"]?.reinstallHint == "cargo build" && got["py/.venv"]?.type == .pythonVenv
+          && got["py/.venv"]?.reinstallHint == "uv sync" && got["tagged/cache"]?.type == .taggedCache,
+          "V2-DEV: artifact type, evidence-based hint")
+    check((got["web/.next"]?.bytes ?? 0) >= 4096, "V2-DEV: artifacts are measured")
+    let inv = devInventory(caches: [], projects: [], artifacts: Array(got.values), bulkSelectable: { _ in true })
+    check(inv.allSatisfy { $0.eligibility == .needsReview(.redo) } && devKindToggle(inv, kind: nil).ids.isEmpty,
+          "V2-DEV: build output / venvs are never group-selected (manual tick only)")
+    check(inv.first { $0.id.hasSuffix("/py/.venv") }?.kind == .environment
+          && inv.first { $0.id.hasSuffix("/web/.next") }?.kind == .buildOutput
+          && inv.first { $0.id.hasSuffix("/web/.next") }?.projectRoot?.hasSuffix("/web") == true,
+          "V2-DEV: venv = environment, build output = build data, project root kept")
+    try? fm.removeItem(atPath: r)
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

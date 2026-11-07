@@ -1417,3 +1417,17 @@
 "Code & data" = "Código e dados";
 "Apps & installers" = "Apps e instaladores";
 "Other files" = "Outros arquivos";
+"Next.js build output" = "Saída de build do Next.js";
+"Nuxt build output" = "Saída de build do Nuxt";
+"Turborepo cache" = "Cache do Turborepo";
+"SvelteKit build output" = "Saída de build do SvelteKit";
+"Parcel cache" = "Cache do Parcel";
+"Angular cache" = "Cache do Angular";
+"Build output (ignored by Git)" = "Saída de build (ignorada pelo Git)";
+"Rust build output" = "Saída de build do Rust";
+"Maven build output" = "Saída de build do Maven";
+"Gradle build output" = "Saída de build do Gradle";
+"Swift package build output" = "Saída de build de pacote Swift";
+"CocoaPods dependencies" = "Dependências do CocoaPods";
+"Tagged cache folder" = "Pasta de cache marcada";
+"Python virtual environment" = "Ambiente virtual do Python";

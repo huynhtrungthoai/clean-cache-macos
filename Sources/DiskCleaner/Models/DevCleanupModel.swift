@@ -10,11 +10,14 @@ import DiskCleanerCore
 final class DevCleanupModel: ObservableObject, ScanStatusReporting {
     let caches: CachesModel
     let nodeModules: NMModel
+    let artifacts: DevArtifactsModel
     private var bag = Set<AnyCancellable>()
 
-    init(caches: CachesModel, nodeModules: NMModel) {
+    init(caches: CachesModel, nodeModules: NMModel, artifacts: DevArtifactsModel) {
         self.caches = caches
         self.nodeModules = nodeModules
+        self.artifacts = artifacts
+        artifacts.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         caches.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
         nodeModules.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }.store(in: &bag)
     }
@@ -23,7 +26,7 @@ final class DevCleanupModel: ObservableObject, ScanStatusReporting {
 
     /// Every row, largest first (unknown sizes last).
     var items: [DevInventoryItem] {
-        devInventory(caches: caches.items, projects: nodeModules.items)
+        devInventory(caches: caches.items, projects: nodeModules.items, artifacts: artifacts.items)
             .sorted { ($0.bytes ?? -1, $1.id) > ($1.bytes ?? -1, $0.id) }
     }
 
@@ -68,6 +71,12 @@ final class DevCleanupModel: ObservableObject, ScanStatusReporting {
             where URL(fileURLWithPath: nodeModules.items[i].project).standardizedFileURL.path == project {
                 nodeModules.items[i].selected = on
             }
+        } else if id.hasPrefix("ba:") {
+            let path = String(id.dropFirst(3))
+            for i in artifacts.items.indices
+            where URL(fileURLWithPath: artifacts.items[i].path).standardizedFileURL.path == path {
+                artifacts.items[i].selected = on && artifacts.items[i].bytes != nil
+            }
         }
     }
 
@@ -83,17 +92,19 @@ final class DevCleanupModel: ObservableObject, ScanStatusReporting {
     func scan() {
         if !caches.scanning { caches.load(force: true) }
         if !nodeModules.scanning { nodeModules.scan() }
+        if !artifacts.scanning { artifacts.scan() }
     }
 
     func stop() {
         caches.stop()
         nodeModules.stop()
+        artifacts.stop()
     }
 
-    var scanning: Bool { caches.scanning || nodeModules.scanning }
+    var scanning: Bool { caches.scanning || nodeModules.scanning || artifacts.scanning }
 
     var scanState: ScanState {
-        let s = [caches.scanState, nodeModules.scanState]
+        let s = [caches.scanState, nodeModules.scanState, artifacts.scanState]
         if s.contains(.scanning) { return .scanning }
         if s.allSatisfy({ $0 == .idle }) { return .idle }
         if s.contains(.stopped) { return .stopped }
@@ -103,15 +114,15 @@ final class DevCleanupModel: ObservableObject, ScanStatusReporting {
     }
 
     /// The older of the two results (staleness follows the oldest data on screen).
-    var scannedAt: Date? { [caches.scannedAt, nodeModules.scannedAt].compactMap { $0 }.min() }
+    var scannedAt: Date? { [caches.scannedAt, nodeModules.scannedAt, artifacts.scannedAt].compactMap { $0 }.min() }
 
-    var issues: [ScanIssue] { caches.issues + nodeModules.issues }
+    var issues: [ScanIssue] { caches.issues + nodeModules.issues + artifacts.issues }
 
     // MARK: Plan + execute (C1/C2)
 
     /// What "Move to Trash" executes: both models' plans, nested paths collapsed to the outermost.
     func trashPlan() -> [TrashPlanItem] {
-        let all = caches.trashPlan() + nodeModules.trashPlan()
+        let all = caches.trashPlan() + nodeModules.trashPlan() + artifacts.trashPlan()
         var byPath: [String: TrashPlanItem] = [:]
         var order: [String] = []
         for it in all {
@@ -127,6 +138,7 @@ final class DevCleanupModel: ObservableObject, ScanStatusReporting {
         guard let batch = await store.runTrash(trashPlan(), source: "dev-cleanup") else { return nil }
         caches.apply(batch)
         nodeModules.apply(batch)
+        artifacts.apply(batch)
         return batch
     }
 }

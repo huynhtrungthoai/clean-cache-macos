@@ -1417,3 +1417,17 @@
 "Code & data" = "Mã nguồn & dữ liệu";
 "Apps & installers" = "Ứng dụng & bộ cài";
 "Other files" = "Tệp khác";
+"Next.js build output" = "Kết quả build Next.js";
+"Nuxt build output" = "Kết quả build Nuxt";
+"Turborepo cache" = "Cache Turborepo";
+"SvelteKit build output" = "Kết quả build SvelteKit";
+"Parcel cache" = "Cache Parcel";
+"Angular cache" = "Cache Angular";
+"Build output (ignored by Git)" = "Kết quả build (Git bỏ qua)";
+"Rust build output" = "Kết quả build Rust";
+"Maven build output" = "Kết quả build Maven";
+"Gradle build output" = "Kết quả build Gradle";
+"Swift package build output" = "Kết quả build Swift package";
+"CocoaPods dependencies" = "Thư viện phụ thuộc CocoaPods";
+"Tagged cache folder" = "Thư mục cache có đánh dấu";
+"Python virtual environment" = "Môi trường ảo Python";
