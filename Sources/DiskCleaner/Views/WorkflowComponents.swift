@@ -12,37 +12,38 @@ struct SummaryMetric: Identifiable {
 
 struct SummaryCards: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     var metrics: [SummaryMetric]
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { cards }
-            VStack(spacing: 4) { cards }
+            HStack(spacing: 10) { cards }
+            VStack(spacing: 6) { cards }
         }
     }
 
     private var cards: some View {
         ForEach(metrics) { metric in
-            HStack(spacing: 8) {
-                Image(systemName: metric.symbol)
-                    .foregroundStyle(theme.palette.inkSecondary)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(metric.title).font(theme.bodyFont(.caption))
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: metric.symbol)
+                        .foregroundStyle(theme.palette.tint)
+                        .accessibilityHidden(true)
+                    Text(metric.title).font(theme.prose(size: 12, weight: .medium))
                         .foregroundStyle(theme.palette.inkSecondary)
-                    Text(metric.detail).font(theme.bodyFont(.caption2))
-                        .foregroundStyle(theme.palette.inkSecondary)
-                        .lineLimit(1).help(metric.detail)
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 8)
                 Text(metric.value)
-                    .font(theme.prose(size: 18, weight: .semibold))
-                    .monospacedDigit()
-                    .lineLimit(1)
+                    .font(theme.prose(size: 24, weight: .semibold))
+                    .monospacedDigit().lineLimit(1).minimumScaleFactor(0.75)
+                Text(metric.detail).font(theme.prose(size: 11))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .lineLimit(1).help(metric.detail)
             }
-            .padding(.horizontal, 12).padding(.vertical, 6)
+            .padding(12)
             .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
-            .background(theme.cardShape().fill(theme.palette.surfaceAlt))
+            .background(theme.cardShape().fill(theme.palette.surface.opacity(reduceTransparency ? 1 : 0.8)))
+            .overlay(theme.cardShape().stroke(theme.palette.separator.opacity(0.6), lineWidth: 1))
             .foregroundStyle(theme.palette.ink)
             .accessibilityElement(children: .combine)
         }
@@ -75,7 +76,7 @@ struct SelectionActionBar: View {
                 HStack { Spacer(); reviewButton }
             }
         }
-        .padding(.horizontal, 20).padding(.vertical, 8)
+        .padding(.horizontal, 24).padding(.vertical, 12)
         .background(theme.palette.surface)
         .overlay(alignment: .top) { Divider().overlay(theme.palette.separator) }
     }

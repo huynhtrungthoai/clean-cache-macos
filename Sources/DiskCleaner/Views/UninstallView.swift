@@ -9,6 +9,7 @@ struct UninstallView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: UninstallModel
+    @State private var appFilter = "all"
     @State private var review: TrashReviewPlan?
     @State private var pendingResult: TrashBatch?
     @State private var result: TrashBatch?
@@ -120,14 +121,20 @@ struct UninstallView: View {
             .background(theme.controlShape().fill(theme.palette.surfaceAlt))
             .padding(10)
 
+            Picker(L("Applications"), selection: $appFilter) {
+                Text(L("All applications")).tag("all")
+                Text(L("App Store")).tag("store")
+                Text(L("Running")).tag("running")
+            }
+            .pickerStyle(.menu).padding(.horizontal, 10).padding(.bottom, 8)
             Rectangle().fill(theme.palette.separator).frame(height: 1)
 
             ScrollView {
                 LazyVStack(spacing: 1) {
-                    ForEach(model.shown) { app in
+                    ForEach(filteredApps) { app in
                         appRow(app)
                     }
-                    if model.shown.isEmpty && !model.scanning {
+                    if filteredApps.isEmpty && !model.scanning {
                         Text(L("No apps match"))
                             .font(theme.bodyFont(.caption))
                             .foregroundStyle(theme.palette.inkTertiary)
@@ -141,6 +148,18 @@ struct UninstallView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
+    private var filteredApps: [InstalledApp] {
+        model.shown.filter { app in
+            switch appFilter {
+            case "store": return app.isAppStore
+            case "running":
+                if case .running = model.runState(of: app) { return true }
+                return false
+            default: return true
+            }
+        }
+    }
+
     private func appRow(_ app: InstalledApp) -> some View {
         let selfRow = model.isSelf(app)
         let on = !selfRow && model.current?.id == app.id
@@ -148,7 +167,7 @@ struct UninstallView: View {
             model.choose(app)
         } label: {
             HStack(spacing: 9) {
-                RowIconView(icon: .path(app.path), side: 26)
+                RowIconView(icon: .path(app.path), side: 32)
                     .opacity(selfRow ? 0.45 : 1)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(app.name)
@@ -177,7 +196,7 @@ struct UninstallView: View {
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.vertical, 9)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(on ? theme.palette.tintSoft : Color.clear,
                         in: theme.controlShape())

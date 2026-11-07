@@ -533,3 +533,11 @@ Codex ghi yêu cầu API còn thiếu ở đây (một dòng mỗi yêu cầu: m
 - ✅ **Đã có (`ScanStore.trash`, `store.batches`/`undo`)** — Thùng rác: cần model đo nội dung, làm mới, trạng thái đang thực hiện và kết quả khôi phục từng mục; P1. Lịch sử theo lô/khả năng hoàn tác tiếp tục chờ C1 `merged`.
 - ✅ **Đã có (`selectAll` dùng `isBulkSelectable`)** — File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót: cần model công bố rõ policy bulk-selectable dùng chung với `isBulkSelectable`/`isReclaimableWhole`; P0. UI P1 chỉ gọi `model.selectAll`, không tự nới quy tắc chọn.
 - ✅ **Đã có (`DupModel.dates`)** — File trùng: cần metadata ngày sửa từng bản từ model để hiển thị tiêu chí giữ bản mới nhất mà View không đọc filesystem; P1.
+
+- **V2-SCAN — đề xuất, chờ chốt phạm vi** — Smart Scan: trạng thái theo module, scope/thời điểm, kết quả từng phần và tổng không đếm lặp; chi tiết [plan-v2.md §7](plan-v2.md#7-contract-bổ-sung-dành-cho-claude). C6 chưa được coi là đã có.
+- **V2-CLEANUP — đề xuất, P1** — Cache: nhóm ngữ nghĩa và tri-state selection do model cung cấp; hiện UI chỉ lọc groupKey và dùng selection C1/C3 hiện có.
+- **V2-APPS / V2-FILES — đề xuất, P2** — Metadata app/version/publisher/last-used có nguồn; file kind/modified/access semantics rõ; không suy ít dùng hay đáng ngờ trong View.
+- **V2-TRASH — đề xuất, P2** — Inventory file theo ổ, size optional, quyền và kế hoạch empty riêng; batch history không thay thế danh sách file còn trong Trash.
+- **V2 roadmap — owner đã chốt 07/11/2026** — Mail, Protection/Privacy, Performance/Maintenance, Updater/Extensions và Shredder ghi đầy đủ trong [plan-v2.md](plan-v2.md), triển khai sau khi owner chốt quy tắc từng tính năng. Không thêm nút thao tác giả vào UI đợt này.
+
+- **V2-DEV — owner yêu cầu 07/11/2026, đề xuất P1** — Trung tâm Dọn dẹp cho lập trình viên: gom node_modules theo dự án, cache package manager/công cụ và inventory build output; model công bố identity/evidence, tác động, eligibility và kế hoạch không trùng đường dẫn. Tái sử dụng NMModel/CachesModel/C1/C2; detector và policy mở rộng chờ owner chốt; Docker hiện chỉ xem. Chi tiết [plan-v2.md §6.7 và §7](plan-v2.md#67-dọn-dẹp-cho-lập-trình-viên--dev-cleanup).

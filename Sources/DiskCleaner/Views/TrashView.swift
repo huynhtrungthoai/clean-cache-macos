@@ -16,6 +16,19 @@ struct TrashView: View {
                 .pagePadding().padding(.top, 10).padding(.bottom, 6)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 20) {
+                        WorkspaceEmblem(symbol: "trash", size: 96)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(L("Trash")).font(theme.prose(size: 26, weight: .semibold))
+                            Text(model.measuring ? L("Counting…") : model.summary.map { uiHuman($0.bytes) } ?? L("Cannot measure"))
+                                .font(theme.numeric(size: 36, weight: .light)).monospacedDigit()
+                            Text(L("Review the Trash and restore recorded batches when possible"))
+                                .font(theme.prose(size: 13)).foregroundStyle(theme.palette.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 12)
                     SummaryCards(metrics: [
                         .init(title: L("Trash"), value: model.measuring ? L("Counting…") : model.summary.map { uiHuman($0.bytes) } ?? L("Cannot measure"),
                               detail: model.summary.map { LF("%d items", $0.items) } ?? L("Open Finder to inspect the current contents of the Trash."), symbol: "trash"),

@@ -478,6 +478,17 @@ enum AppPanel: Hashable, CaseIterable {
 
     var title: String { L(titleKey) }
 
+    var workspaceTone: WorkspaceTone {
+        switch self {
+        case .smart: return .smart
+        case .caches: return .cleanup
+        case .trash: return .trash
+        case .uninstall, .orphans: return .applications
+        case .overview, .big, .old, .dup, .folderDrill: return .files
+        default: return .advanced
+        }
+    }
+
     var sidebarGroup: Int {
         switch self {
         case .smart: return 0
@@ -500,37 +511,48 @@ struct ContentView: View {
     @ObservedObject private var grant = HomeGrant.shared
     @ObservedObject private var prefs = Prefs.shared
     @StateObject private var scans = ScanStore()
+    @State private var advancedExpanded = false
     @State private var selection: AppPanel? = SnapshotMode.requestedPanel ?? .smart
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var workspaceTheme: Theme {
+        (selection ?? .smart).workspaceTone.theme(from: theme,
+            scheme: themeManager.forcedScheme ?? theme.scheme ?? colorScheme)
+    }
 
     @ViewBuilder private func inTitlebar<V: View>(@ViewBuilder _ content: () -> V) -> some View {
         content()
             .environmentObject(store)
             .environmentObject(themeManager)
-            .themed(themeManager.effective)
-            .tint(themeManager.effective.palette.tint)
+            .themed(workspaceTheme)
+            .tint(workspaceTheme.palette.tint)
     }
 
     var body: some View {
         NavigationSplitView {
 
             sidebar
-                .navigationSplitViewColumnWidth(min: 216, ideal: 232, max: 232)
+                .navigationSplitViewColumnWidth(min: 232, ideal: 244, max: 248)
         } detail: {
             detail
         }
 
+        .themed(workspaceTheme)
+        .tint(workspaceTheme.palette.tint)
         .toolbar {
-            ToolbarItem(placement: .navigation) { BackButton() }
+            ToolbarItem(placement: .navigation) { inTitlebar { BackButton() } }
             if !prefs.showsFirstRun {
                 ToolbarItem(placement: .navigation) {
 
-                    VolumeChip(showsFree: (selection ?? .overview) != .overview)
-                        .background(ToolbarItemUnbordered())
+                    inTitlebar {
+                        VolumeChip(showsFree: (selection ?? .overview) != .overview)
+                    }
+                    .background(ToolbarItemUnbordered())
                 }
             }
         }
 
+        .toolbarBackground(.hidden, for: .windowToolbar)
         .background(TitlebarAccessory(attribute: .trailing) {
 
             if !prefs.showsFirstRun {
@@ -609,7 +631,7 @@ struct ContentView: View {
         .background(EscapeTap { scans.overview.disarm() })
     }
 
-    private var sidebarTheme: Theme { theme }
+    private var sidebarTheme: Theme { workspaceTheme }
 
     private var sidebar: some View {
         SidebarScrollView {
@@ -629,16 +651,34 @@ struct ContentView: View {
                 sideSection(L("Clean up"), [.caches, .trash])
                 sideSection(L("Applications"), [.uninstall, .orphans])
                 sideSection(L("Files & Storage"), [.overview, .big, .old, .dup])
-                sideSection(L("Advanced tools"), [.devcache, .nodemodules, .docker,
-                                                  .crashDumps, .diagReports, .observation])
-                if !Channel.isAppStore { sideSection("", [.agent]) }
-                sideSection(L("Settings and help"), [.menuLaunch, .appearance, .feedback])
+                DisclosureGroup(isExpanded: $advancedExpanded) {
+                    sideSection("", [.devcache, .nodemodules, .docker,
+                                     .crashDumps, .diagReports, .observation])
+                    if !Channel.isAppStore { sideSection("", [.agent]) }
+                } label: {
+                    Text(L("Advanced tools"))
+                        .font(sidebarTheme.prose(size: 12, weight: .medium))
+                        .foregroundStyle(sidebarTheme.palette.inkSecondary)
+                }
+                .padding(.horizontal, 8).padding(.top, 18)
+                .onChange(of: selection) { target in
+                    if let target, target.workspaceTone == .advanced,
+                       ![AppPanel.menuLaunch, .appearance, .feedback].contains(target) {
+                        advancedExpanded = true
+                    }
+                }
+                .onAppear {
+                    if let selection, selection.workspaceTone == .advanced,
+                       ![AppPanel.menuLaunch, .appearance, .feedback].contains(selection) {
+                        advancedExpanded = true
+                    }
+                }
             }
             .padding(.horizontal, 8)
             .padding(.bottom, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .contain)
-            .themed(theme)
+            .themed(workspaceTheme)
             .environment(\.colorScheme, colorScheme)
         }
         .background(SidebarMaterial().ignoresSafeArea())
@@ -648,7 +688,7 @@ struct ContentView: View {
             ChromeStrip(leading: Chrome.trafficLightInset).background(SidebarMaterial())
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { sidebarFooter }
-        .themed(theme)
+        .themed(workspaceTheme)
     }
 
     private func sideSection(_ title: String, _ panels: [AppPanel]) -> some View {
@@ -680,6 +720,8 @@ struct ContentView: View {
     private var sidebarFooter: some View {
         VStack(spacing: 4) {
             Divider().overlay(sidebarTheme.palette.separator).padding(.horizontal, 12)
+            sideSection("", [.menuLaunch, .appearance, .feedback])
+                .padding(.horizontal, 8)
             Text("\(Product.name) \(versionString)")
                 .font(sidebarTheme.bodyFont(.caption2))
                 .foregroundStyle(sidebarTheme.palette.inkSecondary)
@@ -801,9 +843,11 @@ private struct SidebarRow: View {
         Button(action: tap) {
             HStack(spacing: 10) {
 
-                IconTile(symbol: panel.symbol, side: 22,
-                         fill: theme.groupTileColor(group: panel.sidebarGroup, dark: isDark),
-                         muted: true)
+                Image(systemName: panel.symbol)
+                    .font(.system(size: 18, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? theme.palette.tint : theme.palette.inkSecondary)
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
 
                 Text(panel.title)
                     .font(theme.prose(size: 13, weight: isSelected ? .semibold : .regular))
@@ -830,6 +874,9 @@ private struct SidebarRow: View {
         let shape = theme.controlShape()
         if isSelected {
             shape.fill(theme.palette.tintSoft)
+                .overlay(alignment: .leading) {
+                    Capsule().fill(theme.palette.tint).frame(width: 3, height: 18)
+                }
         } else if hovering {
             shape.fill(theme.palette.surfaceAlt.opacity(0.8))
         }

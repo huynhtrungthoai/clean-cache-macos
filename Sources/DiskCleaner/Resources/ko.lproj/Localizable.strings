@@ -1371,3 +1371,10 @@
 "Quit %@" = "%@ 종료";
 "Shows free disk space, installed RAM, processor cores, macOS and thermal state — no file scan" = "디스크 여유 공간, 설치된 RAM, 프로세서 코어, macOS 및 열 상태 표시 — 파일 스캔 없음";
 "Thermal state is reported by macOS; it is not a temperature in degrees. Quit CleanPilot from its menu bar menu." = "열 상태는 macOS가 보고하며 온도 수치가 아닙니다. 메뉴 막대 메뉴에서 CleanPilot을 종료할 수 있습니다.";
+
+/* V2 workspace */
+"Review Details" = "세부 정보 보기";
+"Search caches" = "캐시 검색";
+"All caches" = "모든 캐시";
+"Filters keep your selection" = "필터를 바꿔도 선택은 유지됩니다";
+"All applications" = "모든 앱";

@@ -111,8 +111,11 @@ struct SimDeviceRows: View {
 struct CachesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @ObservedObject var model: CachesModel
     var page: CachesPage = .app
+    @State private var query = ""
+    @State private var selectedGroup: String?
     @State private var review: TrashReviewPlan?
 
     var body: some View {
@@ -161,37 +164,39 @@ struct CachesView: View {
                     .frame(maxHeight: .infinity)
             } else {
                 if let note = ledgerNote { ListNote(text: note) }
-                List($model.items) { $item in
-                    ItemRow(selected: $item.selected,
-                            icon: rowIcon(item.resolvedPaths, "sparkles"),
-                            appID: item.entry.app,
-                            brand: item.entry.icon,
-                            name: L(item.entry.name),
-                            sub: cacheRowSub(item, showsGroup: page.showsGroupLabel),
-                            sizeText: cacheSize(item),
-                            fraction: Double(item.size ?? 0) / Double(maxSize),
-                            badge: verdictBadge(item.entry.tier),
-                            selectable: (item.size ?? 0) > 0,
-                            lit: cacheLit(item),
-                            showRule: model.items.first?.id != item.id,
-                            preopen: (SnapshotMode.expandFirstRow
-                                && model.items.first?.id == item.id)
-                                || SnapshotMode.expandsRow(L(item.entry.name), item.entry.name)) {
-                        ExplainLine(key: L("What it is"), value: L(item.entry.what))
-                        ExplainLine(key: L("What breaks"), value: L(item.entry.whatif))
-                        ExplainLine(key: L("How to recover"), value: L(item.entry.rec))
-                        if let what = contentsLine(item.files, item.newest) {
-                            ExplainLine(key: L("Contents"), value: what)
-                        }
-                        if let devDir = simulatorDevicesDir(item) {
-                            SimDeviceRows(dir: devDir)
-                        }
-                        ForEach(item.resolvedPaths, id: \.self) { p in
-                            PathLine(path: p.path)
+                GeometryReader { proxy in
+                    HStack(alignment: .top, spacing: 14) {
+                        if proxy.size.width >= 760 { groupPicker.frame(width: 166) }
+                        VStack(spacing: 8) {
+                            if proxy.size.width < 760 {
+                                Picker(L("All caches"), selection: $selectedGroup) {
+                                    Text(L("All caches")).tag(String?.none)
+                                    ForEach(page.groupKeys.sorted(), id: \.self) { key in
+                                        Text(cacheGroupLabel(key)).tag(Optional(key))
+                                    }
+                                }.pickerStyle(.menu).labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            HStack(spacing: 8) {
+                                Image(systemName: "magnifyingglass").accessibilityHidden(true)
+                                TextField(L("Search caches"), text: $query)
+                                    .textFieldStyle(.plain)
+                                    .accessibilityLabel(L("Search caches"))
+                                if !query.isEmpty {
+                                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
+                                        .buttonStyle(.plain).accessibilityLabel(L("Clear search"))
+                                }
+                            }
+                            .font(theme.prose(size: 13))
+                            .foregroundStyle(theme.palette.inkSecondary)
+                            .padding(10)
+                            .background(theme.controlShape().fill(theme.palette.surface))
+                            resultList
                         }
                     }
                 }
-                .ledgerCard()
+                .pagePadding()
+
             }
 
             Spacer(minLength: 0)
@@ -207,6 +212,95 @@ struct CachesView: View {
         .onAppear { model.load() }
         .trashWorkflow(review: $review, currentPlan: { model.trashPlan() },
                        perform: { await model.trash(using: store) })
+    }
+
+    private var groupPicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            groupButton(title: L("All caches"), key: nil)
+            ForEach(page.groupKeys.sorted(), id: \.self) { key in
+                groupButton(title: cacheGroupLabel(key), key: key)
+            }
+            Text(L("Filters keep your selection"))
+                .font(theme.prose(size: 11))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 10).padding(.top, 10)
+        }
+        .padding(8)
+        .background(theme.cardShape().fill(theme.palette.surface.opacity(reduceTransparency ? 1 : 0.65)))
+    }
+
+    private func groupButton(title: String, key: String?) -> some View {
+        let rows = model.items.filter { key == nil || $0.groupKey == key }
+        return Button { selectedGroup = key } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(title).font(theme.prose(size: 12, weight: .medium))
+                    Spacer(minLength: 4)
+                    if selectedGroup == key {
+                        Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+                    }
+                }
+                Text(model.scanning ? L("Counting…") : (rows.allSatisfy { $0.size != nil } ? uiHuman(contentsUnionSize(pathSizes(of: rows))) : L("Unknown")))
+                    .font(theme.prose(size: 16, weight: .semibold)).monospacedDigit()
+            }
+            .foregroundStyle(theme.palette.ink)
+            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            .background(theme.controlShape().fill(selectedGroup == key ? theme.palette.tintSoft : .clear))
+            .contentShape(theme.controlShape())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selectedGroup == key ? .isSelected : [])
+    }
+
+    private func matches(_ item: CacheItem) -> Bool {
+        (selectedGroup == nil || selectedGroup == item.groupKey) &&
+        (query.isEmpty || L(item.entry.name).localizedCaseInsensitiveContains(query) ||
+         item.resolvedPaths.contains { $0.path.localizedCaseInsensitiveContains(query) })
+    }
+
+    private var resultList: some View {
+        List($model.items) { $item in
+            if matches(item) {
+                ItemRow(selected: $item.selected,
+                        icon: rowIcon(item.resolvedPaths, "sparkles"),
+                        appID: item.entry.app,
+                        brand: item.entry.icon,
+                        name: L(item.entry.name),
+                        sub: cacheRowSub(item, showsGroup: page.showsGroupLabel),
+                        sizeText: cacheSize(item),
+                        fraction: Double(item.size ?? 0) / Double(maxSize),
+                        badge: verdictBadge(item.entry.tier),
+                        selectable: (item.size ?? 0) > 0,
+                        lit: cacheLit(item),
+                        showRule: model.items.first?.id != item.id,
+                        preopen: (SnapshotMode.expandFirstRow
+                            && model.items.first?.id == item.id)
+                            || SnapshotMode.expandsRow(L(item.entry.name), item.entry.name)) {
+                    ExplainLine(key: L("What it is"), value: L(item.entry.what))
+                    ExplainLine(key: L("What breaks"), value: L(item.entry.whatif))
+                    ExplainLine(key: L("How to recover"), value: L(item.entry.rec))
+                    if let what = contentsLine(item.files, item.newest) {
+                        ExplainLine(key: L("Contents"), value: what)
+                    }
+                    if let devDir = simulatorDevicesDir(item) {
+                        SimDeviceRows(dir: devDir)
+                    }
+                    ForEach(item.resolvedPaths, id: \.self) { p in
+                        PathLine(path: p.path)
+                    }
+                }
+            }
+        }
+        .ledgerCard(horizontalInset: 0)
+        .overlay {
+            if !model.items.contains(where: matches) {
+                Text(L("No matching items in the scanned scope"))
+                    .font(theme.prose(size: 13))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .padding()
+            }
+        }
     }
 
     private func cacheSize(_ item: CacheItem) -> String {

@@ -74,6 +74,14 @@ struct BigFilesView: View {
             .padding(.top, 10)
             .padding(.bottom, 6)
 
+            HStack {
+                Spacer()
+                Button { store.arrive(NavStop(panel: .old)) } label: {
+                    Label(L("Files not modified recently"), systemImage: "arrow.right")
+                }
+                .buttonStyle(.borderless).font(theme.prose(size: 12))
+            }.pagePadding().padding(.bottom, 6)
+
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.rescan(scope: store.scope) })
 
             if model.scanning && model.rows.isEmpty {
@@ -201,6 +209,14 @@ struct OldFilesView: View {
             .pagePadding()
             .padding(.top, 10)
             .padding(.bottom, 6)
+
+            HStack {
+                Spacer()
+                Button { store.arrive(NavStop(panel: .big)) } label: {
+                    Label(L("Large Files"), systemImage: "arrow.right")
+                }
+                .buttonStyle(.borderless).font(theme.prose(size: 12))
+            }.pagePadding().padding(.bottom, 6)
 
             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt, rescan: { model.scan(scope: store.scope) })
 

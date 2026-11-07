@@ -5,6 +5,7 @@ import DiskCleanerCore
 /// The model lives in ScanStore, so navigating away never discards a running scan.
 struct SmartScanView: View {
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var store: AppStore
     @ObservedObject var model: CachesModel
@@ -51,59 +52,54 @@ struct SmartScanView: View {
 
     private var dashboard: some View {
         GeometryReader { proxy in
+            let compact = proxy.size.height < 600
             VStack(spacing: 0) {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 26) {
+                    VStack(alignment: .leading, spacing: compact ? 16 : 24) {
+                        if !compact {
                         HStack {
                             Text(L("Smart Scan"))
-                                .font(theme.prose(size: 17, weight: .semibold))
+                                .font(theme.prose(size: 15, weight: .semibold))
                             Spacer()
                             Label(L("Everything stays on your Mac"), systemImage: "lock.shield")
                                 .font(theme.prose(size: 11))
                                 .foregroundStyle(theme.palette.inkSecondary)
                         }
-
-                        HStack(spacing: 28) {
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text(L("More room.\nLess clutter."))
-                                    .font(theme.prose(size: 34, weight: .bold))
-                                    .tracking(-1)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text(L("Find caches you can clear in one scan. You decide what goes."))
-                                    .font(theme.prose(size: 14))
-                                    .foregroundStyle(theme.palette.inkSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .lineSpacing(4)
-                                if let usage {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "internaldrive")
-                                        Text(LF("%@ free of %@", uiHuman(usage.free + usage.purgeable), uiHuman(usage.total)))
-                                    }
+                        }
+                        VStack(spacing: 10) {
+                            Text(L("More room.\nLess clutter."))
+                                .font(theme.prose(size: compact ? 26 : 32, weight: .bold))
+                                .tracking(-0.7)
+                                .multilineTextAlignment(.center)
+                            if !compact {
+                            Text(L("Find caches you can clear in one scan. You decide what goes."))
+                                .font(theme.prose(size: 14))
+                                .foregroundStyle(theme.palette.inkSecondary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let usage {
+                                Label(LF("%@ free of %@", uiHuman(usage.free + usage.purgeable), uiHuman(usage.total)),
+                                      systemImage: "internaldrive")
                                     .font(theme.prose(size: 12, weight: .medium))
                                     .foregroundStyle(theme.palette.inkSecondary)
-                                    .padding(.horizontal, 12).padding(.vertical, 8)
-                                    .background(Capsule().fill(theme.palette.surfaceAlt))
-                                }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            scanEmblem
+                            }
                         }
-                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
 
-                        HStack(spacing: 12) {
-                            summaryCard(symbol: "sparkles", title: L("App Caches"),
-                                        detail: L("Temporary files from everyday apps"),
-                                        count: count(groups: ["general", "cn_app"]))
-                            summaryCard(symbol: "shippingbox", title: L("Dev Caches"),
-                                        detail: L("Build tools and download caches"),
-                                        count: count(groups: ["dev"]))
-                            Button { store.arrive(NavStop(panel: .overview)) } label: {
-                                summaryCard(symbol: "internaldrive", title: L("Overview"),
-                                            detail: L("See what takes up your disk"), count: nil,
-                                            navigates: true)
-                            }.buttonStyle(.plain)
+                        HStack(alignment: .top, spacing: 16) {
+                            moduleCard(symbol: "sparkles", title: L("App Caches"),
+                                       detail: L("Temporary files from everyday apps"),
+                                       value: moduleBytes(groups: ["general", "cn_app"]),
+                                       action: ready ? { reviewing = true } : nil, compact: compact)
+                            moduleCard(symbol: "hammer", title: L("Dev Caches"),
+                                       detail: L("Build tools and download caches"),
+                                       value: moduleBytes(groups: ["dev"]),
+                                       action: ready ? { reviewing = true } : nil, compact: compact)
+                            moduleCard(symbol: "internaldrive", title: L("Overview"),
+                                       detail: L("See what takes up your disk"), value: nil,
+                                       action: { store.arrive(NavStop(panel: .overview)) }, compact: compact)
                         }
-
                         status
                         if model.started {
                             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt,
@@ -111,8 +107,8 @@ struct SmartScanView: View {
                         }
                     }
                     .foregroundStyle(theme.palette.ink)
-                    .padding(.horizontal, 32).padding(.vertical, 22)
-                    .frame(maxWidth: .infinity, minHeight: max(0, proxy.size.height - 112), alignment: .center)
+                    .padding(compact ? 16 : 28)
+                    .frame(maxWidth: .infinity, minHeight: max(0, proxy.size.height - 116), alignment: .center)
                 }
                 actionBar
             }
@@ -151,67 +147,39 @@ struct SmartScanView: View {
         if apps.isEmpty { model.load(force: true) } else { runningPrompt = RunningAppsPrompt(apps: apps) }
     }
 
-    private var scanEmblem: some View {
-        ZStack {
-            Circle().fill(theme.palette.tintSoft.opacity(0.65)).frame(width: 214, height: 214)
-            Circle().stroke(theme.palette.tint.opacity(0.10), lineWidth: 1).frame(width: 240, height: 240)
-            Circle().stroke(theme.palette.separator, lineWidth: 6).frame(width: 194, height: 194)
-            Circle()
-                .trim(from: 0, to: model.scanning ? progress : (ready ? 1 : 0.72))
-                .stroke(theme.palette.tint, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .frame(width: 194, height: 194)
-                .animation(reduceMotion ? nil : theme.animation, value: progress)
-            VStack(spacing: 10) {
-                Image(systemName: ready ? "checkmark.seal" : "desktopcomputer")
-                    .font(.system(size: 58, weight: .light))
-                    .foregroundStyle(theme.palette.tint)
-                    .accessibilityHidden(true)
-                Text(model.scanning ? "\(Int(progress * 100))%" : (ready ? L("Scan Complete") : "Mac"))
-                    .font(theme.prose(size: 15, weight: .semibold))
-                    .foregroundStyle(theme.palette.ink)
-            }
-            Image(systemName: "sparkle")
-                .font(.system(size: 25, weight: .medium))
-                .foregroundStyle(theme.palette.tint)
-                .offset(x: 87, y: -78)
-        }
-        .frame(width: 242, height: 242)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(model.scanning ? LF("Checked %1$d of %2$d cache locations", measured, model.items.count)
-                                : (ready ? L("Scan Complete") : L("Ready to scan")))
+    private func moduleBytes(groups: Set<String>) -> String {
+        guard ready else { return "—" }
+        let items = model.items.filter { groups.contains($0.groupKey) }
+        guard items.allSatisfy({ $0.size != nil }) else { return L("Unknown") }
+        return uiHuman(contentsUnionSize(pathSizes(of: items)))
     }
 
-    private func count(groups: Set<String>) -> Int? {
-        ready ? model.items.filter { groups.contains($0.groupKey) && ($0.size ?? 0) > 0 }.count : nil
-    }
-
-    private func summaryCard(symbol: String, title: String, detail: String,
-                             count: Int?, navigates: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: symbol).font(.system(size: 23, weight: .light))
-                    .foregroundStyle(theme.palette.tint)
-                Spacer()
-                if navigates {
-                    Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.palette.inkSecondary)
-                } else if let count {
-                    Text("\(count)").font(theme.numeric(size: 19, weight: .semibold))
-                        .foregroundStyle(theme.palette.ink)
-                }
-            }
-            Text(title).font(theme.prose(size: 13, weight: .semibold))
-                .foregroundStyle(theme.palette.ink)
-            Text(detail).font(theme.prose(size: 11))
+    private func moduleCard(symbol: String, title: String, detail: String,
+                            value: String?, action: (() -> Void)?, compact: Bool) -> some View {
+        VStack(spacing: compact ? 8 : 12) {
+            WorkspaceEmblem(symbol: symbol, size: compact ? 72 : 100)
+            Text(title).font(theme.prose(size: 16, weight: .semibold))
+                .multilineTextAlignment(.center)
+            Text(detail).font(theme.prose(size: 12))
                 .foregroundStyle(theme.palette.inkSecondary)
+                .multilineTextAlignment(.center)
+                .frame(minHeight: 36, alignment: .top)
                 .fixedSize(horizontal: false, vertical: true)
+            if let value {
+                Text(value).font(theme.numeric(size: 27, weight: .light)).monospacedDigit()
+            }
+            if let action {
+                Button(L("Review Details"), action: action)
+                    .buttonStyle(.borderless)
+                    .font(theme.prose(size: 12, weight: .medium))
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Capsule().fill(theme.palette.surfaceAlt))
+            }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: theme.metric.radiusCard).fill(theme.palette.surface))
-        .overlay(RoundedRectangle(cornerRadius: theme.metric.radiusCard).stroke(theme.palette.separator, lineWidth: 1))
-        .contentShape(RoundedRectangle(cornerRadius: theme.metric.radiusCard))
+        .padding(.vertical, compact ? 12 : 20).padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: compact ? 220 : 280, alignment: .top)
+        .background(theme.cardShape().fill(theme.palette.surface.opacity(reduceTransparency ? 1 : 0.65)))
+        .overlay(theme.cardShape().stroke(theme.palette.separator.opacity(0.5), lineWidth: 1))
     }
 
     @ViewBuilder private var status: some View {
@@ -303,7 +271,7 @@ struct SmartScanView: View {
         }
         .padding(.top, 16).padding(.bottom, 20)
         .frame(maxWidth: .infinity)
-        .background(theme.palette.surface.opacity(0.7))
+        .background(theme.palette.surface.opacity(reduceTransparency ? 1 : 0.7))
         .overlay(alignment: .top) { Rectangle().fill(theme.palette.separator).frame(height: 1) }
     }
 }

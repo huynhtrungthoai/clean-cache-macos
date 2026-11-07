@@ -652,10 +652,11 @@ extension View {
     /// 上一版每行一张卡，27 行就是 27 个盒子；样稿把这一页画成**一块表**，
     /// 行与行之间只有一道 1px 分段线（线在 `ItemRow` 自己头上画）。
     /// 卡片只留一层投影、12 磅圆角，压在页头和底部清理条之间。
-    func ledgerCard() -> some View { modifier(LedgerCardChrome()) }
+    func ledgerCard(horizontalInset: CGFloat = 20) -> some View { modifier(LedgerCardChrome(horizontalInset: horizontalInset)) }
 }
 
 private struct LedgerCardChrome: ViewModifier {
+    var horizontalInset: CGFloat = 20
     @Environment(\.theme) private var theme
 
     func body(content: Content) -> some View {
@@ -666,7 +667,7 @@ private struct LedgerCardChrome: ViewModifier {
             .clipShape(shape)
             .overlay(shape.stroke(theme.palette.separator, lineWidth: theme.metric.stroke))
             .shadow(color: theme.palette.shadow, radius: 3, x: 0, y: 1)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, horizontalInset)
     }
 }
 

@@ -1371,3 +1371,10 @@
 "Quit %@" = "Выйти из %@";
 "Shows free disk space, installed RAM, processor cores, macOS and thermal state — no file scan" = "Показывает свободное место, установленную ОЗУ, ядра, macOS и тепловое состояние — без сканирования файлов";
 "Thermal state is reported by macOS; it is not a temperature in degrees. Quit CleanPilot from its menu bar menu." = "Тепловое состояние сообщает macOS; это не температура в градусах. Выйти из CleanPilot можно через меню в строке меню.";
+
+/* V2 workspace */
+"Review Details" = "Посмотреть подробности";
+"Search caches" = "Поиск кэша";
+"All caches" = "Весь кэш";
+"Filters keep your selection" = "Фильтры сохраняют выбор";
+"All applications" = "Все приложения";

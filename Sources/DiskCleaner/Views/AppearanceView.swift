@@ -255,7 +255,7 @@ private struct SkinThumb: View {
 
     var body: some View {
         ThumbBody()
-            .environment(\.theme, skin)
+            .environment(\.theme, WorkspaceTone.smart.theme(from: skin, scheme: skin.scheme ?? .light))
             .environment(\.colorScheme, skin.scheme ?? .light)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
