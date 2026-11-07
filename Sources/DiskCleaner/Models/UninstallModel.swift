@@ -84,12 +84,48 @@ final class UninstallModel: ObservableObject, ScanStatusReporting {
             self.scanning = false
             self.scanState = .completed
             self.scannedAt = Date()
+            self.loadMetadata(for: self.apps)
+        }
+    }
+
+    // MARK: - V2-APPS metadata (docs/enhance-feat.md §11)
+
+    /// Facts per app id (version, publisher, install source, last used), filled in the background
+    /// after a scan. Missing key = not read yet; nil fields = no source has the fact.
+    @Published private(set) var metadata: [String: AppMetadata] = [:]
+    @Published private(set) var loadingMetadata = false
+    private var metaTask: Task<Void, Never>? = nil
+
+    func metadata(of app: InstalledApp) -> AppMetadata? { metadata[app.id] }
+
+    /// Apps of one install source (filter chips). Apps whose metadata is not read yet are left
+    /// out of every source filter except nil (= all).
+    func apps(source: AppInstallSource?) -> [InstalledApp] {
+        guard let source else { return shown }
+        return shown.filter { metadata[$0.id]?.source == source }
+    }
+
+    private func loadMetadata(for list: [InstalledApp]) {
+        metaTask?.cancel()
+        metadata = [:]
+        loadingMetadata = true
+        metaTask = Task {
+            for chunk in stride(from: 0, to: list.count, by: 8).map({ Array(list[$0..<min($0 + 8, list.count)]) }) {
+                if Task.isCancelled { return }
+                let got = await Task.detached(priority: .utility) {
+                    chunk.map { ($0.id, appMetadata(at: $0.path.resolvingSymlinksInPath())) }
+                }.value
+                for (id, m) in got { self.metadata[id] = m }
+            }
+            self.loadingMetadata = false
         }
     }
 
     func stop() {
         scanTask?.cancel()
         planTask?.cancel()
+        metaTask?.cancel()
+        loadingMetadata = false
         if scanning { scanState = .stopped; scannedAt = Date() }
         scanning = false
         planning = false

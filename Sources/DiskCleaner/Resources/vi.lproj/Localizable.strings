@@ -1404,3 +1404,7 @@
 "Build data" = "Dữ liệu build";
 "Environments & installed components" = "Môi trường & thành phần cài đặt";
 "Records to keep or review" = "Dữ liệu cần giữ hoặc xem lại";
+"Apple" = "Apple";
+"Identified developer" = "Nhà phát triển đã xác minh";
+"Ad-hoc signed" = "Ký ad-hoc";
+"Not signed" = "Chưa ký";

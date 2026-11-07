@@ -1404,3 +1404,7 @@
 "Build data" = "빌드 데이터";
 "Environments & installed components" = "환경 및 설치된 구성 요소";
 "Records to keep or review" = "보관하거나 검토할 기록";
+"Apple" = "Apple";
+"Identified developer" = "확인된 개발자";
+"Ad-hoc signed" = "애드혹 서명";
+"Not signed" = "서명되지 않음";

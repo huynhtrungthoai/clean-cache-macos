@@ -2836,5 +2836,27 @@ do {
     try? fm.removeItem(atPath: r)
 }
 
+// V2-APPS: publisher / install source from signing facts (pure) + one real system app.
+do {
+    check(signingPublisher(fromLeafSummary: "Developer ID Application: Google LLC (EQHXZ8M8AV)") == "Google LLC"
+          && signingPublisher(fromLeafSummary: "Developer ID Application: A (B) Co (TEAM123456)") == "A (B) Co"
+          && signingPublisher(fromLeafSummary: "Software Signing") == nil,
+          "V2-APPS: publisher is the certificate's organisation, nothing guessed")
+    check(appInstallSource(anchor: nil, hasReceipt: true) == .appStore
+          && appInstallSource(anchor: .macAppStore, hasReceipt: false) == .appStore
+          && appInstallSource(anchor: .apple, hasReceipt: false) == .apple
+          && appInstallSource(anchor: .developerID, hasReceipt: false) == .identifiedDeveloper
+          && appInstallSource(anchor: .adHoc, hasReceipt: false) == .adHoc
+          && appInstallSource(anchor: .unsigned, hasReceipt: false) == .unsigned
+          && appInstallSource(anchor: .otherCertificate, hasReceipt: false) == .unknown,
+          "V2-APPS: install source from receipt and signing authority")
+    let calc = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+    if FileManager.default.fileExists(atPath: calc.path) {
+        let m = appMetadata(at: calc)
+        check(m.version != nil && m.source == .apple && m.publisher == "Apple" && m.signatureValid == true,
+              "V2-APPS: a system app reads as Apple-signed with a version (\(m.source), \(m.version ?? "nil"))")
+    }
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

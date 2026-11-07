@@ -1404,3 +1404,7 @@
 "Build data" = "Данные сборки";
 "Environments & installed components" = "Среды и установленные компоненты";
 "Records to keep or review" = "Записи, которые стоит сохранить или проверить";
+"Apple" = "Apple";
+"Identified developer" = "Подтверждённый разработчик";
+"Ad-hoc signed" = "Подпись ad-hoc";
+"Not signed" = "Без подписи";

@@ -1404,3 +1404,7 @@
 "Build data" = "Build data";
 "Environments & installed components" = "Environments & installed components";
 "Records to keep or review" = "Records to keep or review";
+"Apple" = "Apple";
+"Identified developer" = "Identified developer";
+"Ad-hoc signed" = "Ad-hoc signed";
+"Not signed" = "Not signed";
