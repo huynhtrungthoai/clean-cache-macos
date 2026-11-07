@@ -47,6 +47,36 @@ final class TrashModel: ObservableObject {
 
     func openInFinder() { openTrashInFinder() }
 
+    // MARK: - V2-TRASH inventory (docs/enhance-feat.md §11)
+
+    /// Trash folders per volume with their entries; nil = not listed yet. Read-only.
+    @Published private(set) var volumes: [TrashVolume]? = nil
+    @Published private(set) var listing = false
+    private var listTask: Task<Void, Never>? = nil
+
+    /// Lists every Trash folder. `batches` (store.batches) only adds original paths of items this
+    /// app moved; it is never used as the list itself.
+    func loadInventory(batches: [TrashBatch] = []) {
+        listTask?.cancel()
+        listing = true
+        listTask = Task {
+            let v = await trashInventory(batches: batches)
+            guard !Task.isCancelled else { return }
+            self.volumes = v
+            self.listing = false
+        }
+    }
+
+    func cancelInventory() {
+        listTask?.cancel()
+        listing = false
+    }
+
+    /// Reveals one Trash entry in Finder (selection only; nothing is moved or deleted).
+    func reveal(_ entry: TrashEntry) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: entry.id)])
+    }
+
     /// Permanently empties the WHOLE Trash through Finder. Call only after an explicit
     /// confirmation in the view ("cannot be undone"). Clears the batch history's undo ability
     /// implicitly: restores will report `goneFromTrash`.
@@ -62,6 +92,7 @@ final class TrashModel: ObservableObject {
             lastError = nil
             emptyOutcome = .emptied
             refresh()
+            if volumes != nil { loadInventory() }
             return true
         } catch let e as TrashError {
             if case .finderCanceled = e { lastError = nil; return false }   // the user said no in Finder

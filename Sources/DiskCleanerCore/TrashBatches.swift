@@ -136,6 +136,11 @@ public struct TrashBatch: Codable, Sendable, Identifiable {
     public var entries: [TrashBatchEntry]
     public var undoneAt: Date?
 
+    public init(id: UUID, createdAt: Date, source: String, entries: [TrashBatchEntry], undoneAt: Date?) {
+        self.id = id; self.createdAt = createdAt; self.source = source
+        self.entries = entries; self.undoneAt = undoneAt
+    }
+
     public var moved: [TrashBatchEntry] {
         entries.filter { if case .moved = $0.outcome { return true }; return false }
     }

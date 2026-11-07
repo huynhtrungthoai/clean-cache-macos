@@ -2796,5 +2796,45 @@ do {
           "V2-DEV: per-kind tri-state")
 }
 
+// V2-TRASH: per-volume Trash listing in a temp tree (the real Trash is never read here).
+do {
+    let fm = FileManager.default
+    let r = NSTemporaryDirectory() + "v2trash-\(UUID().uuidString)"
+    let trash = r + "/vol/.Trashes/501"
+    try? fm.createDirectory(atPath: trash + "/Folder", withIntermediateDirectories: true)
+    fm.createFile(atPath: trash + "/a.txt", contents: Data(count: 5000))
+    fm.createFile(atPath: trash + "/Folder/b.bin", contents: Data(count: 9000))
+    fm.createFile(atPath: trash + "/.DS_Store", contents: Data(count: 10))
+    var st = stat(); lstat(trash + "/a.txt", &st)
+    let originals: [String: (original: String, ino: UInt64)] = [
+        trash + "/a.txt": ("/Users/x/a.txt", UInt64(st.st_ino)),
+        trash + "/Folder": ("/Users/x/Folder", 1)]          // wrong inode → not trusted
+    let sem = DispatchSemaphore(value: 0)
+    var vol: TrashVolume? = nil, missing: TrashVolume? = nil
+    Task.detached {
+        vol = await listTrash(volume: r + "/vol", trash: trash, volumeName: "Vol", originals: originals)
+        missing = await listTrash(volume: r + "/none", trash: r + "/none/.Trashes/501", volumeName: "None")
+        sem.signal()
+    }
+    sem.wait()
+    check(vol?.state == .readable && vol?.entries.map(\.name) == ["Folder", "a.txt"],
+          "V2-TRASH: entries listed largest first, .DS_Store hidden (\(vol?.entries.map(\.name) ?? []))")
+    check(vol?.entries.first { $0.name == "a.txt" }?.originalPath == "/Users/x/a.txt"
+          && vol?.entries.first { $0.name == "Folder" }?.originalPath == nil,
+          "V2-TRASH: original path only from history with the same inode")
+    check((vol?.bytes ?? 0) >= 14000 && vol?.entries.first { $0.name == "Folder" }?.isDirectory == true,
+          "V2-TRASH: folder sizes measured, volume total adds up")
+    check(missing?.state == .missing && missing?.bytes == nil, "V2-TRASH: no Trash folder is 'missing', not empty")
+    let b = TrashBatch(id: UUID(), createdAt: Date(), source: "t", entries: [
+        TrashBatchEntry(item: TrashPlanItem(url: URL(fileURLWithPath: "/o/1"), bytes: 1),
+                        outcome: .moved(inTrash: "/t/1", dev: 1, ino: 7)),
+        TrashBatchEntry(item: TrashPlanItem(url: URL(fileURLWithPath: "/o/2"), bytes: 1),
+                        outcome: .moved(inTrash: "/t/2", dev: 1, ino: 8), restore: .restored(at: "/o/2"))],
+        undoneAt: nil)
+    let m = trashOriginals(from: [b])
+    check(m.count == 1 && m["/t/1"]?.original == "/o/1", "V2-TRASH: restored items are not mapped")
+    try? fm.removeItem(atPath: r)
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)
