@@ -113,8 +113,11 @@ final class ScanStore: ObservableObject {
     let diagnostics = DiagnosticsHub()
     /// Trash page (C1 Request): measuring, open in Finder, empty after confirmation.
     let trash = TrashModel()
+    /// V2-DEV: Dev Cleanup center over `devcache` + `nodemodules` (no scan or selection of its own).
+    let dev: DevCleanupModel
 
     init() {
+        dev = DevCleanupModel(caches: devcache, nodeModules: nodemodules)
         // 总览那个「还能腾出多少」要报真数，而真数的来源是缓存知识库量出来的那些处。
         // 两个模型都由这里持有，所以接线放在这一层，不让 OverviewModel 去摸 store。
         overview.bind(caches: [caches, devcache])

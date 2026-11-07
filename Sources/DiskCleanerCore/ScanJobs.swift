@@ -488,6 +488,12 @@ public struct NMProject: Identifiable, Sendable {
     /// 这份依赖是谁装的（`npm` / `pnpm` / `yarn` / `bun`）。认不出来就是 nil，界面挂通用图。
     public var manager: String?
     public var selected = false
+
+    public init(project: String, size: Int64, nmCount: Int, date: String, partial: Bool,
+                manager: String? = nil, selected: Bool = false) {
+        self.project = project; self.size = size; self.nmCount = nmCount; self.date = date
+        self.partial = partial; self.manager = manager; self.selected = selected
+    }
 }
 
 /// 这一份 `node_modules` 是谁装出来的。先认目录里的内部标记，认不出才看项目根的锁文件。

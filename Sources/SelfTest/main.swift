@@ -2684,5 +2684,117 @@ do {
           "C7: drill level → entries by path + one unlisted tile")
 }
 
+// V2-CLEANUP: semantic cache groups, eligibility, tri-state group toggle. Pure, no files touched.
+do {
+    let home = "/tmp/v2c-home"
+    func entry(_ n: String, level: String = "safe", cost: String? = nil, grp: String? = nil) -> SafetyEntry {
+        SafetyEntry(name: n, what: "", whatif: "", rec: "", path: "", level: level, cost: cost, grp: grp,
+                    docs: nil, app: nil, tags: nil, icon: nil)
+    }
+    func item(_ e: SafetyEntry, _ paths: [String: Int64]?, unreadable: Bool = false) -> CacheItem {
+        let keys = (paths ?? [:]).keys.sorted()
+        var it = CacheItem(entry: e, resolvedPaths: keys.map { URL(fileURLWithPath: $0) })
+        if let paths { it.pathSizes = paths; it.size = paths.values.reduce(0, +) }
+        if unreadable { it.unreadablePaths = [keys.first ?? ""] }
+        return it
+    }
+    let lib = home + "/Library"
+    let chrome = item(entry("chrome"), [lib + "/Caches/Google/Chrome": 300])
+    let chromeKid = item(entry("chrome kid"), [lib + "/Caches/Google/Chrome/Default": 100])
+    let box = item(entry("box"), [lib + "/Containers/com.x/Data/Library/Caches": 50])
+    let logs = item(entry("logs"), [lib + "/Logs/Foo": 20])
+    let npm = item(entry("npm", grp: "dev"), [home + "/.npm": 900])
+    let other = item(entry("other", level: "warn", cost: "redo"), [lib + "/Application Support/X/Cache": 70])
+    var measuring = CacheItem(entry: entry("m"), resolvedPaths: [URL(fileURLWithPath: lib + "/Caches/M")])
+    measuring.size = nil
+    let locked = item(entry("locked"), [lib + "/Caches/Locked": 0], unreadable: true)
+    let all = [chrome, chromeKid, box, logs, npm, other, measuring, locked]
+    check(all.map { cleanupGroupID(for: $0, home: home) } ==
+          [.appCaches, .appCaches, .containerCaches, .logs, .developer, .otherAppData, .appCaches, .appCaches],
+          "V2-CLEANUP: rows land in their semantic group by grp and path")
+    let ok: (URL) -> Bool = { _ in true }
+    check(cleanupEligibility(other, bulkSelectable: ok) == .needsReview(.redo)
+          && cleanupEligibility(measuring, bulkSelectable: ok) == .measuring
+          && cleanupEligibility(locked, bulkSelectable: ok) == .unmeasurable
+          && cleanupEligibility(chrome, bulkSelectable: { _ in false }) == .notBulkSelectable
+          && cleanupEligibility(chrome, bulkSelectable: ok) == .eligible,
+          "V2-CLEANUP: eligibility separates measuring / unmeasurable / review / bulk")
+    var sums = cleanupGroupSummaries(all, home: home, bulkSelectable: ok)
+    check(sums.map(\.id) == [.appCaches, .containerCaches, .logs, .developer, .otherAppData],
+          "V2-CLEANUP: only groups with rows, stable order")
+    let apps = sums[0]
+    check(apps.count == 4 && apps.measuredBytes == nil && apps.knownBytes == 300 && apps.unmeasurableCount == 1,
+          "V2-CLEANUP: measuring row makes the total unknown; nested child counted once (\(apps.knownBytes))")
+    check(sums[1].measuredBytes == 50 && sums[1].selection == .none, "V2-CLEANUP: a measured group has a real total")
+    var rows = all
+    let on = cleanupGroupToggle(rows, group: .appCaches, home: home, bulkSelectable: ok)
+    check(on.on && on.indices == [0, 1], "V2-CLEANUP: group toggle turns on only eligible rows")
+    for i in on.indices { rows[i].selected = true }
+    sums = cleanupGroupSummaries(rows, home: home, bulkSelectable: ok)
+    check(sums[0].selection == .all && sums[0].selectedBytes == 300 && sums[0].selectedCount == 2,
+          "V2-CLEANUP: all eligible selected → .all; selected bytes without double counting")
+    rows[5].selected = true
+    sums = cleanupGroupSummaries(rows, home: home, bulkSelectable: ok)
+    check(sums.last?.selection == .some, "V2-CLEANUP: a hand-picked review row shows as .some (no eligible rows)")
+    let off = cleanupGroupToggle(rows, group: .otherAppData, home: home, bulkSelectable: ok)
+    check(off.on && off.indices.isEmpty, "V2-CLEANUP: group with no eligible rows never selects anything")
+    rows[1].selected = false
+    check(cleanupGroupSummaries(rows, home: home, bulkSelectable: ok)[0].selection == .some,
+          "V2-CLEANUP: partly selected group is .some")
+    let clear = cleanupGroupToggle(rows.map { var r = $0; r.selected = [0, 1].contains(rows.firstIndex { $0.id == r.id }!) ; return r },
+                                   group: .appCaches, home: home, bulkSelectable: ok)
+    check(!clear.on && clear.indices == [0, 1], "V2-CLEANUP: clicking a full group clears it")
+}
+
+// V2-DEV: Dev Cleanup inventory over dev caches + node_modules. Pure, no files touched.
+do {
+    func entry(_ n: String, _ path: String, level: String = "safe", cost: String? = nil, tags: [String]? = nil) -> SafetyEntry {
+        SafetyEntry(name: n, what: "", whatif: "", rec: "", path: path, level: level, cost: cost, grp: "dev",
+                    docs: nil, app: nil, tags: tags, icon: nil)
+    }
+    check(devEcosystem(of: entry("npm", "~/.npm")) == .javascript
+          && devEcosystem(of: entry("dd", "~/Library/Developer/Xcode/DerivedData")) == .apple
+          && devEcosystem(of: entry("hf", "~/.cache/huggingface", tags: ["ai_models"])) == .ai
+          && devEcosystem(of: entry("gradle", "~/.gradle/caches")) == .jvm
+          && devEcosystem(of: entry("cargo", "~/.cargo/registry")) == .rust,
+          "V2-DEV: ecosystem from tags and path pattern")
+    check(devKind(of: entry("dd", "~/Library/Developer/Xcode/DerivedData")) == .buildOutput
+          && devKind(of: entry("sdk", "~/Library/Android/sdk", level: "warn", cost: "redo")) == .environment
+          && devKind(of: entry("sims", "~/Library/Developer/CoreSimulator/Devices", level: "warn", cost: "data")) == .environment
+          && devKind(of: entry("arch", "~/Library/Developer/Xcode/Archives", level: "warn", cost: "data")) == .records
+          && devKind(of: entry("ollama", "~/.ollama/models", level: "warn", cost: "redo", tags: ["ai_models"])) == .environment
+          && devKind(of: entry("npm", "~/.npm")) == .toolCache,
+          "V2-DEV: kind keeps records and environments apart from caches")
+    let r = "/tmp/v2dev"
+    var npm = CacheItem(entry: entry("npm", "~/.npm"), resolvedPaths: [URL(fileURLWithPath: r + "/.npm")])
+    npm.pathSizes = [r + "/.npm": 500]; npm.size = 500
+    var arch = CacheItem(entry: entry("arch", "~/Library/Developer/Xcode/Archives", level: "warn", cost: "data"),
+                         resolvedPaths: [URL(fileURLWithPath: r + "/Archives")])
+    arch.pathSizes = [r + "/Archives": 300]; arch.size = 300
+    let appCache = CacheItem(entry: SafetyEntry(name: "app", what: "", whatif: "", rec: "", path: "~/x", level: "safe",
+                                                cost: nil, grp: "general", docs: nil, app: nil, tags: nil, icon: nil))
+    let proj = NMProject(project: r + "/web", size: 200, nmCount: 1, date: "", partial: false, manager: "pnpm")
+    let inner = NMProject(project: r + "/.npm/_npx/abc", size: 40, nmCount: 1, date: "", partial: false)
+    let inv = devInventory(caches: [npm, arch, appCache], projects: [proj, inner], bulkSelectable: { _ in true })
+    check(inv.map(\.id) == ["kb:~/.npm", "kb:~/Library/Developer/Xcode/Archives", "nm:" + r + "/web", "nm:" + r + "/.npm/_npx/abc"],
+          "V2-DEV: dev rows + one row per project, non-dev caches left out (\(inv.map(\.id)))")
+    check(inv[2].kind == .dependency && inv[2].tool == "pnpm" && inv[2].reinstallHint == "pnpm install"
+          && inv[2].evidence == .nodeModules(manager: "pnpm") && inv[2].inUse == nil,
+          "V2-DEV: node_modules carries manager evidence and a text-only reinstall hint")
+    check(inv[3].reinstallHint == nil && inv[3].nestedInOtherRow, "V2-DEV: unknown manager → no hint; nested row flagged")
+    check(inv[1].eligibility == .needsReview(.risky), "V2-DEV: records are never bulk-eligible")
+    let t = devInventoryTotals(inv)
+    check(t.measuredBytes == 1000 && t.projectCount == 2 && t.toolCount == 2,
+          "V2-DEV: totals skip the nested row (500 + 300 + 200 = \(t.knownBytes))")
+    let on = devKindToggle(inv, kind: nil)
+    check(on.on && Set(on.ids) == ["kb:~/.npm", "nm:" + r + "/web", "nm:" + r + "/.npm/_npx/abc"],
+          "V2-DEV: select-all takes eligible rows only")
+    let sel = devInventory(caches: [{ var c = npm; c.selected = true; return c }(), arch],
+                           projects: [proj, { var p = inner; p.selected = true; return p }()], bulkSelectable: { _ in true })
+    check(devInventoryTotals(sel).selectedBytes == 500, "V2-DEV: nested selection inside a selected row is not counted twice")
+    check(devKindSelection(sel, kind: .dependency) == .some && devKindSelection(sel, kind: .records) == .none,
+          "V2-DEV: per-kind tri-state")
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

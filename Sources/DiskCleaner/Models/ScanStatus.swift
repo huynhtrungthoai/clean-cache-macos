@@ -68,3 +68,36 @@ func walkIssues(_ r: WalkResult) -> [ScanIssue] {
     permissionIssues(r.needFullDiskAccess + r.needAdmin)
         + Array(Set(r.missingRoots)).sorted().map { ScanIssue(root: $0, kind: .notFound) }
 }
+
+// ── V2-SCAN: per-module status of a Smart Scan (docs/enhance-feat.md §11, plan-v2.md §7) ──
+//
+// Scope stays what the Smart Scan already measures (owner decision pending on a wider default,
+// plan-v2.md §8.1): app caches and developer caches, from one `CachesModel` scan. A module that
+// could not read something is `partial` / `permissionDenied`, never "all clear".
+
+enum SmartScanModuleID: String, CaseIterable {
+    case appCaches = "app_caches"
+    case developerCaches = "developer_caches"
+
+    /// English source text; the UI shows `L(titleKey)`.
+    var titleKey: String {
+        switch self {
+        case .appCaches: return "App caches"
+        case .developerCaches: return "Developer caches"
+        }
+    }
+}
+
+enum SmartScanModuleState: Equatable {
+    case idle, queued, running, completed, cancelled, partial, permissionDenied, failed
+}
+
+struct SmartScanModule: Identifiable, Equatable {
+    let id: SmartScanModuleID
+    let state: SmartScanModuleState
+    let itemCount: Int
+    /// Measured bytes, nested paths counted once. Meaningful only when `state` is `completed`,
+    /// `partial` or `cancelled` (then a lower bound); show "—" while idle/running.
+    let bytes: Int64
+    let issues: [ScanIssue]
+}

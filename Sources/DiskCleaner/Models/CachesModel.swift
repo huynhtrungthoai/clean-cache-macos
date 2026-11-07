@@ -19,6 +19,7 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
     /// 现场读数：这一页慢在逐个缓存目录量体积，27 条能走一两分钟。
     private(set) var progress = ScanProgress()
     private var task: Task<Void, Never>? = nil
+    @Published private(set) var sessionStart: Date? = nil
 
     var selected: [CacheItem] { items.filter { $0.selected && $0.size != nil } }
 
@@ -62,6 +63,7 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
         completed = false
         scanning = true
         scanState = .scanning
+        sessionStart = Date()
         issues = []
         progress = ScanProgress()
         task = Task {
@@ -169,6 +171,71 @@ final class CachesModel: ObservableObject, ScanStatusReporting {
         guard let batch = await store.runTrash(trashPlan(), source: "caches") else { return nil }
         apply(batch)
         return batch
+    }
+
+    // MARK: - V2-CLEANUP semantic groups (docs/enhance-feat.md §11, plan-v2.md §7)
+
+    /// Left-column groups with real counts/bytes; only groups that have rows.
+    func groupSummaries() -> [CleanupGroupSummary] { cleanupGroupSummaries(items) }
+
+    /// The semantic group of one row.
+    func cleanupGroup(of id: UUID) -> CleanupGroupID? {
+        items.first { $0.id == id }.map { cleanupGroupID(for: $0) }
+    }
+
+    /// Rows of one group (nil = all rows), in the model's order. Filtering never changes selection.
+    func rows(in group: CleanupGroupID?) -> [CacheItem] {
+        guard let group else { return items }
+        return items.filter { cleanupGroupID(for: $0) == group }
+    }
+
+    /// Why a row is (not) part of a group/bulk selection.
+    func eligibility(_ id: UUID) -> CleanupEligibility {
+        items.first { $0.id == id }.map { cleanupEligibility($0) } ?? .measuring
+    }
+
+    /// Group checkbox click: turns on only eligible rows; when all eligible rows are on, clears the group.
+    func toggleGroup(_ group: CleanupGroupID) {
+        let t = cleanupGroupToggle(items, group: group)
+        for i in t.indices where i < items.count { items[i].selected = t.on }
+    }
+
+    // MARK: - V2-SCAN modules of a Smart Scan (docs/enhance-feat.md §11)
+
+    /// When the current/last scan started; nil before the first scan.
+    var sessionStartedAt: Date? { sessionStart }
+
+    /// One status per module this model scans (app caches / developer caches), for the
+    /// three-column Smart Scan. Both modules come from the same scan, so they share its lifecycle.
+    func scanModules() -> [SmartScanModule] {
+        var mods: [SmartScanModule] = []
+        let appRows = items.filter { $0.groupKey != "dev" }
+        let devRows = items.filter { $0.groupKey == "dev" }
+        if groupKeys.contains("general") || groupKeys.contains("cn_app") {
+            mods.append(smartScanModule(.appCaches, rows: appRows))
+        }
+        if groupKeys.contains("dev") { mods.append(smartScanModule(.developerCaches, rows: devRows)) }
+        return mods
+    }
+
+    private func smartScanModule(_ id: SmartScanModuleID, rows: [CacheItem]) -> SmartScanModule {
+        let unreadable = rows.flatMap(\.unreadablePaths)
+        let state: SmartScanModuleState
+        switch scanState {
+        case .idle: state = .idle
+        case .scanning: state = .running
+        case .stopped: state = .cancelled
+        case .completed:
+            if !unreadable.isEmpty {
+                state = rows.allSatisfy({ cacheRowState($0) == .unmeasurable }) ? .permissionDenied : .partial
+            } else {
+                state = .completed
+            }
+        }
+        let measured = rows.filter { if case .measured = cacheRowState($0) { return true }; return false }
+        return SmartScanModule(id: id, state: state, itemCount: rows.count,
+                               bytes: contentsUnionSize(pathSizes(of: measured)),
+                               issues: permissionIssues(unreadable))
     }
 
     // MARK: - C8 Smart Scan one-click clean (docs/enhance-feat.md §11)

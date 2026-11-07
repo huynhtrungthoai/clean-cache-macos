@@ -28,7 +28,7 @@ import Darwin
 // 而它显然不是「可以删」的。界面上明说「不认识」比默认说「安全」诚实。
 
 /// 一个路径落在知识库里的四档之一。
-public enum VerdictTier: String {
+public enum VerdictTier: String, Sendable {
     /// 知识库认得它，而且有可靠的再生成路径。界面上写「删了没影响」。
     case safe
     /// 知识库认得它，删了要把东西重新下回来——几十 G 流量、重建一次环境那种。界面上写「删了要重新下载」。
