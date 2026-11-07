@@ -523,18 +523,25 @@ model.eligibility(row.id)      // .eligible | .measuring | .unmeasurable | .empt
 model.cleanupGroup(of: row.id)
 ```
 
-**V2-SCAN — trạng thái theo module (phạm vi hiện tại, chờ owner chốt §8.1)** (`scans.smart`):
+**V2-SCAN — phiên Smart Scan đa module** (owner chốt 07/11/2026: quét thêm module; `scans.session: SmartScanSession`):
 
 ```swift
-model.scanModules() -> [SmartScanModule]   // .appCaches, .developerCaches (id.titleKey)
-// m.state: .idle | .running | .completed | .cancelled | .partial | .permissionDenied  (queued/failed dự phòng)
-// m.itemCount, m.bytes (chỉ có nghĩa khi completed/partial/cancelled; idle/running hiện "—"), m.issues
-model.sessionStartedAt         // Date? lần quét hiện tại/gần nhất
+session.start()        // gọi thay cho smart.load(force: true), sau RunningAppsSheet (C9)
+session.cancel(); session.isRunning; session.sessionID; session.startedAt; session.finishedAt; session.cancelled
+session.modules -> [SmartScanSession.Module]
+// id: .appCaches .developerCaches .trash .leftovers .largeFiles .devProjects   (id.titleKey)
+// state: .idle | .queued | .running | .completed | .partial | .cancelled | .permissionDenied
+// itemCount: Int?, bytes: Int64?  — nil = chưa biết (hiện "—", không hiện 0); largeFiles = các file lớn nhất đã liệt kê
+// issues: [ScanIssue]
+session.foundBytes     // tổng tìm thấy, mỗi path một lần (cận dưới khi đang chạy)
+session.suggestedBytes // = smart.smartCleanPlan()?.bytes — Dọn nhanh vẫn là C8, KHÔNG đổi phạm vi tự chọn
+session.isComplete     // xong, không dừng, không module nào thiếu quyền
 ```
 
-Hai module chung một lượt quét (không quét trùng). "Tổng quan dung lượng" vẫn chỉ là liên kết, không phải module.
+- Cache chạy trước; Thùng rác → Dữ liệu còn sót → File lớn → Dự án lập trình chạy lần lượt (`.queued` khi chờ). Model đang quét sẵn thì nhận lại, không quét lại. Kết quả nằm trong các model trang tương ứng (`scans.trash/orphans/big/nodemodules/devArtifacts`), nút "Xem" của mỗi module mở trang đó.
+- `smart.scanModules()` (hai module cache) vẫn còn, `session.modules` dùng lại nó.
 
-**V2-DEV — trung tâm Dọn dẹp cho lập trình viên** (`DevInventory.swift`, `scans.dev: DevCleanupModel`):
+**V2-DEV — trung tâm Dọn dẹp cho lập trình viên** (`DevInventory.swift`, `DevArtifacts.swift`, `scans.dev: DevCleanupModel`):
 
 ```swift
 dev.items / dev.rows(kind:ecosystem:query:)   // [DevInventoryItem], lớn → nhỏ; lọc giữ selection
@@ -542,13 +549,15 @@ dev.kinds        // [DevDataKind] có dữ liệu: .dependency | .toolCache | .b
 dev.ecosystems   // [DevEcosystem]: javascript, apple, python, jvm, go, rust, homebrew, containers, ai, other
 dev.totals       // measuredBytes: Int64? (nil = đang đo), knownBytes, selectedBytes, selectedCount, projectCount, toolCount
 dev.selection(of: kind?) -> GroupSelection ; dev.toggle(kind: kind?) ; dev.setSelected(item.id, Bool)
-dev.scan() / dev.stop() / dev.scanState / dev.scannedAt / dev.issues   // ScanStatusReporting
-dev.trashPlan() -> [TrashPlanItem]   // gộp 2 model, bỏ path lồng
+dev.scan() / dev.stop() / dev.scanState / dev.scannedAt / dev.issues   // dev cache + node_modules + build output/venv
+dev.trashPlan() -> [TrashPlanItem]   // gộp 3 model, bỏ path lồng
 await dev.trash(using: store) -> TrashBatch?   // source "dev-cleanup", undo qua store.undo
 ```
 
-- `DevInventoryItem`: `id` ổn định (`kb:<pattern>` / `nm:<project>`), `name` (+ `nameIsKey` → `L(name)`), `kind`, `ecosystem`, `projectRoot?`, `tool?` (npm/pnpm/yarn/bun), `paths`, `bytes?`, `unmeasurable`, `tier`, `evidence` (`.knowledgeBase(pattern:)` / `.nodeModules(manager:)`), `eligibility`, `selected`, `nestedInOtherRow` (không cộng lại), `inUse` (luôn nil = "chưa xác định"), `reinstallHint?` (chỉ là chữ, CleanPilot không chạy lệnh).
-- Không có scan/selection riêng: tick ở đây = tick ở trang Cache lập trình / node_modules. Records (archives, backup, session) và environments (SDK, simulator, model AI) không bao giờ eligible cho chọn nhóm. Build output ngoài DerivedData, venv, Docker prune: chờ owner (§8.8).
+- `DevInventoryItem`: `id` ổn định (`kb:<pattern>` / `nm:<project>` / `ba:<path>`), `name` (+ `nameIsKey` → `L(name)`), `kind`, `ecosystem`, `projectRoot?`, `tool?`, `paths`, `bytes?`, `unmeasurable`, `tier`, `evidence` (`.knowledgeBase(pattern:)` / `.nodeModules(manager:)` / `.projectFiles(type:files:)` → `L(type.titleKey)` + danh sách file chứng minh), `eligibility`, `selected`, `nestedInOtherRow`, `inUse` (luôn nil), `reinstallHint?` (chỉ là chữ, không chạy).
+- **Owner chốt 07/11/2026: thống kê, tick tay để dọn.** Build output (`.next`, `.nuxt`, `.turbo`, `.svelte-kit`, `.parcel-cache`, `.angular`, `dist/build/out/coverage` khi Git bỏ qua, `target` Cargo/Maven, Gradle `build`, SwiftPM `.build`, `Pods`, thư mục có CACHEDIR.TAG), venv (`pyvenv.cfg`), SDK/Simulator/model AI: tier `redo`/`risky` → `eligibility = .needsReview` → **chỉ tick từng dòng**, chọn nhóm/chọn tất cả không bao giờ lấy. Chỉ nhận khi có bằng chứng cạnh thư mục; không theo symlink, không vào `.git`/`node_modules`/artifact đã tìm thấy. Phạm vi: các thư mục cấp đầu của home trừ `Library` và thư mục ẩn.
+- Docker vẫn chỉ xem (dọn Docker là chạy lệnh docker, không qua Thùng rác, không hoàn tác).
+- Không có scan/selection riêng: tick ở đây = tick ở trang Cache lập trình / node_modules.
 
 **V2-TRASH — danh sách Thùng rác theo ổ, chỉ đọc** (`TrashInventory.swift`, `scans.trash`):
 
@@ -583,7 +592,7 @@ row.accessedAt: Date?   // atime hệ thống tệp, cập nhật lười: nhãn
 model.filtered(query:kinds:) ; model.kindCounts ; model.rowsAreTruncated   // lọc chỉ trên N hàng lớn nhất đã trả
 ```
 
-**Việc của Codex (Giai đoạn C):** nối cột nhóm Cache vào `groupSummaries/toggleGroup`; ba cột Smart Scan theo `scanModules()`; màn hình Dev Cleanup trên `scans.dev` (giữ route cũ đến khi đạt); chi tiết Thùng rác theo ổ trên `trash.volumes`; chip nguồn + version/publisher/last used ở Uninstaller; chip loại + cột truy cập ở File lớn/cũ.
+**Việc của Codex (Giai đoạn C):** nối cột nhóm Cache vào `groupSummaries/toggleGroup`; Smart Scan theo `session.modules` (gọi `session.start()` thay `smart.load(force:)`); màn hình Dev Cleanup trên `scans.dev` (giữ route cũ đến khi đạt); chi tiết Thùng rác theo ổ trên `trash.volumes`; chip nguồn + version/publisher/last used ở Uninstaller; chip loại + cột truy cập ở File lớn/cũ.
 
 ### Requests — yêu cầu từ UI
 
@@ -615,10 +624,10 @@ Codex ghi yêu cầu API còn thiếu ở đây (một dòng mỗi yêu cầu: m
 - ✅ **Đã có (`selectAll` dùng `isBulkSelectable`)** — File lớn, File lâu không sửa, File trùng, Dữ liệu còn sót: cần model công bố rõ policy bulk-selectable dùng chung với `isBulkSelectable`/`isReclaimableWhole`; P0. UI P1 chỉ gọi `model.selectAll`, không tự nới quy tắc chọn.
 - ✅ **Đã có (`DupModel.dates`)** — File trùng: cần metadata ngày sửa từng bản từ model để hiển thị tiêu chí giữ bản mới nhất mà View không đọc filesystem; P1.
 
-- ✅ **Đã có một phần (V2-SCAN, phạm vi hiện tại; mở rộng chờ chốt)** — Smart Scan: trạng thái theo module, scope/thời điểm, kết quả từng phần và tổng không đếm lặp; chi tiết [plan-v2.md §7](plan-v2.md#7-contract-bổ-sung-dành-cho-claude). C6 chưa được coi là đã có.
+- ✅ **Đã có (V2-SCAN đa module, owner chốt 07/11/2026; xem mục V2)** — Smart Scan: trạng thái theo module, scope/thời điểm, kết quả từng phần và tổng không đếm lặp; chi tiết [plan-v2.md §7](plan-v2.md#7-contract-bổ-sung-dành-cho-claude). C6 chưa được coi là đã có.
 - ✅ **Đã có (V2-CLEANUP, xem mục V2)** — Cache: nhóm ngữ nghĩa và tri-state selection do model cung cấp; hiện UI chỉ lọc groupKey và dùng selection C1/C3 hiện có.
 - ✅ **Đã có (V2-APPS / V2-FILES, xem mục V2)** — Metadata app/version/publisher/last-used có nguồn; file kind/modified/access semantics rõ; không suy ít dùng hay đáng ngờ trong View.
 - ✅ **Đã có (V2-TRASH chỉ đọc, xem mục V2)** — Inventory file theo ổ, size optional, quyền và kế hoạch empty riêng; batch history không thay thế danh sách file còn trong Trash.
 - **V2 roadmap — owner đã chốt 07/11/2026** — Mail, Protection/Privacy, Performance/Maintenance, Updater/Extensions và Shredder ghi đầy đủ trong [plan-v2.md](plan-v2.md), triển khai sau khi owner chốt quy tắc từng tính năng. Không thêm nút thao tác giả vào UI đợt này.
 
-- ✅ **Đã có lớp 1 (V2-DEV inventory trên dữ liệu hiện có, xem mục V2; detector mở rộng chờ owner)** — Trung tâm Dọn dẹp cho lập trình viên: gom node_modules theo dự án, cache package manager/công cụ và inventory build output; model công bố identity/evidence, tác động, eligibility và kế hoạch không trùng đường dẫn. Tái sử dụng NMModel/CachesModel/C1/C2; detector và policy mở rộng chờ owner chốt; Docker hiện chỉ xem. Chi tiết [plan-v2.md §6.7 và §7](plan-v2.md#67-dọn-dẹp-cho-lập-trình-viên--dev-cleanup).
+- ✅ **Đã có (V2-DEV gồm build output/venv tick tay, owner chốt 07/11/2026; xem mục V2)** — Trung tâm Dọn dẹp cho lập trình viên: gom node_modules theo dự án, cache package manager/công cụ và inventory build output; model công bố identity/evidence, tác động, eligibility và kế hoạch không trùng đường dẫn. Tái sử dụng NMModel/CachesModel/C1/C2; detector và policy mở rộng chờ owner chốt; Docker hiện chỉ xem. Chi tiết [plan-v2.md §6.7 và §7](plan-v2.md#67-dọn-dẹp-cho-lập-trình-viên--dev-cleanup).
