@@ -9,6 +9,7 @@ struct SmartScanView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @EnvironmentObject private var store: AppStore
     @ObservedObject var model: CachesModel
+    @ObservedObject var session: SmartScanSession
     @State private var reviewing = false
     @State private var usage = volumeUsage()
     /// C8: the plan frozen when "Clean" is pressed; the confirmation executes exactly this.
@@ -72,7 +73,7 @@ struct SmartScanView: View {
                                 .tracking(-0.7)
                                 .multilineTextAlignment(.center)
                             if !compact {
-                            Text(L("Find caches you can clear in one scan. You decide what goes."))
+                            Text(L("Caches, the Trash, leftovers, large files and your projects in one scan. You decide what goes."))
                                 .font(theme.prose(size: 14))
                                 .foregroundStyle(theme.palette.inkSecondary)
                                 .multilineTextAlignment(.center)
@@ -87,23 +88,13 @@ struct SmartScanView: View {
                         }
                         .frame(maxWidth: .infinity)
 
-                        HStack(alignment: .top, spacing: 16) {
-                            moduleCard(symbol: "sparkles", title: L("App Caches"),
-                                       detail: L("Temporary files from everyday apps"),
-                                       value: moduleBytes(groups: ["general", "cn_app"]),
-                                       action: ready ? { reviewing = true } : nil, compact: compact)
-                            moduleCard(symbol: "hammer", title: L("Dev Caches"),
-                                       detail: L("Build tools and download caches"),
-                                       value: moduleBytes(groups: ["dev"]),
-                                       action: ready ? { reviewing = true } : nil, compact: compact)
-                            moduleCard(symbol: "internaldrive", title: L("Overview"),
-                                       detail: L("See what takes up your disk"), value: nil,
-                                       action: { store.arrive(NavStop(panel: .overview)) }, compact: compact)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: compact ? 170 : 200), spacing: 12)], spacing: 12) {
+                            ForEach(session.modules) { m in moduleCard(m, compact: compact) }
                         }
                         status
                         if model.started {
                             ScanStatusView(model: model, lastTrashAt: store.lastTrashAt,
-                                           rescan: { model.load(force: true) })
+                                           rescan: { startScan() })
                         }
                     }
                     .foregroundStyle(theme.palette.ink)
@@ -113,7 +104,10 @@ struct SmartScanView: View {
                 actionBar
             }
         }
-        .onAppear { usage = volumeUsage() }
+        .onAppear {
+            usage = volumeUsage()
+            if SnapshotMode.autoSmartScan && session.sessionID == nil { session.start() }
+        }
         .sheet(item: $confirming, onDismiss: {
             result = pendingResult
             pendingResult = nil
@@ -135,7 +129,7 @@ struct SmartScanView: View {
                              quit: { ids in await model.quitApps(ids) },
                              proceed: {
                                  runningPrompt = nil
-                                 model.load(force: true)
+                                 session.start()
                              })
             .themed(theme)
         }
@@ -144,46 +138,88 @@ struct SmartScanView: View {
     /// Scan / Rescan: ask about running apps that own caches first (quit or skip), like CleanMyMac.
     private func startScan() {
         let apps = model.runningCacheOwners()
-        if apps.isEmpty { model.load(force: true) } else { runningPrompt = RunningAppsPrompt(apps: apps) }
+        if apps.isEmpty { session.start() } else { runningPrompt = RunningAppsPrompt(apps: apps) }
     }
 
-    private func moduleBytes(groups: Set<String>) -> String {
-        guard ready else { return "—" }
-        let items = model.items.filter { groups.contains($0.groupKey) }
-        guard items.allSatisfy({ $0.size != nil }) else { return L("Unknown") }
-        return uiHuman(contentsUnionSize(pathSizes(of: items)))
+    private func moduleSymbol(_ id: SmartScanSession.ModuleID) -> String {
+        switch id {
+        case .appCaches: return "sparkles"
+        case .developerCaches: return "hammer"
+        case .trash: return "trash"
+        case .leftovers: return "app.badge"
+        case .largeFiles: return "doc.on.doc"
+        case .devProjects: return "wrench.and.screwdriver"
+        }
     }
 
-    private func moduleCard(symbol: String, title: String, detail: String,
-                            value: String?, action: (() -> Void)?, compact: Bool) -> some View {
-        VStack(spacing: compact ? 8 : 12) {
-            WorkspaceEmblem(symbol: symbol, size: compact ? 72 : 100)
-            Text(title).font(theme.prose(size: 16, weight: .semibold))
+    private func moduleDetail(_ id: SmartScanSession.ModuleID) -> String {
+        switch id {
+        case .appCaches: return L("Temporary files from everyday apps")
+        case .developerCaches: return L("Build tools and download caches")
+        case .trash: return L("Items waiting in the Trash")
+        case .leftovers: return L("Data left behind by removed apps")
+        case .largeFiles: return L("The biggest files in your folders")
+        case .devProjects: return L("node_modules, build output and environments")
+        }
+    }
+
+    /// Where "Review" goes. Cache modules open the scan's own list; the rest open their page,
+    /// which already holds this session's results.
+    private func review(_ id: SmartScanSession.ModuleID) {
+        switch id {
+        case .appCaches, .developerCaches: reviewing = true
+        case .trash: store.arrive(NavStop(panel: .trash))
+        case .leftovers: store.arrive(NavStop(panel: .orphans))
+        case .largeFiles: store.arrive(NavStop(panel: .big))
+        case .devProjects: store.arrive(NavStop(panel: .devCleanup))
+        }
+    }
+
+    private func moduleCard(_ m: SmartScanSession.Module, compact: Bool) -> some View {
+        let known = [.completed, .partial, .cancelled, .permissionDenied].contains(m.state)
+        return VStack(spacing: compact ? 6 : 10) {
+            WorkspaceEmblem(symbol: moduleSymbol(m.id), size: compact ? 44 : 60)
+            Text(L(m.id.titleKey)).font(theme.prose(size: 15, weight: .semibold))
                 .multilineTextAlignment(.center)
-            Text(detail).font(theme.prose(size: 12))
-                .foregroundStyle(theme.palette.inkSecondary)
-                .multilineTextAlignment(.center)
-                .frame(minHeight: 36, alignment: .top)
-                .fixedSize(horizontal: false, vertical: true)
-            if let value {
-                Text(value).font(theme.numeric(size: 27, weight: .light)).monospacedDigit()
+            if !compact {
+                Text(moduleDetail(m.id)).font(theme.prose(size: 11))
+                    .foregroundStyle(theme.palette.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            if let action {
-                Button(L("Review Details"), action: action)
+            Text(m.bytes.map(uiHuman) ?? "—")
+                .font(theme.numeric(size: compact ? 20 : 24, weight: .light)).monospacedDigit()
+            Label(moduleStateText(m.state), systemImage: moduleStateSymbol(m.state))
+                .font(theme.prose(size: 11))
+                .foregroundStyle(m.state == .partial || m.state == .permissionDenied ? theme.palette.ink : theme.palette.inkSecondary)
+                .help(m.issues.prefix(3).map(\.root).joined(separator: "\n"))
+            if known {
+                Button(L("Review Details")) { review(m.id) }
                     .buttonStyle(.borderless)
                     .font(theme.prose(size: 12, weight: .medium))
-                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .padding(.horizontal, 12).padding(.vertical, 6)
                     .background(Capsule().fill(theme.palette.surfaceAlt))
             }
         }
-        .padding(.vertical, compact ? 12 : 20).padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, minHeight: compact ? 220 : 280, alignment: .top)
+        .padding(.vertical, compact ? 10 : 16).padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, minHeight: compact ? 150 : 200, alignment: .top)
         .background(theme.cardShape().fill(theme.palette.surface.opacity(reduceTransparency ? 1 : 0.65)))
         .overlay(theme.cardShape().stroke(theme.palette.separator.opacity(0.5), lineWidth: 1))
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder private var status: some View {
-        if model.scanning {
+        if session.isRunning && !model.scanning {
+            let running = session.modules.first { $0.state == .running }
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text(running.map { LF("Scanning %@…", L($0.id.titleKey)) } ?? L("Scanning…"))
+                Spacer()
+                Text(LF("Found so far: %@", uiHuman(session.foundBytes))).monospacedDigit()
+            }
+            .font(theme.prose(size: 12))
+            .foregroundStyle(theme.palette.inkSecondary)
+        } else if model.scanning {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(L("Looking for caches to clear…"))
@@ -207,6 +243,10 @@ struct SmartScanView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(LF("Found %@ of recommended caches to clear", uiHuman(preview?.bytes ?? 0)))
                         .font(theme.prose(size: 17, weight: .semibold))
+                    if session.sessionID != nil {
+                        Text(LF("%@ found in all modules", uiHuman(session.foundBytes)))
+                            .font(theme.prose(size: 12, weight: .medium))
+                    }
                     Text(L("Only no-impact app caches are counted here. Dev caches and items that need a re-download or risk data loss stay in the list for you to choose."))
                         .font(theme.prose(size: 11)).foregroundStyle(theme.palette.inkSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -227,19 +267,20 @@ struct SmartScanView: View {
     private var actionBar: some View {
         let plan = preview
         let canClean = !(plan?.isEmpty ?? true)
+        let busy = session.isRunning || model.scanning
         return VStack(spacing: 10) {
             HStack(spacing: 18) {
-                if ready {
+                if ready && !busy {
                     Button(L("Rescan")) { startScan() }
                         .buttonStyle(.plain).foregroundStyle(theme.palette.inkSecondary)
                         .disabled(store.isTrashing)
                 }
-                if ready && canClean {
+                if ready && canClean && !busy {
                     Button(L("Review & Choose")) { reviewing = true }
                         .buttonStyle(.plain).foregroundStyle(theme.palette.inkSecondary)
                 }
                 Button {
-                    if model.scanning { model.stop() }
+                    if session.isRunning || model.scanning { session.isRunning ? session.cancel() : model.stop() }
                     else if ready {
                         // Re-read at press time: the confirmation shows and runs this frozen plan.
                         if let fresh = model.smartCleanPlan(), !fresh.isEmpty { confirming = fresh }
@@ -248,9 +289,9 @@ struct SmartScanView: View {
                     else { startScan() }
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: model.scanning ? "stop.fill"
+                        Image(systemName: busy ? "stop.fill"
                               : (ready ? (canClean ? "sparkles" : "list.bullet") : "magnifyingglass"))
-                        Text(model.scanning ? L("Stop Scan")
+                        Text(busy ? L("Stop Scan")
                              : (ready ? (canClean ? LF("Clean %@", uiHuman(plan?.bytes ?? 0)) : L("Review & Choose"))
                                 : L("Scan")))
                     }

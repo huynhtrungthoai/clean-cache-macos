@@ -74,6 +74,10 @@ enum SnapshotMode {
         return (raw as NSString).expandingTildeInPath
     }
 
+    /// DISKWISE_SMART_RUN=1: the Smart Scan page starts a session when it appears (QA of the
+    /// multi-module states without a mouse). Dev builds only, like every DISKWISE_* hook.
+    static var autoSmartScan: Bool { ProcessInfo.processInfo.environment["DISKWISE_SMART_RUN"] == "1" }
+
     /// DISKWISE_PANEL=<页名>：正常启动（不是截图模式）时直接落在某一页。
     /// 验窗口外框必须走这个——截图模式自己开窗口只拍 contentView，
     /// 红绿灯压住导航、标题栏重影这类缺陷在截图里结构性地看不见。
@@ -418,6 +422,7 @@ enum SnapshotMode {
         (.big, "02-big-files", 10, 45),
         (.old, "03-old-files", 10, 45),
         (.dup, "04-duplicates", 20, 120),
+        (.devCleanup, "05b-dev-cleanup", 10, 60),
         (.nodemodules, "05-node-modules", 15, 90),
         (.docker, "06-docker", 8, 30),
         (.devcache, "07-dev-cache", 15, 90),

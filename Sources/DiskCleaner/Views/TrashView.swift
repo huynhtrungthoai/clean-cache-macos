@@ -61,6 +61,7 @@ struct TrashView: View {
                             }.frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
+                    inventorySection
                     if store.batches.isEmpty {
                         EmptyState(symbol: "clock.arrow.circlepath", title: L("No recorded batches"),
                                    hint: L("Open Finder to inspect the current contents of the Trash."))
@@ -76,8 +77,8 @@ struct TrashView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .foregroundStyle(theme.palette.ink)
         .buttonStyle(.borderless)
-        .onAppear { model.refresh() }
-        .onChange(of: store.lastTrashAt) { _ in model.refresh() }
+        .onAppear { model.refresh(); model.loadInventory(batches: store.batches) }
+        .onChange(of: store.lastTrashAt) { _ in model.refresh(); model.loadInventory(batches: store.batches) }
         .sheet(item: $result) { batch in BatchResultSheet(batch: batch).themed(theme) }
         .alert(L("Empty the entire Trash?"), isPresented: $confirmEmpty) {
             Button(L("Cancel"), role: .cancel) { }
@@ -87,6 +88,87 @@ struct TrashView: View {
         } message: {
             Text(L("All items in the Trash will be permanently deleted. This cannot be undone."))
         }
+    }
+
+    /// V2-TRASH: what is in the Trash right now, per volume (read-only).
+    @ViewBuilder private var inventorySection: some View {
+        SectionLabel(text: L("In the Trash"), detail: L("Per volume, largest first"))
+        if model.listing && model.volumes == nil {
+            HStack(spacing: 8) { ProgressView().controlSize(.small); Text(L("Counting…")) }
+                .font(theme.bodyFont(.callout))
+        } else if let volumes = model.volumes {
+            ForEach(volumes) { v in volumeCard(v) }
+        }
+    }
+
+    private func volumeCard(_ v: TrashVolume) -> some View {
+        ThemedCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Label(v.volumeName, systemImage: v.volumePath == "/" ? "internaldrive" : "externaldrive")
+                        .font(theme.bodyFont(.headline))
+                    Spacer()
+                    Text(volumeValue(v)).font(theme.prose(size: 16, weight: .semibold)).monospacedDigit()
+                }
+                switch v.state {
+                case .readable where v.entries.isEmpty:
+                    Text(L("Empty")).font(theme.bodyFont(.callout)).foregroundStyle(theme.palette.inkSecondary)
+                case .readable:
+                    ForEach(v.entries.prefix(40)) { e in entryRow(e) }
+                    if v.entries.count > 40 {
+                        Text(LF("and %d more", v.entries.count - 40))
+                            .font(theme.bodyFont(.caption)).foregroundStyle(theme.palette.inkSecondary)
+                    }
+                case .noPermission:
+                    Text(L("CleanPilot can't read this Trash. Open it in Finder, or allow Full Disk Access."))
+                        .font(theme.bodyFont(.callout)).foregroundStyle(theme.palette.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                case .missing:
+                    Text(L("No Trash folder on this volume")).font(theme.bodyFont(.callout))
+                        .foregroundStyle(theme.palette.inkSecondary)
+                case .error(let msg):
+                    Text(msg).font(theme.bodyFont(.callout)).textSelection(.enabled)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func volumeValue(_ v: TrashVolume) -> String {
+        switch v.state {
+        case .readable: return v.bytes.map(uiHuman) ?? L("Unknown")
+        case .noPermission: return L("Cannot measure")
+        default: return "—"
+        }
+    }
+
+    private func entryRow(_ e: TrashEntry) -> some View {
+        HStack(spacing: 10) {
+            RowIconView(icon: .path(URL(fileURLWithPath: e.id)), side: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(e.name).lineLimit(1).truncationMode(.middle)
+                    if e.isCloudItem == true {
+                        Image(systemName: "icloud").font(.system(size: 10)).help(L("iCloud item"))
+                            .accessibilityLabel(L("iCloud item"))
+                    }
+                }
+                Text(entrySub(e)).font(theme.bodyFont(.caption2)).foregroundStyle(theme.palette.inkTertiary)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            Spacer(minLength: 8)
+            Text(e.bytes.map(uiHuman) ?? L("Unknown")).monospacedDigit().font(theme.bodyFont(.callout))
+            Button { model.reveal(e) } label: { Image(systemName: "magnifyingglass.circle") }
+                .help(L("Show in Finder")).accessibilityLabel(L("Show in Finder"))
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func entrySub(_ e: TrashEntry) -> String {
+        var parts: [String] = []
+        if let o = e.originalPath { parts.append(LF("From %@", displayPath(URL(fileURLWithPath: o)))) }
+        if let d = e.trashedAt { parts.append(LF("Trashed %@", shortDate(d))) }
+        return parts.isEmpty ? L("Original location not recorded") : parts.joined(separator: " · ")
     }
 
     private var legacyRecords: [TrashRecord] {
@@ -141,7 +223,7 @@ struct TrashView: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                Button(L("Refresh")) { model.refresh() }.disabled(model.measuring || model.emptying)
+                Button(L("Refresh")) { model.refresh(); model.loadInventory(batches: store.batches) }.disabled(model.measuring || model.emptying)
                 Spacer()
                 Button(L("Open in Finder")) { model.openInFinder() }
                 if model.emptying {
@@ -207,6 +289,9 @@ struct TrashView: View {
         case "diagnostic-reports": return L("System diagnostics reports")
         case "crash-dump-trim": return L("Trim by policy")
         case "overview": return L("Overview")
+        case "smart-clean": return L("Smart Scan")
+        case "dev-cleanup": return L("Developer Cleanup")
+        case "first-clean": return L("Overview")
         default: return source
         }
     }

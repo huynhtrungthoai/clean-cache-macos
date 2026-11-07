@@ -433,7 +433,7 @@ final class AppStore: ObservableObject {
 
 enum AppPanel: Hashable, CaseIterable {
 
-    case smart, overview, big, old, dup, nodemodules, docker, devcache, caches, orphans, uninstall, trash, crashDumps, diagReports, observation, appearance, feedback, folderDrill, menuLaunch, agent
+    case smart, overview, big, old, dup, devCleanup, nodemodules, docker, devcache, caches, orphans, uninstall, trash, crashDumps, diagReports, observation, appearance, feedback, folderDrill, menuLaunch, agent
 
     var symbol: String {
         switch self {
@@ -442,6 +442,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .big: return "doc.on.doc"
         case .old: return "clock"
         case .dup: return "square.on.square"
+        case .devCleanup: return "wrench.and.screwdriver"
         case .nodemodules: return "shippingbox"
         case .docker: return "cube"
         case .devcache: return "hammer"
@@ -467,6 +468,7 @@ enum AppPanel: Hashable, CaseIterable {
         case .big: return "Large Files"
         case .old: return "Files not modified recently"
         case .dup: return "Duplicates"
+        case .devCleanup: return "Developer Cleanup"
         case .nodemodules: return "node_modules"
         case .docker: return "Docker Usage"
         case .devcache: return "Dev Caches"
@@ -502,7 +504,7 @@ enum AppPanel: Hashable, CaseIterable {
         switch self {
         case .smart: return 0
         case .overview, .big, .old, .dup, .folderDrill: return 0
-        case .nodemodules, .docker, .devcache: return 1
+        case .devCleanup, .nodemodules, .docker, .devcache: return 1
         case .caches, .orphans, .uninstall, .trash: return 2
         case .agent: return 3
         case .appearance, .feedback, .menuLaunch: return 4
@@ -661,7 +663,7 @@ struct ContentView: View {
                 sideSection(L("Applications"), [.uninstall, .orphans])
                 sideSection(L("Files & Storage"), [.overview, .big, .old, .dup])
                 DisclosureGroup(isExpanded: $advancedExpanded) {
-                    sideSection("", [.devcache, .nodemodules, .docker,
+                    sideSection("", [.devCleanup, .devcache, .nodemodules, .docker,
                                      .crashDumps, .diagReports, .observation])
                     if !Channel.isAppStore { sideSection("", [.agent]) }
                 } label: {
@@ -790,7 +792,8 @@ struct ContentView: View {
 
     @ViewBuilder private var page: some View {
         switch selection ?? .smart {
-        case .smart: SmartScanView(model: scans.smart)
+        case .smart: SmartScanView(model: scans.smart, session: scans.session)
+        case .devCleanup: DevCleanupView(model: scans.dev)
         case .overview: OverviewView(model: scans.overview)
         case .big: BigFilesView(model: scans.big)
         case .old: OldFilesView(model: scans.old)

@@ -124,6 +124,9 @@ struct UninstallView: View {
             Picker(L("Applications"), selection: $appFilter) {
                 Text(L("All applications")).tag("all")
                 Text(L("App Store")).tag("store")
+                Text(L("Identified developer")).tag("devid")
+                Text(L("Apple")).tag("apple")
+                Text(L("Other sources")).tag("other")
                 Text(L("Running")).tag("running")
             }
             .pickerStyle(.menu).padding(.horizontal, 10).padding(.bottom, 8)
@@ -151,7 +154,12 @@ struct UninstallView: View {
     private var filteredApps: [InstalledApp] {
         model.shown.filter { app in
             switch appFilter {
-            case "store": return app.isAppStore
+            case "store": return app.isAppStore || model.metadata(of: app)?.source == .appStore
+            case "devid": return model.metadata(of: app)?.source == .identifiedDeveloper
+            case "apple": return model.metadata(of: app)?.source == .apple
+            case "other":
+                guard let src = model.metadata(of: app)?.source else { return false }
+                return [.adHoc, .unsigned, .unknown].contains(src)
             case "running":
                 if case .running = model.runState(of: app) { return true }
                 return false
@@ -256,6 +264,7 @@ struct UninstallView: View {
                     .foregroundStyle(theme.palette.inkTertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                metadataLine(app)
             }
             Spacer(minLength: 10)
             VStack(alignment: .trailing, spacing: 2) {
@@ -267,6 +276,25 @@ struct UninstallView: View {
         }
         .padding(16)
         .panelCard()
+    }
+
+    /// V2-APPS: each fact from its own source; unknown stays "Unknown", never "unused".
+    @ViewBuilder private func metadataLine(_ app: InstalledApp) -> some View {
+        if let m = model.metadata(of: app) {
+            let parts: [String] = [
+                m.version.map { LF("Version %@", $0) },
+                LF("Source: %@", L(m.source.titleKey)),
+                m.publisher.map { LF("Publisher: %@", $0) },
+                LF("Last used: %@", m.lastUsed.map(shortDate) ?? L("Not recorded")),
+            ].compactMap { $0 }
+            Text(parts.joined(separator: " · "))
+                .font(theme.bodyFont(.caption2))
+                .foregroundStyle(theme.palette.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .help(L("Publisher and source come from the app's code signature; last used comes from Spotlight."))
+        } else if model.loadingMetadata {
+            Text(L("Reading app details…")).font(theme.bodyFont(.caption2)).foregroundStyle(theme.palette.inkTertiary)
+        }
     }
 
     private func dataCard(_ app: InstalledApp) -> some View {

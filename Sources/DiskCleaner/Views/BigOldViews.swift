@@ -31,11 +31,18 @@ private func fileVerdictNote(_ rows: [FileRow], ruler: Int64) -> String? {
     return parts.isEmpty ? nil : parts.joined(separator: " · ") + "."
 }
 
+/// V2-FILES: same rule as `filterFileRows`, applied per row so the List keeps its bindings.
+private func fileMatches(_ r: FileRow, kind: FileKind?, query: String) -> Bool {
+    !filterFileRows([r], query: query, kinds: kind.map { [$0] } ?? []).isEmpty
+}
+
 struct BigFilesView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.theme) private var theme
     @ObservedObject var model: BigFilesModel
     @State private var review: TrashReviewPlan?
+    @State private var kind: FileKind?
+    @State private var query = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -96,7 +103,11 @@ struct BigFilesView: View {
                     .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
                 ]).pagePadding().padding(.bottom, 6)
                 if let note = ledgerNote { ListNote(text: note) }
+                FileFacetBar(counts: model.kindCounts, kind: $kind, query: $query,
+                             truncated: model.rowsAreTruncated)
+                    .pagePadding().padding(.bottom, 6)
                 List($model.rows) { $r in
+                    if fileMatches(r, kind: kind, query: query) {
                     ItemRow(selected: $r.selected,
                             icon: .path(r.url),
                             name: r.name,
@@ -115,11 +126,15 @@ struct BigFilesView: View {
                         VStack(alignment: .leading, spacing: 7) {
                             PathLine(path: r.url.path)
 
+                            ExplainLine(key: L("Kind"), value: L(r.kind.titleKey))
+                            ExplainLine(key: L("Modified"), value: r.dateStr)
+                            ExplainLine(key: L("Last accessed (file system record)"), value: shortDate(r.accessedAt))
                             ThemeButton(kind: .compact, symbol: "folder",
                                         title: L("Open containing folder")) {
                                 store.drill(into: r.url.deletingLastPathComponent().path)
                             }
                         }
+                    }
                     }
                 }
                 .ledgerCard()
@@ -180,6 +195,8 @@ struct OldFilesView: View {
     @Environment(\.theme) private var theme
     @ObservedObject var model: OldFilesModel
     @State private var review: TrashReviewPlan?
+    @State private var kind: FileKind?
+    @State private var query = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -232,7 +249,11 @@ struct OldFilesView: View {
                     .init(title: L("Selected"), value: uiHuman(model.selectedBytes), detail: LF("%d items selected", model.selected.count), symbol: "checkmark.circle")
                 ]).pagePadding().padding(.bottom, 6)
                 if let note = ledgerNote { ListNote(text: note) }
+                FileFacetBar(counts: model.kindCounts, kind: $kind, query: $query,
+                             truncated: model.rowsAreTruncated)
+                    .pagePadding().padding(.bottom, 6)
                 List($model.rows) { $r in
+                    if fileMatches(r, kind: kind, query: query) {
                     ItemRow(selected: $r.selected,
                             icon: .path(r.url),
                             name: r.name,
@@ -251,11 +272,15 @@ struct OldFilesView: View {
                         VStack(alignment: .leading, spacing: 7) {
                             PathLine(path: r.url.path)
 
+                            ExplainLine(key: L("Kind"), value: L(r.kind.titleKey))
+                            ExplainLine(key: L("Modified"), value: r.dateStr)
+                            ExplainLine(key: L("Last accessed (file system record)"), value: shortDate(r.accessedAt))
                             ThemeButton(kind: .compact, symbol: "folder",
                                         title: L("Open containing folder")) {
                                 store.drill(into: r.url.deletingLastPathComponent().path)
                             }
                         }
+                    }
                     }
                 }
                 .ledgerCard()

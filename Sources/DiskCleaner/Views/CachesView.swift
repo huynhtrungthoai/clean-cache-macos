@@ -115,7 +115,7 @@ struct CachesView: View {
     @ObservedObject var model: CachesModel
     var page: CachesPage = .app
     @State private var query = ""
-    @State private var selectedGroup: String?
+    @State private var selectedGroup: CleanupGroupID?
     @State private var review: TrashReviewPlan?
 
     var body: some View {
@@ -166,13 +166,13 @@ struct CachesView: View {
                 if let note = ledgerNote { ListNote(text: note) }
                 GeometryReader { proxy in
                     HStack(alignment: .top, spacing: 14) {
-                        if proxy.size.width >= 760 { groupPicker.frame(width: 166) }
+                        if proxy.size.width >= 760 { groupPicker.frame(width: 190) }
                         VStack(spacing: 8) {
                             if proxy.size.width < 760 {
                                 Picker(L("All caches"), selection: $selectedGroup) {
-                                    Text(L("All caches")).tag(String?.none)
-                                    ForEach(page.groupKeys.sorted(), id: \.self) { key in
-                                        Text(cacheGroupLabel(key)).tag(Optional(key))
+                                    Text(L("All caches")).tag(CleanupGroupID?.none)
+                                    ForEach(model.groupSummaries()) { g in
+                                        Text(L(g.id.titleKey)).tag(Optional(g.id))
                                     }
                                 }.pickerStyle(.menu).labelsHidden()
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -215,11 +215,10 @@ struct CachesView: View {
     }
 
     private var groupPicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            groupButton(title: L("All caches"), key: nil)
-            ForEach(page.groupKeys.sorted(), id: \.self) { key in
-                groupButton(title: cacheGroupLabel(key), key: key)
-            }
+        let sums = model.groupSummaries()
+        return VStack(alignment: .leading, spacing: 6) {
+            groupButton(title: L("All caches"), summary: nil, all: sums)
+            ForEach(sums) { g in groupButton(title: L(g.id.titleKey), summary: g, all: sums) }
             Text(L("Filters keep your selection"))
                 .font(theme.prose(size: 11))
                 .foregroundStyle(theme.palette.inkSecondary)
@@ -230,31 +229,52 @@ struct CachesView: View {
         .background(theme.cardShape().fill(theme.palette.surface.opacity(reduceTransparency ? 1 : 0.65)))
     }
 
-    private func groupButton(title: String, key: String?) -> some View {
-        let rows = model.items.filter { key == nil || $0.groupKey == key }
-        return Button { selectedGroup = key } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(title).font(theme.prose(size: 12, weight: .medium))
-                    Spacer(minLength: 4)
-                    if selectedGroup == key {
-                        Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+    /// V2-CLEANUP: one semantic group (nil = all) with real bytes and a tri-state checkbox.
+    private func groupButton(title: String, summary: CleanupGroupSummary?, all: [CleanupGroupSummary]) -> some View {
+        let key = summary?.id
+        let bytes: String = {
+            if let g = summary { return g.measuredBytes.map(uiHuman) ?? L("Counting…") }
+            return all.contains { $0.measuredBytes == nil } ? L("Counting…")
+                : uiHuman(contentsUnionSize(pathSizes(of: model.items)))
+        }()
+        return HStack(alignment: .top, spacing: 8) {
+            if let g = summary {
+                TriStateCheck(state: g.selection, label: title,
+                              disabled: model.scanning || store.isTrashing || (g.eligibleCount == 0 && g.selection == .none)) {
+                    model.toggleGroup(g.id)
+                }
+                .padding(.top, 2)
+                .help(g.eligibleCount == 0 ? L("Choose items in this group yourself") : "")
+            }
+            Button { selectedGroup = key } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(title).font(theme.prose(size: 12, weight: .medium))
+                        Spacer(minLength: 4)
+                        if selectedGroup == key {
+                            Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+                        }
+                    }
+                    Text(model.scanning ? L("Counting…") : bytes)
+                        .font(theme.prose(size: 16, weight: .semibold)).monospacedDigit()
+                    if let g = summary {
+                        Text(g.selectedCount > 0 ? LF("%1$d of %2$d selected", g.selectedCount, g.count) : LF("%d items", g.count))
+                            .font(theme.prose(size: 10)).foregroundStyle(theme.palette.inkSecondary)
                     }
                 }
-                Text(model.scanning ? L("Counting…") : (rows.allSatisfy { $0.size != nil } ? uiHuman(contentsUnionSize(pathSizes(of: rows))) : L("Unknown")))
-                    .font(theme.prose(size: 16, weight: .semibold)).monospacedDigit()
+                .foregroundStyle(theme.palette.ink)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .foregroundStyle(theme.palette.ink)
-            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.controlShape().fill(selectedGroup == key ? theme.palette.tintSoft : .clear))
-            .contentShape(theme.controlShape())
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(selectedGroup == key ? .isSelected : [])
         }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(selectedGroup == key ? .isSelected : [])
+        .padding(8)
+        .background(theme.controlShape().fill(selectedGroup == key ? theme.palette.tintSoft : .clear))
     }
 
     private func matches(_ item: CacheItem) -> Bool {
-        (selectedGroup == nil || selectedGroup == item.groupKey) &&
+        (selectedGroup == nil || selectedGroup == cleanupGroupID(for: item)) &&
         (query.isEmpty || L(item.entry.name).localizedCaseInsensitiveContains(query) ||
          item.resolvedPaths.contains { $0.path.localizedCaseInsensitiveContains(query) })
     }

@@ -592,6 +592,8 @@ row.accessedAt: Date?   // atime hệ thống tệp, cập nhật lười: nhãn
 model.filtered(query:kinds:) ; model.kindCounts ; model.rowsAreTruncated   // lọc chỉ trên N hàng lớn nhất đã trả
 ```
 
+**UI (Claude nối theo yêu cầu chủ dự án 07/11/2026, Codex lưu ý khi sửa các file này):** `SmartScanView` (6 module theo `session.modules`, Quét/Dừng/Dọn qua `session`), `DevCleanupView` + route `AppPanel.devCleanup` (Công cụ nâng cao), cột nhóm tri-state trong `CachesView`, mục "Trong Thùng rác" theo ổ ở `TrashView`, lọc nguồn + dòng metadata ở `UninstallView`, lọc loại/tìm kiếm + ngày truy cập ở `BigOldViews`; thành phần chung ở `Views/V2Components.swift`. Hook QA dev-only `DISKWISE_SMART_RUN=1`. Phần dưới là danh sách gốc.
+
 **Việc của Codex (Giai đoạn C):** nối cột nhóm Cache vào `groupSummaries/toggleGroup`; Smart Scan theo `session.modules` (gọi `session.start()` thay `smart.load(force:)`); màn hình Dev Cleanup trên `scans.dev` (giữ route cũ đến khi đạt); chi tiết Thùng rác theo ổ trên `trash.volumes`; chip nguồn + version/publisher/last used ở Uninstaller; chip loại + cột truy cập ở File lớn/cũ.
 
 ### Requests — yêu cầu từ UI
