@@ -227,7 +227,7 @@ Các mục chưa chốt chỉ thuộc roadmap, không được tự biến thàn
 
 Dev Cleanup triển khai theo lớp:
 
-- [ ] Claude: rà soát và chuẩn hóa inventory dev cache/node_modules đang có; cung cấp contract V2-DEV và bằng chứng nhận diện, giữ nguyên policy.
+- [x] Claude: rà soát và chuẩn hóa inventory dev cache/node_modules đang có; cung cấp contract V2-DEV và bằng chứng nhận diện, giữ nguyên policy. (`DevCleanupModel`, enhance-feat §11 mục V2)
 - [ ] Codex: dựng trung tâm Dev Cleanup theo §6.7, nối model tổng hợp; giữ nguyên các route cũ cho đến khi tích hợp đạt.
 - [ ] Owner chốt phạm vi/policy của build output và môi trường; Claude bổ sung detector theo từng hệ sinh thái, rồi Codex nối nhóm tương ứng.
 - [ ] Kiểm chứng dự án đơn/monorepo, shared cache, quyền, hủy, xác nhận và hoàn tác; không coi checklist này là tính năng đã triển khai.
