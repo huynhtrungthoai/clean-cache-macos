@@ -93,6 +93,8 @@ private func isUnder(_ path: String, _ root: String) -> Bool {
 /// The semantic group of a cache row. Pure: decided from the knowledge-base group and paths only.
 public func cleanupGroupID(for item: CacheItem, home: String = homePath()) -> CleanupGroupID {
     if item.groupKey == "dev" { return .developer }
+    // Same spelling as the row paths (`standardizedFileURL` drops `/private` from `/private/tmp`).
+    let home = URL(fileURLWithPath: home).standardizedFileURL.path
     let paths = item.resolvedPaths.isEmpty
         ? [expandHome(item.entry.path)]
         : item.resolvedPaths.map { $0.standardizedFileURL.path }

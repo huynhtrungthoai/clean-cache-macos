@@ -2712,6 +2712,10 @@ do {
     check(all.map { cleanupGroupID(for: $0, home: home) } ==
           [.appCaches, .appCaches, .containerCaches, .logs, .developer, .otherAppData, .appCaches, .appCaches],
           "V2-CLEANUP: rows land in their semantic group by grp and path")
+    var tmpRow = CacheItem(entry: entry("tmp"), resolvedPaths: [URL(fileURLWithPath: "/private/tmp/v2h/Library/Caches/com.x")])
+    tmpRow.size = 1
+    check(cleanupGroupID(for: tmpRow, home: "/private/tmp/v2h") == .appCaches,
+          "V2-CLEANUP: /private/tmp home and /tmp row paths are the same place")
     let ok: (URL) -> Bool = { _ in true }
     check(cleanupEligibility(other, bulkSelectable: ok) == .needsReview(.redo)
           && cleanupEligibility(measuring, bulkSelectable: ok) == .measuring
