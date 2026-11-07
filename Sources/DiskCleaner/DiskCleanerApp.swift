@@ -117,9 +117,13 @@ final class ScanStore: ObservableObject {
     let dev: DevCleanupModel
     /// V2-DEV layer 2: per-project build output / venvs (listed, ticked by hand).
     let devArtifacts = DevArtifactsModel()
+    /// V2-SCAN: multi-module Smart Scan session over the models above.
+    let session: SmartScanSession
 
     init() {
         dev = DevCleanupModel(caches: devcache, nodeModules: nodemodules, artifacts: devArtifacts)
+        session = SmartScanSession(smart: smart, trash: trash, orphans: orphans, big: big,
+                                   nodeModules: nodemodules, artifacts: devArtifacts)
         // 总览那个「还能腾出多少」要报真数，而真数的来源是缓存知识库量出来的那些处。
         // 两个模型都由这里持有，所以接线放在这一层，不让 OverviewModel 去摸 store。
         overview.bind(caches: [caches, devcache])
