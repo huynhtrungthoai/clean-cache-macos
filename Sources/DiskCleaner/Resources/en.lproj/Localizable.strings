@@ -1408,3 +1408,12 @@
 "Identified developer" = "Identified developer";
 "Ad-hoc signed" = "Ad-hoc signed";
 "Not signed" = "Not signed";
+"Images" = "Images";
+"Videos" = "Videos";
+"Audio" = "Audio";
+"Archives" = "Archives";
+"Disk images" = "Disk images";
+"Documents" = "Documents";
+"Code & data" = "Code & data";
+"Apps & installers" = "Apps & installers";
+"Other files" = "Other files";

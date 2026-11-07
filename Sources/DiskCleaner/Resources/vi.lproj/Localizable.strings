@@ -1408,3 +1408,12 @@
 "Identified developer" = "Nhà phát triển đã xác minh";
 "Ad-hoc signed" = "Ký ad-hoc";
 "Not signed" = "Chưa ký";
+"Images" = "Hình ảnh";
+"Videos" = "Video";
+"Audio" = "Âm thanh";
+"Archives" = "Tệp nén";
+"Disk images" = "Ảnh đĩa";
+"Documents" = "Tài liệu";
+"Code & data" = "Mã nguồn & dữ liệu";
+"Apps & installers" = "Ứng dụng & bộ cài";
+"Other files" = "Tệp khác";

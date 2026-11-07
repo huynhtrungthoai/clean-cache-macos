@@ -2858,5 +2858,39 @@ do {
     }
 }
 
+// V2-FILES: kind from extension, search/kind filter keeps selection, walk records atime apart from mtime.
+do {
+    func u(_ n: String) -> URL { URL(fileURLWithPath: "/tmp/v2f/" + n) }
+    check(fileKind(for: u("a.JPG")) == .image && fileKind(for: u("b.mov")) == .video && fileKind(for: u("c.mp3")) == .audio
+          && fileKind(for: u("d.zip")) == .archive && fileKind(for: u("e.dmg")) == .diskImage
+          && fileKind(for: u("f.pdf")) == .document && fileKind(for: u("g.swift")) == .code
+          && fileKind(for: u("h.pkg")) == .application && fileKind(for: u("noext")) == .other,
+          "V2-FILES: kind from the extension's system type")
+    let now = Date()
+    let rows = [FileRow(url: u("Trip.mov"), size: 900, mtime: now, selected: true),
+                FileRow(url: u("notes.pdf"), size: 100, mtime: now),
+                FileRow(url: u("trip-2.mov"), size: 500, mtime: now)]
+    let f = filterFileRows(rows, query: "trip", kinds: [.video])
+    check(f.count == 2 && f[0].selected && !f[1].selected, "V2-FILES: filter matches name case-insensitively, keeps selection")
+    check(filterFileRows(rows, kinds: [.document]).map(\.name) == ["notes.pdf"], "V2-FILES: kind filter")
+    let kc = fileKindCounts(rows)
+    check(kc.count == 2 && kc[0].kind == .video && kc[0].count == 2 && kc[0].bytes == 1400, "V2-FILES: kind counts and bytes")
+    let fm = FileManager.default
+    let dir = NSTemporaryDirectory() + "v2files-\(UUID().uuidString)"
+    try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    let file = dir + "/old.bin"
+    fm.createFile(atPath: file, contents: Data(count: 8192))
+    let m = Date(timeIntervalSince1970: 1_600_000_000), a = Date(timeIntervalSince1970: 1_700_000_000)
+    var times = [timeval(tv_sec: Int(a.timeIntervalSince1970), tv_usec: 0), timeval(tv_sec: Int(m.timeIntervalSince1970), tv_usec: 0)]
+    utimes(file, &times)
+    let sem = DispatchSemaphore(value: 0)
+    var res: WalkResult? = nil
+    Task.detached { res = await walkFiles(dirs: [URL(fileURLWithPath: dir)]); sem.signal() }
+    sem.wait()
+    let row = res?.rows.first
+    check(row?.mtime == m && row?.accessedAt == a, "V2-FILES: walk keeps modified and accessed dates apart")
+    try? fm.removeItem(atPath: dir)
+}
+
 print(failures == 0 ? "ALL PASS" : "\(failures) FAILURES")
 exit(failures == 0 ? 0 : 1)

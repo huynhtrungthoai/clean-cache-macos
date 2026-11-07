@@ -1408,3 +1408,12 @@
 "Identified developer" = "確認済みの開発元";
 "Ad-hoc signed" = "アドホック署名";
 "Not signed" = "未署名";
+"Images" = "画像";
+"Videos" = "ビデオ";
+"Audio" = "オーディオ";
+"Archives" = "アーカイブ";
+"Disk images" = "ディスクイメージ";
+"Documents" = "書類";
+"Code & data" = "コードとデータ";
+"Apps & installers" = "アプリとインストーラ";
+"Other files" = "その他のファイル";

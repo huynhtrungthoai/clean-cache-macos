@@ -26,6 +26,20 @@ final class BigFilesModel: ObservableObject, ScanStatusReporting {
     private var customDirs: [URL]? = nil
 
     var selected: [FileRow] { rows.filter { $0.selected } }
+
+    // MARK: - V2-FILES (docs/enhance-feat.md §11)
+
+    /// Search/kind filter over the rows shown. Selection is kept on the rows themselves.
+    func filtered(query: String = "", kinds: Set<FileKind> = []) -> [FileRow] {
+        filterFileRows(rows, query: query, kinds: kinds)
+    }
+
+    /// Kind chips with counts over the rows shown.
+    var kindCounts: [(kind: FileKind, count: Int, bytes: Int64)] { fileKindCounts(rows) }
+
+    /// The scan matched more files than are listed: filters apply to the listed (largest) ones
+    /// only. The UI says "Filtering the N largest of M found".
+    var rowsAreTruncated: Bool { count > rows.count }
     var selectedBytes: Int64 { selected.reduce(0) { $0 + $1.size } }
 
     /// 「全选」只管勾得动的那几行：本工具不碰的行选上也删不掉，全选后按清理只会换一屏报错。

@@ -1408,3 +1408,12 @@
 "Identified developer" = "Подтверждённый разработчик";
 "Ad-hoc signed" = "Подпись ad-hoc";
 "Not signed" = "Без подписи";
+"Images" = "Изображения";
+"Videos" = "Видео";
+"Audio" = "Аудио";
+"Archives" = "Архивы";
+"Disk images" = "Образы дисков";
+"Documents" = "Документы";
+"Code & data" = "Код и данные";
+"Apps & installers" = "Приложения и установщики";
+"Other files" = "Другие файлы";

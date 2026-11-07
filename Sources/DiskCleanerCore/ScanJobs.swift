@@ -12,8 +12,17 @@ public struct FileRow: Identifiable {
     public var size: Int64
     public var mtime: Date
     public var selected = false
+    /// Filesystem last-access time (atime). Updated lazily by macOS: "last accessed (file system
+    /// record)", never "last used". nil when not read.
+    public var accessedAt: Date? = nil
+
+    public init(url: URL, size: Int64, mtime: Date, accessedAt: Date? = nil, selected: Bool = false) {
+        self.url = url; self.size = size; self.mtime = mtime; self.accessedAt = accessedAt; self.selected = selected
+    }
 
     public var name: String { url.lastPathComponent }
+    /// V2-FILES: kind from the extension (no file opened).
+    public var kind: FileKind { fileKind(for: url) }
     /// 这一项我们删得动吗。整盘扫描会把系统区也摆上列表：账要算全，手不能伸。
     public var deletable: Bool { isDeletable(url) }
     public var dateStr: String {
@@ -117,7 +126,8 @@ public func walkFiles(dirs: [URL], minSize: Int64 = 0, olderThan: Date? = nil,
             guard sz >= minSize, cutoff == nil || mt < cutoff! else { continue }
             matched += 1
             out.append(FileRow(url: URL(fileURLWithPath: p), size: sz,
-                               mtime: Date(timeIntervalSince1970: mt)))
+                               mtime: Date(timeIntervalSince1970: mt),
+                               accessedAt: Date(timeIntervalSince1970: Double(st.st_atimespec.tv_sec))))
             if top > 0 && out.count >= top * 4 {
                 out.sort { $0.size > $1.size }
                 out = Array(out.prefix(top))

@@ -1408,3 +1408,12 @@
 "Identified developer" = "확인된 개발자";
 "Ad-hoc signed" = "애드혹 서명";
 "Not signed" = "서명되지 않음";
+"Images" = "이미지";
+"Videos" = "비디오";
+"Audio" = "오디오";
+"Archives" = "압축 파일";
+"Disk images" = "디스크 이미지";
+"Documents" = "문서";
+"Code & data" = "코드 및 데이터";
+"Apps & installers" = "앱 및 설치 프로그램";
+"Other files" = "기타 파일";
